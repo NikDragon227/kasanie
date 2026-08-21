@@ -1,0 +1,39 @@
+# Безопасность и приватность
+
+## Реализовано
+
+- ASP.NET Core Identity и штатное хэширование паролей;
+- HttpOnly cookie, `Secure` в production, SameSite Lax, 8-часовая sliding session;
+- antiforgery token для POST/PUT/PATCH/DELETE;
+- блокировка после 5 неудачных входов и IP rate limit входа;
+- роли на API и ресурсные проверки для coach/player и parent/child;
+- отсутствие bearer token и учётных данных в localStorage;
+- DTO вместо возврата EF entities; централизованный ProblemDetails handler;
+- региональный endpoint агрегирует данные, подавляет группы меньше configurable threshold и не возвращает PII;
+- аудит регистрации, входа, детского профиля/согласия, оценок, тренировок, связей и admin-изменений;
+- security headers, лимит тела запроса, отключённый production OpenAPI;
+- health endpoint без секретов; `/health/live` проверяет живость процесса, `/health/ready` — готовность с БД; PostgreSQL не публикуется наружу;
+- Data Protection keys находятся в отдельном persistent volume;
+- первый production Admin создаётся только из явно заданных одноразовых environment credentials без default password;
+- секреты поступают через `.env`, который исключён из Git.
+
+## Ограничения MVP
+
+- Реализация не является заявлением о соответствии 152-ФЗ или иному законодательству.
+- Для реальных детских данных обязательны формальная юридическая и информационно-безопасностная экспертиза, документы согласия, сроки хранения и процедура удаления.
+- Подтверждение email и восстановление пароля используют Identity tokens; в production необходимо подключить SMTP-провайдера через environment variables.
+- Data Protection keys в volume не зашифрованы отдельным KMS; ограничьте доступ root и backup-операторов.
+- Audit log хранится в той же БД; для повышенных требований нужен внешний append-only sink/SIEM.
+- Нет MFA, антивирусной проверки uploads (uploads отключены), DDoS/WAF и автоматического vulnerability scanning.
+
+## Production checklist
+
+1. Сгенерировать уникальный пароль БД не короче 32 случайных символов.
+2. Установить `ASPNETCORE_ENVIRONMENT=Production`, `COOKIE_SECURE=true`, корректный домен и HTTPS.
+3. Закрыть firewall: наружу только 22 (по allowlist), 80 и 443; БД не публиковать.
+4. Проверить TLS, HSTS, DNS, время сервера и права на `.env`/certificates.
+5. Выполнить юридическую оценку детских данных, privacy notice и договоров операторов.
+6. Настроить ежедневный encrypted off-site backup, контроль восстановления и retention.
+7. Включить мониторинг 5xx/latency/disk/DB, central logs и alerts.
+8. Запустить SAST/dependency/container scan и внешний pentest перед реальными данными.
+9. Подготовить incident response, ротацию секретов, процедуру удаления/выгрузки данных.

@@ -1,0 +1,61 @@
+name: kasanie
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kasanie}
+      POSTGRES_USER: ${POSTGRES_USER:-kasanie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kasanie-dev}
+    volumes:
+      - kasanie_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  api:
+    build:
+      context: ./backend
+      dockerfile: Kasanie.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=${POSTGRES_DB:-kasanie};Username=${POSTGRES_USER:-kasanie};Password=${POSTGRES_PASSWORD:-kasanie-dev}
+      CookieSecure: ${COOKIE_SECURE:-false}
+      Analytics__MinimumGroupSize: ${ANALYTICS_MINIMUM_GROUP_SIZE:-3}
+      DataProtection__KeysPath: /app/keys
+      BootstrapAdmin__Email: ${BootstrapAdmin__Email:-}
+      BootstrapAdmin__Password: ${BootstrapAdmin__Password:-}
+      App__PublicUrl: ${APP_BASE_URL:-http://localhost}
+      Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__Username: ${SMTP_USERNAME:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__From: ${SMTP_FROM:-no-reply@kasanie.local}
+      Smtp__UseSsl: ${SMTP_USE_SSL:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - kasanie_keys:/app/keys
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+volumes:
+  kasanie_pgdata:
+  kasanie_keys:

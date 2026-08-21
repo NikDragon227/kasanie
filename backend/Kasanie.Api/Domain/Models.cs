@@ -1,0 +1,303 @@
+using Microsoft.AspNetCore.Identity;
+
+namespace Kasanie.Api.Domain;
+
+public static class Roles
+{
+    public const string Player = "Player";
+    public const string Coach = "Coach";
+    public const string Parent = "Parent";
+    public const string RegionalAnalyst = "RegionalAnalyst";
+    public const string Admin = "Admin";
+    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, Admin];
+}
+
+public enum SkillCategory { Speed, Endurance, BallControl, Passing, Shooting, Agility }
+public enum ScoringDirection { HigherIsBetter, LowerIsBetter }
+public enum LinkStatus { Pending, Active, Suspended }
+public enum PlanStatus { Active, Completed, Archived }
+public enum SessionStatus { Planned, InProgress, Completed }
+
+public sealed class ApplicationUser : IdentityUser
+{
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LastActiveAt { get; set; }
+}
+
+public sealed class Municipality
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Region { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class PlayerProfile
+{
+    public int Id { get; set; }
+    public string? UserId { get; set; }
+    public ApplicationUser? User { get; set; }
+    public required string FirstName { get; set; }
+    public required string LastName { get; set; }
+    public DateOnly DateOfBirth { get; set; }
+    public string? Gender { get; set; }
+    public int MunicipalityId { get; set; }
+    public Municipality Municipality { get; set; } = null!;
+    public required string PreferredPosition { get; set; }
+    public required string DominantFoot { get; set; }
+    public required string ExperienceLevel { get; set; }
+    public decimal? Height { get; set; }
+    public decimal? Weight { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class ParentProfile
+{
+    public int Id { get; set; }
+    public required string UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+}
+
+public sealed class ParentPlayerLink
+{
+    public int ParentId { get; set; }
+    public ParentProfile Parent { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public required string Relationship { get; set; }
+    public bool IsPrimary { get; set; }
+    public bool ConsentAccepted { get; set; }
+    public required string ConsentVersion { get; set; }
+    public DateTimeOffset? ConsentAcceptedAt { get; set; }
+}
+
+public sealed class CoachProfile
+{
+    public int Id { get; set; }
+    public required string UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+    public required string DisplayName { get; set; }
+}
+
+public sealed class CoachPlayerLink
+{
+    public int CoachId { get; set; }
+    public CoachProfile Coach { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public LinkStatus Status { get; set; } = LinkStatus.Active;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class AssessmentDefinition
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Description { get; set; }
+    public required string Instructions { get; set; }
+    public required string Unit { get; set; }
+    public SkillCategory SkillCategory { get; set; }
+    public ScoringDirection ScoringDirection { get; set; }
+    public decimal MinimumReasonableValue { get; set; }
+    public decimal MaximumReasonableValue { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class AssessmentNorm
+{
+    public int Id { get; set; }
+    public int AssessmentDefinitionId { get; set; }
+    public AssessmentDefinition AssessmentDefinition { get; set; } = null!;
+    public int MinimumAge { get; set; }
+    public int MaximumAge { get; set; }
+    public decimal LowPerformanceValue { get; set; }
+    public decimal HighPerformanceValue { get; set; }
+    public bool IsDemo { get; set; } = true;
+    public required string SourceNote { get; set; }
+}
+
+public sealed class AssessmentSession
+{
+    public int Id { get; set; }
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public bool IsCompleted { get; set; }
+    public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+    public List<AssessmentResult> Results { get; set; } = [];
+}
+
+public sealed class AssessmentResult
+{
+    public int Id { get; set; }
+    public int AssessmentSessionId { get; set; }
+    public AssessmentSession AssessmentSession { get; set; } = null!;
+    public int AssessmentDefinitionId { get; set; }
+    public AssessmentDefinition AssessmentDefinition { get; set; } = null!;
+    public decimal RawValue { get; set; }
+    public int NormalizedScore { get; set; }
+}
+
+public sealed class SkillSnapshot
+{
+    public int Id { get; set; }
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public int AssessmentSessionId { get; set; }
+    public int Speed { get; set; }
+    public int Endurance { get; set; }
+    public int BallControl { get; set; }
+    public int Passing { get; set; }
+    public int Shooting { get; set; }
+    public int Agility { get; set; }
+    public DateTimeOffset CapturedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int Get(SkillCategory category) => category switch
+    {
+        SkillCategory.Speed => Speed,
+        SkillCategory.Endurance => Endurance,
+        SkillCategory.BallControl => BallControl,
+        SkillCategory.Passing => Passing,
+        SkillCategory.Shooting => Shooting,
+        _ => Agility
+    };
+}
+
+public sealed class Exercise
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Description { get; set; }
+    public required string Instructions { get; set; }
+    public SkillCategory SkillCategory { get; set; }
+    public int Difficulty { get; set; }
+    public int DurationMinutes { get; set; }
+    public required string Equipment { get; set; }
+    public string? VideoUrl { get; set; }
+    public string? ImageUrl { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TrainingProgram
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Description { get; set; }
+    public int Weeks { get; set; } = 4;
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class TrainingProgramExercise
+{
+    public int TrainingProgramId { get; set; }
+    public TrainingProgram TrainingProgram { get; set; } = null!;
+    public int ExerciseId { get; set; }
+    public Exercise Exercise { get; set; } = null!;
+    public int SortOrder { get; set; }
+}
+
+public sealed class TrainingPlan
+{
+    public int Id { get; set; }
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public int? TrainingProgramId { get; set; }
+    public TrainingProgram? TrainingProgram { get; set; }
+    public DateOnly WeekStart { get; set; }
+    public PlanStatus Status { get; set; } = PlanStatus.Active;
+    public string GenerationReason { get; set; } = "Персональный план";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TrainingDay> Days { get; set; } = [];
+}
+
+public sealed class TrainingDay
+{
+    public int Id { get; set; }
+    public int TrainingPlanId { get; set; }
+    public TrainingPlan TrainingPlan { get; set; } = null!;
+    public DateOnly PlannedDate { get; set; }
+    public string Title { get; set; } = "Тренировка";
+    public List<TrainingExercise> Exercises { get; set; } = [];
+}
+
+public sealed class TrainingExercise
+{
+    public int Id { get; set; }
+    public int TrainingDayId { get; set; }
+    public TrainingDay TrainingDay { get; set; } = null!;
+    public int ExerciseId { get; set; }
+    public Exercise Exercise { get; set; } = null!;
+    public int SortOrder { get; set; }
+    public int TargetDurationMinutes { get; set; }
+    public int? TargetRepetitions { get; set; }
+}
+
+public sealed class TrainingSession
+{
+    public int Id { get; set; }
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public int TrainingDayId { get; set; }
+    public TrainingDay TrainingDay { get; set; } = null!;
+    public SessionStatus Status { get; set; } = SessionStatus.Planned;
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public string? Notes { get; set; }
+    public List<TrainingExerciseResult> Results { get; set; } = [];
+}
+
+public sealed class TrainingExerciseResult
+{
+    public int Id { get; set; }
+    public int TrainingSessionId { get; set; }
+    public TrainingSession TrainingSession { get; set; } = null!;
+    public int TrainingExerciseId { get; set; }
+    public TrainingExercise TrainingExercise { get; set; } = null!;
+    public bool IsCompleted { get; set; }
+    public int? DurationMinutes { get; set; }
+    public int? Repetitions { get; set; }
+    public string? Notes { get; set; }
+    public int? PerceivedDifficulty { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
+public sealed class AchievementDefinition
+{
+    public int Id { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required string Description { get; set; }
+}
+
+public sealed class PlayerAchievement
+{
+    public int Id { get; set; }
+    public int PlayerId { get; set; }
+    public int AchievementDefinitionId { get; set; }
+    public AchievementDefinition AchievementDefinition { get; set; } = null!;
+    public DateTimeOffset AwardedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class CoachNote
+{
+    public int Id { get; set; }
+    public int CoachId { get; set; }
+    public int PlayerId { get; set; }
+    public required string Text { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class AuditLog
+{
+    public long Id { get; set; }
+    public string? UserId { get; set; }
+    public required string EventType { get; set; }
+    public required string EntityType { get; set; }
+    public string? EntityId { get; set; }
+    public string? Details { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}

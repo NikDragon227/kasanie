@@ -1,0 +1,200 @@
+using Kasanie.Api.Application;
+using Kasanie.Api.Domain;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+namespace Kasanie.Api.Infrastructure;
+
+public sealed class DevelopmentSeeder(
+    AppDbContext db,
+    UserManager<ApplicationUser> users,
+    ITrainingPlanGenerator planGenerator,
+    ILogger<DevelopmentSeeder> logger)
+{
+    public const string DemoPassword = "Kasanie-Demo-2026!";
+
+    private static readonly (string Name, string Region)[] DemoMunicipalities =
+    [
+        ("Альметьевск", "Республика Татарстан"), ("Архангельск", "Архангельская область"),
+        ("Астрахань", "Астраханская область"), ("Барнаул", "Алтайский край"),
+        ("Белгород", "Белгородская область"), ("Брянск", "Брянская область"),
+        ("Владивосток", "Приморский край"), ("Владикавказ", "Республика Северная Осетия — Алания"),
+        ("Владимир", "Владимирская область"), ("Волгоград", "Волгоградская область"),
+        ("Вологда", "Вологодская область"), ("Воронеж", "Воронежская область"),
+        ("Екатеринбург", "Свердловская область"), ("Иваново", "Ивановская область"),
+        ("Ижевск", "Удмуртская Республика"), ("Иркутск", "Иркутская область"),
+        ("Казань", "Республика Татарстан"), ("Калининград", "Калининградская область"),
+        ("Калуга", "Калужская область"), ("Кемерово", "Кемеровская область — Кузбасс"),
+        ("Киров", "Кировская область"), ("Краснодар", "Краснодарский край"),
+        ("Красноярск", "Красноярский край"), ("Курск", "Курская область"),
+        ("Липецк", "Липецкая область"), ("Магнитогорск", "Челябинская область"),
+        ("Махачкала", "Республика Дагестан"), ("Москва", "Москва"),
+        ("Набережные Челны", "Республика Татарстан"), ("Нижний Новгород", "Нижегородская область"),
+        ("Новокузнецк", "Кемеровская область — Кузбасс"), ("Новороссийск", "Краснодарский край"),
+        ("Новосибирск", "Новосибирская область"), ("Омск", "Омская область"),
+        ("Оренбург", "Оренбургская область"), ("Орёл", "Орловская область"),
+        ("Пенза", "Пензенская область"), ("Пермь", "Пермский край"),
+        ("Петрозаводск", "Республика Карелия"), ("Псков", "Псковская область"),
+        ("Ростов-на-Дону", "Ростовская область"), ("Рязань", "Рязанская область"),
+        ("Самара", "Самарская область"), ("Санкт-Петербург", "Санкт-Петербург"),
+        ("Саратов", "Саратовская область"), ("Севастополь", "Севастополь"),
+        ("Симферополь", "Республика Крым"), ("Смоленск", "Смоленская область"),
+        ("Сочи", "Краснодарский край"), ("Ставрополь", "Ставропольский край"),
+        ("Сургут", "Ханты-Мансийский автономный округ — Югра"), ("Тамбов", "Тамбовская область"),
+        ("Тверь", "Тверская область"), ("Тольятти", "Самарская область"),
+        ("Томск", "Томская область"), ("Тула", "Тульская область"),
+        ("Тюмень", "Тюменская область"), ("Улан-Удэ", "Республика Бурятия"),
+        ("Ульяновск", "Ульяновская область"), ("Уфа", "Республика Башкортостан"),
+        ("Хабаровск", "Хабаровский край"), ("Чебоксары", "Чувашская Республика"),
+        ("Челябинск", "Челябинская область"), ("Череповец", "Вологодская область"),
+        ("Чита", "Забайкальский край"), ("Ярославль", "Ярославская область"),
+        ("Зеленодольск", "Республика Татарстан")
+    ];
+
+    public async Task SeedAsync()
+    {
+        var municipalityNames = await db.Municipalities.Select(x => x.Name).ToHashSetAsync();
+        var missingMunicipalities = DemoMunicipalities.Where(x => !municipalityNames.Contains(x.Name))
+            .Select(x => new Municipality { Name = x.Name, Region = x.Region }).ToList();
+        if (missingMunicipalities.Count > 0)
+        {
+            db.Municipalities.AddRange(missingMunicipalities);
+            await db.SaveChangesAsync();
+        }
+
+        var playerUser = await EnsureUser("player@kasanie.local", Roles.Player);
+        var coachUser = await EnsureUser("coach@kasanie.local", Roles.Coach);
+        var parentUser = await EnsureUser("parent@kasanie.local", Roles.Parent);
+        await EnsureUser("analyst@kasanie.local", Roles.RegionalAnalyst);
+        await EnsureUser("admin@kasanie.local", Roles.Admin);
+
+        if (!await db.AssessmentDefinitions.AnyAsync())
+        {
+            AddAssessment("Спринт 30 м", "Скорость на короткой дистанции", "Разомнитесь. Пробегите 30 метров с высокого старта, зафиксируйте лучший результат из двух попыток.", "сек", SkillCategory.Speed, ScoringDirection.LowerIsBetter, 3.5m, 10m, 7.5m, 4.2m, 1);
+            AddAssessment("Бег 6 минут", "Общая выносливость", "Бегите 6 минут в устойчивом темпе и измерьте преодолённую дистанцию.", "м", SkillCategory.Endurance, ScoringDirection.HigherIsBetter, 400, 2200, 700, 1800, 2);
+            AddAssessment("Слалом с мячом", "Контроль мяча в движении", "Проведите мяч между шестью стойками и измерьте время.", "сек", SkillCategory.BallControl, ScoringDirection.LowerIsBetter, 6, 40, 28, 9, 3);
+            AddAssessment("Точные передачи", "Точность коротких передач", "Выполните 20 передач в размеченную зону и укажите число точных.", "из 20", SkillCategory.Passing, ScoringDirection.HigherIsBetter, 0, 20, 5, 19, 4);
+            AddAssessment("Удары в створ", "Точность завершения", "Выполните 10 ударов с контрольной точки и укажите попадания в створ.", "из 10", SkillCategory.Shooting, ScoringDirection.HigherIsBetter, 0, 10, 2, 10, 5);
+            AddAssessment("Челночный бег 4×10", "Смена направления и координация", "Пробегите четыре отрезка по 10 метров, касаясь линии рукой.", "сек", SkillCategory.Agility, ScoringDirection.LowerIsBetter, 7, 20, 16, 8.5m, 6);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.Exercises.AnyAsync())
+        {
+            var catalog = new[]
+            {
+                Ex("Взрывные старты", "Короткие ускорения из разных положений.", "6 ускорений по 10–15 м. Полный отдых между повторами.", SkillCategory.Speed, 2, 15, "Фишки"),
+                Ex("Интервальный бег", "Развитие общей выносливости.", "6 циклов: 2 минуты лёгкого бега, 1 минута активного.", SkillCategory.Endurance, 3, 24, "Секундомер"),
+                Ex("Слалом обеими ногами", "Ведение и частые касания.", "Пройдите коридор из 8 фишек четырьмя способами.", SkillCategory.BallControl, 2, 20, "Мяч, 8 фишек"),
+                Ex("Передачи в квадрат", "Точность первого паса.", "40 передач в квадрат 1×1 м с расстояния 8 м.", SkillCategory.Passing, 2, 18, "Мяч, мишень"),
+                Ex("Удар после смещения", "Завершение после ведения.", "5 серий по 4 удара после смещения вправо и влево.", SkillCategory.Shooting, 3, 22, "Мяч, ворота, фишки"),
+                Ex("Координационная лестница", "Частота ног и баланс.", "Выполните 6 паттернов, по 3 прохода каждого.", SkillCategory.Agility, 2, 16, "Координационная лестница"),
+                Ex("Повторные ускорения", "Скоростная выносливость.", "2 серии по 6 ускорений 20 м, отдых 30 секунд.", SkillCategory.Speed, 4, 20, "Фишки"),
+                Ex("Квадрат касаний", "Контроль в ограниченном пространстве.", "60 секунд непрерывных касаний, 5 серий.", SkillCategory.BallControl, 3, 15, "Мяч, 4 фишки"),
+                Ex("Пас после разворота", "Ориентация корпуса и точность.", "Примите мяч, развернитесь и выполните 30 передач в цель.", SkillCategory.Passing, 3, 20, "Мяч, стенка или партнёр"),
+                Ex("Планка и мобильность", "Общая физическая подготовка.", "3 круга: планка, боковая планка, выпады и мобильность голеностопа.", SkillCategory.Endurance, 1, 15, "Коврик"),
+                Ex("Удары слабой ногой", "Уверенность слабой ногой.", "30 контролируемых ударов по секторам ворот.", SkillCategory.Shooting, 3, 20, "Мячи, ворота"),
+                Ex("Реактивные смены направления", "Реакция и ловкость.", "По сигналу меняйте направление между четырьмя цветными фишками.", SkillCategory.Agility, 3, 18, "4 цветные фишки")
+            };
+            db.Exercises.AddRange(catalog);
+            db.TrainingPrograms.Add(new TrainingProgram { Name = "База: 4 недели", Description = "Сбалансированное развитие техники и физических качеств", Weeks = 4 });
+            db.AchievementDefinitions.AddRange(
+                new AchievementDefinition { Code = "FIRST_ASSESSMENT", Name = "Точка отсчёта", Description = "Завершено первое тестирование" },
+                new AchievementDefinition { Code = "FIRST_WORKOUT", Name = "Первый шаг", Description = "Завершена первая тренировка" });
+            await db.SaveChangesAsync();
+        }
+
+        var municipality = await db.Municipalities.SingleAsync(x => x.Name == "Казань");
+        var player = await db.Players.SingleOrDefaultAsync(x => x.UserId == playerUser.Id);
+        if (player is null)
+        {
+            player = new PlayerProfile { UserId = playerUser.Id, FirstName = "Артём", LastName = "Соколов", DateOfBirth = new DateOnly(2010, 5, 12), MunicipalityId = municipality.Id, PreferredPosition = "Полузащитник", DominantFoot = "Правая", ExperienceLevel = "Любитель", Height = 168, Weight = 57 };
+            db.Players.Add(player);
+            await db.SaveChangesAsync();
+        }
+
+        var coach = await db.CoachProfiles.SingleOrDefaultAsync(x => x.UserId == coachUser.Id);
+        if (coach is null) { coach = new CoachProfile { UserId = coachUser.Id, DisplayName = "Илья Морозов" }; db.CoachProfiles.Add(coach); }
+        var parent = await db.ParentProfiles.SingleOrDefaultAsync(x => x.UserId == parentUser.Id);
+        if (parent is null) { parent = new ParentProfile { UserId = parentUser.Id }; db.ParentProfiles.Add(parent); }
+        await db.SaveChangesAsync();
+
+        var child = await db.Players.SingleOrDefaultAsync(x => x.UserId == null && x.FirstName == "Миша" && x.LastName == "Волков");
+        if (child is null)
+        {
+            child = new PlayerProfile { FirstName = "Миша", LastName = "Волков", DateOfBirth = new DateOnly(2014, 9, 3), MunicipalityId = municipality.Id, PreferredPosition = "Нападающий", DominantFoot = "Левая", ExperienceLevel = "Начинающий" };
+            db.Players.Add(child);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.CoachPlayerLinks.AnyAsync(x => x.CoachId == coach.Id && x.PlayerId == player.Id)) db.CoachPlayerLinks.Add(new CoachPlayerLink { CoachId = coach.Id, PlayerId = player.Id });
+        if (!await db.ParentPlayerLinks.AnyAsync(x => x.ParentId == parent.Id && x.PlayerId == child.Id)) db.ParentPlayerLinks.Add(new ParentPlayerLink { ParentId = parent.Id, PlayerId = child.Id, Relationship = "Отец", IsPrimary = true, ConsentAccepted = true, ConsentVersion = "demo-v1", ConsentAcceptedAt = DateTimeOffset.UtcNow.AddDays(-30) });
+        await db.SaveChangesAsync();
+
+        if (!await db.SkillSnapshots.AnyAsync(x => x.PlayerId == player.Id))
+        {
+            await CreateHistory(player, [62, 55, 48, 70, 51, 58], DateTimeOffset.UtcNow.AddDays(-42));
+            var latest = await CreateHistory(player, [69, 63, 57, 75, 60, 66], DateTimeOffset.UtcNow.AddDays(-7));
+            var plan = planGenerator.Generate(player, latest, await db.Exercises.AsNoTracking().ToListAsync(), Dates.Monday(DateOnly.FromDateTime(DateTime.UtcNow)));
+            db.TrainingPlans.Add(plan);
+            db.PlayerAchievements.Add(new PlayerAchievement { PlayerId = player.Id, AchievementDefinitionId = (await db.AchievementDefinitions.FirstAsync(x => x.Code == "FIRST_ASSESSMENT")).Id, AwardedAt = DateTimeOffset.UtcNow.AddDays(-7) });
+            await db.SaveChangesAsync();
+        }
+
+        var demoNames = new[] { "Демо 1", "Демо 2", "Демо 3", "Демо 4" };
+        foreach (var name in demoNames)
+        {
+            if (await db.Players.AnyAsync(x => x.FirstName == name)) continue;
+            db.Players.Add(new PlayerProfile { FirstName = name, LastName = "Регион", DateOfBirth = new DateOnly(2011, 1, 1), MunicipalityId = municipality.Id, PreferredPosition = "Защитник", DominantFoot = "Правая", ExperienceLevel = "Начинающий", CreatedAt = DateTimeOffset.UtcNow.AddDays(-15) });
+        }
+        await db.SaveChangesAsync();
+        var profilesWithoutHistory = await db.Players.Where(x => !db.SkillSnapshots.Any(s => s.PlayerId == x.Id)).ToListAsync();
+        foreach (var profile in profilesWithoutHistory)
+        {
+            var baseScore = 48 + profile.Id % 12;
+            var snapshot = await CreateHistory(profile, [baseScore + 4, baseScore, baseScore + 7, baseScore + 10, baseScore + 2, baseScore + 5], DateTimeOffset.UtcNow.AddDays(-(profile.Id % 6)));
+            var generatedPlan = planGenerator.Generate(profile, snapshot, await db.Exercises.AsNoTracking().ToListAsync(), Dates.Monday(DateOnly.FromDateTime(DateTime.UtcNow)));
+            db.TrainingPlans.Add(generatedPlan);
+            await db.SaveChangesAsync();
+            var firstDay = generatedPlan.Days[0];
+            var completedSession = new TrainingSession { PlayerId = profile.Id, TrainingDayId = firstDay.Id, Status = SessionStatus.Completed, StartedAt = DateTimeOffset.UtcNow.AddDays(-2), CompletedAt = DateTimeOffset.UtcNow.AddDays(-2).AddMinutes(55), Notes = "DEMO history" };
+            foreach (var item in firstDay.Exercises) completedSession.Results.Add(new TrainingExerciseResult { TrainingExerciseId = item.Id, IsCompleted = true, DurationMinutes = item.TargetDurationMinutes, PerceivedDifficulty = 3, CompletedAt = completedSession.CompletedAt });
+            db.TrainingSessions.Add(completedSession);
+            await db.SaveChangesAsync();
+        }
+        logger.LogInformation("Development demo data is ready. Demo password: {DemoPasswordMarker}", "configured in README (development only)");
+    }
+
+    private async Task<ApplicationUser> EnsureUser(string email, string role)
+    {
+        var user = await users.FindByEmailAsync(email);
+        if (user is null)
+        {
+            user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
+            var result = await users.CreateAsync(user, DemoPassword);
+            if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(x => x.Description)));
+        }
+        if (!await users.IsInRoleAsync(user, role)) await users.AddToRoleAsync(user, role);
+        return user;
+    }
+
+    private void AddAssessment(string name, string description, string instructions, string unit, SkillCategory category, ScoringDirection direction, decimal min, decimal max, decimal low, decimal high, int order)
+    {
+        var definition = new AssessmentDefinition { Name = name, Description = description, Instructions = instructions, Unit = unit, SkillCategory = category, ScoringDirection = direction, MinimumReasonableValue = min, MaximumReasonableValue = max, SortOrder = order };
+        db.AssessmentDefinitions.Add(definition);
+        db.AssessmentNorms.Add(new AssessmentNorm { AssessmentDefinition = definition, MinimumAge = 6, MaximumAge = 99, LowPerformanceValue = low, HighPerformanceValue = high, IsDemo = true, SourceNote = "DEMO: условная шкала для проверки продукта; не является научно валидированным нормативом." });
+    }
+
+    private static Exercise Ex(string name, string description, string instructions, SkillCategory category, int difficulty, int duration, string equipment) => new() { Name = name, Description = description, Instructions = instructions, SkillCategory = category, Difficulty = difficulty, DurationMinutes = duration, Equipment = equipment };
+
+    private async Task<SkillSnapshot> CreateHistory(PlayerProfile player, int[] scores, DateTimeOffset capturedAt)
+    {
+        var session = new AssessmentSession { PlayerId = player.Id, IsCompleted = true, StartedAt = capturedAt.AddMinutes(-20), CompletedAt = capturedAt };
+        db.AssessmentSessions.Add(session);
+        await db.SaveChangesAsync();
+        var snapshot = new SkillSnapshot { PlayerId = player.Id, AssessmentSessionId = session.Id, Speed = scores[0], Endurance = scores[1], BallControl = scores[2], Passing = scores[3], Shooting = scores[4], Agility = scores[5], CapturedAt = capturedAt };
+        db.SkillSnapshots.Add(snapshot);
+        await db.SaveChangesAsync();
+        return snapshot;
+    }
+}
