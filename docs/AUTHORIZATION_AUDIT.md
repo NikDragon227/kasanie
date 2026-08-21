@@ -57,6 +57,8 @@
 | `GET/POST/PUT/DELETE /api/admin/programs[/{id}]` | Admin | Глобальный справочник — назначение роли, изменения аудируются | Допустимо |
 | `GET/POST/PUT/DELETE /api/admin/municipalities[/{id}]` | Admin | Глобальный справочник — назначение роли, изменения аудируются | Допустимо |
 | `GET /api/admin/users` | Admin | Глобальное управление пользователями — назначение роли | Допустимо |
+| `POST /api/admin/users` | Admin | Создаёт аккаунт без пароля, профиль/region claim по роли и 24-часовую Identity-ссылку; токен не аудируется | Добавлено |
+| `PUT /api/admin/users/{id}/lock` | Admin | Блокирует без удаления и инвалидирует активную cookie; самоблокировка запрещена | Добавлено |
 | `PUT /api/admin/users/{id}/roles` | Admin | Глобальное управление ролями; удаление роли аналитика удаляет region claim и инвалидирует cookie | Допустимо |
 | `PUT /api/admin/users/{id}/analytics-region` | Admin | Регион только из активного справочника и только для RegionalAnalyst; старая cookie инвалидируется | Добавлено |
 | `GET/POST /api/admin/coach-links` | Admin | Глобальное управление связями — назначение роли, изменения аудируются | Допустимо |

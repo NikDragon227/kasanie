@@ -22,6 +22,8 @@ public sealed record AssignProgramRequest(int TrainingProgramId);
 public sealed record ExerciseUpsertRequest(string Name, string Description, string Instructions, SkillCategory SkillCategory, int Difficulty, int DurationMinutes, string Equipment, string? VideoUrl, string? ImageUrl, bool IsActive);
 public sealed record MunicipalityRequest(string Name, string Region, bool IsActive);
 public sealed record AnalystRegionRequest(string Region);
+public sealed record InviteUserRequest(string Email, string Role, string? Region);
+public sealed record UserLockRequest(bool Locked);
 public sealed record TrainingProgramUpsertRequest(string Name, string Description, int Weeks, bool IsActive);
 public sealed record AssessmentNormRequest(int MinimumAge, int MaximumAge, decimal LowPerformanceValue, decimal HighPerformanceValue, bool IsDemo, string SourceNote);
 public sealed record AssessmentUpsertRequest(string Name, string Description, string Instructions, string Unit, SkillCategory SkillCategory, ScoringDirection ScoringDirection, decimal MinimumReasonableValue, decimal MaximumReasonableValue, int SortOrder, bool IsActive, List<AssessmentNormRequest> Norms);

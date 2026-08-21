@@ -4,6 +4,7 @@ using Kasanie.Api.Domain;
 using Kasanie.Api.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Kasanie.Api.Endpoints;
 
@@ -88,19 +89,83 @@ public static partial class EndpointMapping
         });
         admin.MapDelete("/municipalities/{id:int}", async (int id, ClaimsPrincipal user, AppDbContext db) => { var item = await db.Municipalities.FindAsync(id); if (item is null) return Results.NotFound(); item.IsActive = false; await db.SaveChangesAsync(); await AddAudit(db, user, "admin_municipality_deactivated", nameof(Municipality), id.ToString()); return Results.NoContent(); });
 
+        admin.MapPost("/users", async (InviteUserRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db, IConfiguration configuration, IOptions<DataProtectionTokenProviderOptions> tokenOptions) =>
+        {
+            var email = request.Email?.Trim();
+            var allowedRoles = new[] { Roles.Coach, Roles.Parent, Roles.RegionalAnalyst, Roles.Admin };
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["Укажите корректный email."] });
+            if (!allowedRoles.Contains(request.Role))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Через приглашение можно создать тренера, родителя, регионального аналитика или администратора. Игрок регистрируется самостоятельно."] });
+            if (await users.FindByEmailAsync(email) is not null) return Results.Conflict(new { message = "Пользователь с таким email уже существует." });
+
+            var region = request.Role == Roles.RegionalAnalyst ? request.Region?.Trim() : null;
+            if (request.Role == Roles.RegionalAnalyst && (string.IsNullOrWhiteSpace(region) || !await db.Municipalities.AnyAsync(x => x.IsActive && x.Region == region)))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["region"] = ["Для аналитика выберите регион из активного справочника городов."] });
+
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+            var user = new ApplicationUser { Email = email, UserName = email, EmailConfirmed = true, LockoutEnabled = true };
+            var createResult = await users.CreateAsync(user);
+            if (!createResult.Succeeded)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = createResult.Errors.Select(x => x.Description).ToArray() });
+            var roleResult = await users.AddToRoleAsync(user, request.Role);
+            if (!roleResult.Succeeded)
+            {
+                if (transaction is null) await users.DeleteAsync(user);
+                return Results.Problem("Не удалось назначить роль приглашённому пользователю.", statusCode: 500);
+            }
+
+            if (request.Role == Roles.Coach)
+                db.CoachProfiles.Add(new CoachProfile { UserId = user.Id, DisplayName = email.Split('@')[0] });
+            else if (request.Role == Roles.Parent)
+                db.ParentProfiles.Add(new ParentProfile { UserId = user.Id });
+            else if (request.Role == Roles.RegionalAnalyst)
+                await users.AddClaimAsync(user, new Claim(KasanieClaimTypes.AnalyticsRegion, region!));
+
+            await AddAudit(db, principal, "user_invited", nameof(ApplicationUser), user.Id, $"role:{request.Role};region:{region ?? "-"}");
+            if (transaction is not null) await transaction.CommitAsync();
+
+            var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(user));
+            var inviteUrl = BuildUrl(configuration, $"/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}");
+            return Results.Created($"/api/admin/users/{user.Id}", new
+            {
+                user.Id,
+                user.Email,
+                role = request.Role,
+                region,
+                inviteUrl,
+                expiresAt = DateTimeOffset.UtcNow.Add(tokenOptions.Value.TokenLifespan)
+            });
+        });
+
         admin.MapGet("/users", async (int page, int pageSize, AppDbContext db) =>
         {
             (page, pageSize) = Page(page, pageSize); var query = db.Users.AsNoTracking().OrderBy(x => x.Email);
+            var now = DateTimeOffset.UtcNow;
             var items = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new
             {
                 x.Id,
                 x.Email,
                 x.LockoutEnd,
+                isLocked = x.LockoutEnd != null && x.LockoutEnd > now,
                 x.CreatedAt,
                 roles = (from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name).ToList(),
                 analyticsRegion = db.UserClaims.Where(c => c.UserId == x.Id && c.ClaimType == KasanieClaimTypes.AnalyticsRegion).Select(c => c.ClaimValue).FirstOrDefault()
             }).ToListAsync();
             return Results.Ok(new { total = await query.CountAsync(), page, pageSize, items });
+        });
+        admin.MapPut("/users/{id}/lock", async (string id, UserLockRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
+        {
+            if (principal.FindFirstValue(ClaimTypes.NameIdentifier) == id)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["user"] = ["Нельзя заблокировать собственную учётную запись."] });
+            var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
+            var enabledResult = await users.SetLockoutEnabledAsync(target, true);
+            var lockResult = await users.SetLockoutEndDateAsync(target, request.Locked ? DateTimeOffset.UtcNow.AddYears(100) : null);
+            if (!enabledResult.Succeeded || !lockResult.Succeeded) return Results.Problem("Не удалось изменить блокировку пользователя.", statusCode: 500);
+            if (!request.Locked) await users.ResetAccessFailedCountAsync(target);
+            await users.UpdateSecurityStampAsync(target);
+            await AddAudit(db, principal, request.Locked ? "user_locked" : "user_unlocked", nameof(ApplicationUser), id);
+            return Results.NoContent();
         });
         admin.MapPut("/users/{id}/roles", async (string id, string[] roleNames, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
         {

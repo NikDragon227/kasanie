@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using Kasanie.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -130,6 +132,106 @@ public sealed class AuthorizationIntegrationTests
         Assert.Empty(json.RootElement.GetProperty("municipalities").EnumerateArray());
     }
 
+    [Fact]
+    public async Task Admin_InviteLink_AllowsCoachToSetOwnPassword()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "admin-a", Roles.Admin);
+        using var inviteResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "new-coach@example.test", role = Roles.Coach, region = (string?)null }, "admin-a", Roles.Admin, csrf));
+        var inviteBody = await inviteResponse.Content.ReadAsStringAsync();
+        using var inviteJson = JsonDocument.Parse(inviteBody);
+
+        Assert.True(inviteResponse.StatusCode == HttpStatusCode.Created, $"Expected 201, got {(int)inviteResponse.StatusCode}: {inviteBody}");
+        var inviteUrl = new Uri(inviteJson.RootElement.GetProperty("inviteUrl").GetString()!);
+        var query = QueryHelpers.ParseQuery(inviteUrl.Query);
+        Assert.Equal("https", inviteUrl.Scheme);
+        Assert.Equal("new-coach@example.test", query["email"].ToString());
+
+        using var inviteClient = factory.CreateClient();
+        var inviteCsrf = await CsrfAsync(inviteClient);
+        using var resetResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = query["email"].ToString(), token = query["token"].ToString(), newPassword = "Secure-Invite-2026!" }, null, null, inviteCsrf));
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var invited = await users.FindByEmailAsync("new-coach@example.test");
+        Assert.NotNull(invited);
+        Assert.True(invited.EmailConfirmed);
+        Assert.True(await users.CheckPasswordAsync(invited, "Secure-Invite-2026!"));
+        Assert.True(await users.IsInRoleAsync(invited, Roles.Coach));
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.CoachProfiles.AnyAsync(x => x.UserId == invited.Id));
+    }
+
+    [Fact]
+    public async Task Admin_BlocksInvitedUserWithoutDeletingAccount()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "admin-a", Roles.Admin);
+        using var inviteResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "new-parent@example.test", role = Roles.Parent, region = (string?)null }, "admin-a", Roles.Admin, csrf));
+        var inviteBody = await inviteResponse.Content.ReadAsStringAsync();
+        Assert.True(inviteResponse.StatusCode == HttpStatusCode.Created, $"Expected 201, got {(int)inviteResponse.StatusCode}: {inviteBody}");
+        using var inviteJson = JsonDocument.Parse(inviteBody);
+        var userId = inviteJson.RootElement.GetProperty("id").GetString()!;
+
+        using var lockResponse = await client.SendAsync(JsonRequest(HttpMethod.Put, $"/api/admin/users/{userId}/lock", new { locked = true }, "admin-a", Roles.Admin, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, lockResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var invited = await users.FindByIdAsync(userId);
+        Assert.NotNull(invited);
+        Assert.True(await users.IsLockedOutAsync(invited));
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.ParentProfiles.AnyAsync(x => x.UserId == userId));
+    }
+
+    [Fact]
+    public async Task Admin_InviteAnalyst_RequiresAndStoresRegionClaim()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => db.Municipalities.Add(new Municipality { Name = "Kazan", Region = "Tatarstan" }));
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "admin-a", Roles.Admin);
+
+        using var missingRegion = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "analyst-one@example.test", role = Roles.RegionalAnalyst, region = (string?)null }, "admin-a", Roles.Admin, csrf));
+        Assert.Equal(HttpStatusCode.BadRequest, missingRegion.StatusCode);
+
+        using var inviteResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "analyst-one@example.test", role = Roles.RegionalAnalyst, region = "Tatarstan" }, "admin-a", Roles.Admin, csrf));
+        Assert.Equal(HttpStatusCode.Created, inviteResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var invited = await users.FindByEmailAsync("analyst-one@example.test");
+        Assert.NotNull(invited);
+        var claims = await users.GetClaimsAsync(invited);
+        Assert.Contains(claims, x => x.Type == KasanieClaimTypes.AnalyticsRegion && x.Value == "Tatarstan");
+    }
+
+    private static async Task<string> CsrfAsync(HttpClient client, string? userId = null, string? role = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/csrf");
+        if (userId is not null) request.Headers.Add(TestAuthHandler.UserIdHeader, userId);
+        if (role is not null) request.Headers.Add(TestAuthHandler.RoleHeader, role);
+        using var response = await client.SendAsync(request);
+        var cookie = response.Headers.GetValues("Set-Cookie").Select(x => x.Split(';', 2)[0]).Single(x => x.StartsWith("Kasanie.Antiforgery=", StringComparison.Ordinal));
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("token").GetString()!;
+    }
+
+    private static HttpRequestMessage JsonRequest(HttpMethod method, string path, object body, string? userId, string? role, string csrf)
+    {
+        var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        if (userId is not null) request.Headers.Add(TestAuthHandler.UserIdHeader, userId);
+        if (role is not null) request.Headers.Add(TestAuthHandler.RoleHeader, role);
+        return request;
+    }
+
     private static HttpRequestMessage Get(string path, string userId, string role, string? region = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -168,6 +270,7 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Analytics:MinimumGroupSize", "3");
+        builder.UseSetting("App:PublicUrl", "https://prokasanie.test");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();

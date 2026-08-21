@@ -258,6 +258,12 @@ small { color: var(--muted); }
   .landing-footer-v2 > span { grid-column: 1 / -1; justify-self: start; text-align: left; }
 }
 
+.data-table.users > div { grid-template-columns: 2fr 1.5fr 1fr 1.1fr; }
+.data-table.users .button { padding: .55rem .75rem; font-size: .7rem; }
+.invite-result { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: .7rem; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: #f5f7f2; }
+.invite-result label { min-width: 0; }
+.invite-result small { grid-column: 1 / -1; color: var(--muted); }
+
 @media (max-width: 760px) {
   .landing-v2 { --landing-pad: 1.2rem; }
   .landing-v2 .landing-nav-v2 { height: 74px; }
