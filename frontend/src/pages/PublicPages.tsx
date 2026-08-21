@@ -122,11 +122,29 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
-  const [params] = useSearchParams(); const [message, setMessage] = useState(''); const [pending, setPending] = useState(false)
+  const [params] = useSearchParams(); const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null); const [passwordError, setPasswordError] = useState(''); const [pending, setPending] = useState(false)
   const email = params.get('email') ?? ''; const token = params.get('token') ?? ''
-  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const password = String(new FormData(event.currentTarget).get('password')); if (password.length < 10) return setMessage('Пароль должен содержать не менее 10 символов.'); setPending(true); try { const result = await post<{ message: string }>('/api/auth/reset-password', { email, token, newPassword: password }); setMessage(result.message) } catch (e) { setMessage(e instanceof Error ? e.message : 'Не удалось обновить пароль.') } finally { setPending(false) } }
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const password = String(new FormData(event.currentTarget).get('password'))
+    setStatus(null)
+    setPasswordError('')
+    if (password.length < 10) return setPasswordError('Пароль должен содержать не менее 10 символов.')
+    setPending(true)
+    try {
+      const result = await post<{ message: string }>('/api/auth/reset-password', { email, token, newPassword: password })
+      setStatus({ text: result.message, ok: true })
+    } catch (e) {
+      const errors = e instanceof ApiError ? e.body.errors as Record<string, unknown> | undefined : undefined
+      const fieldErrors = errors?.newPassword
+      if (Array.isArray(fieldErrors) && fieldErrors.every(x => typeof x === 'string')) setPasswordError(fieldErrors.join(' '))
+      else setStatus({ text: e instanceof Error ? e.message : 'Не удалось обновить пароль.', ok: false })
+    } finally {
+      setPending(false)
+    }
+  }
   if (!email || !token) return <AuthFrame title="Ссылка недействительна" subtitle="Запросите восстановление пароля ещё раз."><Link className="button large" to="/forgot-password">Восстановить пароль</Link></AuthFrame>
-  return <AuthFrame title="Новый пароль" subtitle="Придумайте пароль не короче 10 символов."><form className="auth-form" onSubmit={submit}><label>Новый пароль<input name="password" type="password" autoComplete="new-password" minLength={10} required /></label><button className="button large" disabled={pending}>{pending ? 'Сохраняем…' : 'Сохранить пароль'}</button>{message && <div className="success-message" role="status">{message}</div>}<p><Link to="/login">Ко входу</Link></p></form></AuthFrame>
+  return <AuthFrame title="Новый пароль" subtitle="Не менее 10 символов: строчная и заглавная буквы, цифра и специальный знак."><form className="auth-form" onSubmit={submit}><label>Новый пароль<input name="password" type="password" autoComplete="new-password" minLength={10} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'password-requirements password-error' : 'password-requirements'} required /><small id="password-requirements">Например: Kasanie-2026!</small>{passwordError && <span id="password-error" className="error-message" role="alert">{passwordError}</span>}</label><button className="button large" disabled={pending}>{pending ? 'Сохраняем…' : 'Сохранить пароль'}</button>{status && <div className={status.ok ? 'success-message' : 'form-error'} role={status.ok ? 'status' : 'alert'}>{status.text}</div>}<p><Link to="/login">Ко входу</Link></p></form></AuthFrame>
 }
 
 export function ConfirmEmailPage() {

@@ -165,6 +165,38 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task ResetPassword_ReportsPasswordPolicyErrors_AndKeepsInviteUsable()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var adminClient = factory.CreateClient();
+        var adminCsrf = await CsrfAsync(adminClient, "admin-a", Roles.Admin);
+        using var inviteResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "password-policy@example.test", role = Roles.Coach, region = (string?)null }, "admin-a", Roles.Admin, adminCsrf));
+        using var inviteJson = JsonDocument.Parse(await inviteResponse.Content.ReadAsStringAsync());
+        var inviteUrl = new Uri(inviteJson.RootElement.GetProperty("inviteUrl").GetString()!);
+        var query = QueryHelpers.ParseQuery(inviteUrl.Query);
+
+        using var inviteClient = factory.CreateClient();
+        var inviteCsrf = await CsrfAsync(inviteClient);
+        using var weakPasswordResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = query["email"].ToString(), token = query["token"].ToString(), newPassword = "abcdefghij" }, null, null, inviteCsrf));
+        var weakPasswordBody = await weakPasswordResponse.Content.ReadAsStringAsync();
+        using var weakPasswordJson = JsonDocument.Parse(weakPasswordBody);
+
+        Assert.True(weakPasswordResponse.StatusCode == HttpStatusCode.BadRequest, $"Expected 400, got {(int)weakPasswordResponse.StatusCode}: {weakPasswordBody}");
+        Assert.True(weakPasswordJson.RootElement.GetProperty("errors").TryGetProperty("newPassword", out var passwordErrors));
+        Assert.NotEmpty(passwordErrors.EnumerateArray());
+        Assert.False(weakPasswordJson.RootElement.TryGetProperty("message", out _));
+
+        using var validPasswordResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = query["email"].ToString(), token = query["token"].ToString(), newPassword = "Kasanie-2026!" }, null, null, inviteCsrf));
+        Assert.Equal(HttpStatusCode.OK, validPasswordResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var invited = await users.FindByEmailAsync("password-policy@example.test");
+        Assert.NotNull(invited);
+        Assert.True(await users.CheckPasswordAsync(invited, "Kasanie-2026!"));
+    }
+
+    [Fact]
     public async Task Admin_BlocksInvitedUserWithoutDeletingAccount()
     {
         await using var factory = new TestApplicationFactory();

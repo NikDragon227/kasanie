@@ -102,7 +102,13 @@ public static partial class EndpointMapping
             var user = await users.FindByEmailAsync(request.Email.Trim()); if (user is null) return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
             var token = TryDecodeToken(request.Token); if (token is null) return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
             var result = await users.ResetPasswordAsync(user, token, request.NewPassword);
-            if (!result.Succeeded) return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
+            if (!result.Succeeded)
+            {
+                var passwordErrors = result.Errors.Where(x => x.Code.StartsWith("Password")).Select(x => x.Description).ToArray();
+                if (passwordErrors.Length > 0)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = passwordErrors });
+                return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
+            }
             db.AuditLogs.Add(new AuditLog { UserId = user.Id, EventType = "password_reset", EntityType = nameof(ApplicationUser), EntityId = user.Id }); await db.SaveChangesAsync();
             return Results.Ok(new { message = "Пароль обновлён. Теперь можно войти." });
         }).RequireRateLimiting("login");
