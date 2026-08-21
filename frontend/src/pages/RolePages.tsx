@@ -96,30 +96,39 @@ function EditorActions({ onCancel }: { onCancel: () => void }) { return <div cla
 type AdminUser = { id: string; email: string; roles: string[]; analyticsRegion?: string; isLocked: boolean; hasPassword: boolean; createdAt: string }
 type InviteResponse = { id: string; email: string; role?: string; region?: string; inviteUrl: string; expiresAt: string }
 export function AdminUsersPage() {
-  const state = useApiData<{ items: AdminUser[] }>('/api/admin/users?page=1&pageSize=50'); const municipalities = useApiData<AdminMunicipality[]>('/api/admin/municipalities'); const [role, setRole] = useState('Coach'); const [invite, setInvite] = useState<InviteResponse | null>(null); const [message, setMessage] = useState('')
+  const state = useApiData<{ items: AdminUser[] }>('/api/admin/users?page=1&pageSize=50'); const municipalities = useApiData<AdminMunicipality[]>('/api/admin/municipalities'); const [role, setRole] = useState('Coach'); const [invite, setInvite] = useState<InviteResponse | null>(null); const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const regions = [...new Set((municipalities.data ?? []).filter(x => x.isActive).map(x => x.region))].sort()
-  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = event.currentTarget; const f = new FormData(form); setMessage(''); try { const result = await post<InviteResponse>('/api/admin/users', { email: f.get('email'), role, region: role === 'RegionalAnalyst' ? f.get('region') : null }); setInvite(result); setMessage('Приглашение создано. Передайте ссылку в течение 24 часов.'); form.reset(); await state.reload() } catch (e) { setMessage(e instanceof Error ? e.message : 'Не удалось создать приглашение.') } }
-  const copyInvite = async () => { if (!invite) return; await navigator.clipboard.writeText(invite.inviteUrl); setMessage('Ссылка скопирована.') }
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = event.currentTarget; const f = new FormData(form); setMessage(null); try { const result = await post<InviteResponse>('/api/admin/users', { email: f.get('email'), role, region: role === 'RegionalAnalyst' ? f.get('region') : null }); setInvite(result); setMessage({ text: 'Приглашение создано. Передайте ссылку в течение 24 часов.', ok: true }); form.reset(); await state.reload() } catch (e) { setMessage({ text: e instanceof Error ? e.message : 'Не удалось создать приглашение.', ok: false }) } }
+  const copyInvite = async () => {
+    if (!invite) return
+    setMessage(null)
+    try {
+      await navigator.clipboard.writeText(invite.inviteUrl)
+      setMessage({ text: 'Ссылка скопирована.', ok: true })
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : 'Не удалось скопировать ссылку.', ok: false })
+    }
+  }
   const reissue = async (user: AdminUser) => {
-    setMessage('')
+    setMessage(null)
     try {
       const result = await post<InviteResponse>(`/api/admin/users/${user.id}/invite`)
       setInvite(result)
-      setMessage('Новая ссылка создана. Передайте её в течение 24 часов.')
+      setMessage({ text: 'Новая ссылка создана. Передайте её в течение 24 часов.', ok: true })
       await state.reload()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Не удалось перевыпустить приглашение.')
+      setMessage({ text: e instanceof Error ? e.message : 'Не удалось перевыпустить приглашение.', ok: false })
     }
   }
   const toggleLock = async (user: AdminUser) => {
     if (!user.isLocked && !confirm(`Заблокировать ${user.email}?`)) return
-    setMessage('')
+    setMessage(null)
     try {
       await put(`/api/admin/users/${user.id}/lock`, { locked: !user.isLocked })
       await state.reload()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Не удалось изменить блокировку пользователя.')
+      setMessage({ text: e instanceof Error ? e.message : 'Не удалось изменить блокировку пользователя.', ok: false })
     }
   }
-  return <><PageHeader eyebrow="Доступ" title="Пользователи и роли" /><section className="card form-card"><h2>Пригласить пользователя</h2><p className="legal-note">Пользователь сам установит пароль по одноразовой ссылке. Ссылка действует 24 часа.</p><form className="profile-form" onSubmit={submit}><label>Email<input name="email" type="email" required /></label><label>Роль<select value={role} onChange={e => setRole(e.target.value)}><option value="Coach">Тренер</option><option value="Parent">Родитель</option><option value="RegionalAnalyst">Региональный аналитик</option><option value="Admin">Администратор</option></select></label>{role === 'RegionalAnalyst' && <label className="full">Регион<select name="region" required><option value="">Выберите регион</option>{regions.map(x => <option key={x}>{x}</option>)}</select></label>}<div className="form-actions"><button className="button">Создать приглашение</button></div>{message && <span className="success-message full">{message}</span>}{invite && <div className="invite-result full"><label>Одноразовая ссылка<input value={invite.inviteUrl} readOnly onFocus={e => e.currentTarget.select()} /></label><button type="button" className="button ghost" onClick={() => void copyInvite()}>Копировать ссылку</button><small>Действует до {formatDate(invite.expiresAt)}</small></div>}</form></section>{state.loading ? <PageLoader /> : state.error || !state.data ? <ErrorState message={state.error} retry={state.reload} /> : <section className="card data-table users"><div className="table-head"><span>Email</span><span>Роль и регион</span><span>Статус</span><span /></div>{state.data.items.map(x => <div key={x.id}><span><strong>{x.email}</strong><small>Создан {formatDate(x.createdAt)}</small></span><span>{x.roles.join(', ')}{x.analyticsRegion && <small>{x.analyticsRegion}</small>}</span><span>{x.isLocked ? 'Заблокирован' : 'Активен'}</span><span>{!x.hasPassword && <button className="button ghost" onClick={() => void reissue(x)}>Новая ссылка</button>}<button className={`button ghost ${x.isLocked ? '' : 'danger'}`} onClick={() => void toggleLock(x)}>{x.isLocked ? 'Разблокировать' : 'Заблокировать'}</button></span></div>)}</section>}</>
+  return <><PageHeader eyebrow="Доступ" title="Пользователи и роли" /><section className="card form-card"><h2>Пригласить пользователя</h2><p className="legal-note">Пользователь сам установит пароль по одноразовой ссылке. Ссылка действует 24 часа.</p><form className="profile-form" onSubmit={submit}><label>Email<input name="email" type="email" required /></label><label>Роль<select value={role} onChange={e => setRole(e.target.value)}><option value="Coach">Тренер</option><option value="Parent">Родитель</option><option value="RegionalAnalyst">Региональный аналитик</option><option value="Admin">Администратор</option></select></label>{role === 'RegionalAnalyst' && <label className="full">Регион<select name="region" required><option value="">Выберите регион</option>{regions.map(x => <option key={x}>{x}</option>)}</select></label>}<div className="form-actions"><button className="button">Создать приглашение</button></div>{message && <span className={message.ok ? 'success-message full' : 'error-message full'}>{message.text}</span>}{invite && <div className="invite-result full"><label>Одноразовая ссылка<input value={invite.inviteUrl} readOnly onFocus={e => e.currentTarget.select()} /></label><button type="button" className="button ghost" onClick={() => void copyInvite()}>Копировать ссылку</button><small>Действует до {formatDate(invite.expiresAt)}</small></div>}</form></section>{state.loading ? <PageLoader /> : state.error || !state.data ? <ErrorState message={state.error} retry={state.reload} /> : <section className="card data-table users"><div className="table-head"><span>Email</span><span>Роль и регион</span><span>Статус</span><span /></div>{state.data.items.map(x => <div key={x.id}><span><strong>{x.email}</strong><small>Создан {formatDate(x.createdAt)}</small></span><span>{x.roles.join(', ')}{x.analyticsRegion && <small>{x.analyticsRegion}</small>}</span><span>{x.isLocked ? 'Заблокирован' : 'Активен'}</span><span>{!x.hasPassword && <button className="button ghost" onClick={() => void reissue(x)}>Новая ссылка</button>}<button className={`button ghost ${x.isLocked ? '' : 'danger'}`} onClick={() => void toggleLock(x)}>{x.isLocked ? 'Разблокировать' : 'Заблокировать'}</button></span></div>)}</section>}</>
 }
