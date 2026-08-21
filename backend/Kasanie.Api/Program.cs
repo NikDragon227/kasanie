@@ -5,6 +5,7 @@ using Kasanie.Api.Endpoints;
 using Kasanie.Api.Infrastructure;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 var dataProtectionPath = builder.Configuration.GetValue<string>("DataProtection:KeysPath") ?? Path.Combine(builder.Environment.ContentRootPath, ".keys");
 Directory.CreateDirectory(dataProtectionPath);
 builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath)).SetApplicationName("Kasanie");
@@ -88,6 +95,7 @@ app.Use(async (context, next) =>
     await next();
 });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
+app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
