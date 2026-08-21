@@ -134,7 +134,7 @@ public static partial class EndpointMapping
             await signIn.RefreshSignInAsync(user);
             db.AuditLogs.Add(new AuditLog { UserId = user.Id, EventType = "password_changed", EntityType = nameof(ApplicationUser), EntityId = user.Id }); await db.SaveChangesAsync();
             return Results.Ok(new { message = "Пароль изменён." });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("login");
 
         auth.MapPost("/logout", async (SignInManager<ApplicationUser> signIn) => { await signIn.SignOutAsync(); return Results.NoContent(); }).RequireAuthorization();
 
