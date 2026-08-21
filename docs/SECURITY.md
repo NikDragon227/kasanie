@@ -9,7 +9,7 @@
 - роли на API и ресурсные проверки для coach/player и parent/child;
 - отсутствие bearer token и учётных данных в localStorage;
 - DTO вместо возврата EF entities; централизованный ProblemDetails handler;
-- региональный endpoint агрегирует данные, подавляет группы меньше configurable threshold и не возвращает PII;
+- региональный endpoint ограничен серверной Identity claim региона, подавляет метрики по числу уникальных игроков и не возвращает PII;
 - аудит регистрации, входа, детского профиля/согласия, оценок, тренировок, связей и admin-изменений;
 - security headers, лимит тела запроса, отключённый production OpenAPI;
 - health endpoint без секретов; `/health/live` проверяет живость процесса, `/health/ready` — готовность с БД; PostgreSQL не публикуется наружу;
@@ -37,3 +37,4 @@
 7. Включить мониторинг 5xx/latency/disk/DB, central logs и alerts.
 8. Запустить SAST/dependency/container scan и внешний pentest перед реальными данными.
 9. Подготовить incident response, ротацию секретов, процедуру удаления/выгрузки данных.
+10. Для каждого `RegionalAnalyst` назначить регион через admin API и проверить новый вход после обновления claim.

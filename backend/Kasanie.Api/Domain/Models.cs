@@ -12,6 +12,11 @@ public static class Roles
     public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, Admin];
 }
 
+public static class KasanieClaimTypes
+{
+    public const string AnalyticsRegion = "kasanie:analytics-region";
+}
+
 public enum SkillCategory { Speed, Endurance, BallControl, Passing, Shooting, Agility }
 public enum ScoringDirection { HigherIsBetter, LowerIsBetter }
 public enum LinkStatus { Pending, Active, Suspended }

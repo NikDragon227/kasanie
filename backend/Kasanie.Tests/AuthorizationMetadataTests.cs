@@ -14,14 +14,16 @@ public sealed class AuthorizationMetadataTests
     }
 
     [Fact]
-    public void RegionalContractDoesNotContainPersonalFieldNames()
+    public void RegionalEndpointIsScopedAndDoesNotSelectDirectIdentifiers()
     {
         var source = File.ReadAllText(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs"));
-        var responseBlock = source[source.IndexOf("return Results.Ok", StringComparison.Ordinal)..];
-        Assert.DoesNotContain("FirstName", responseBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("LastName", responseBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("email =", responseBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(".DateOfBirth", responseBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("FirstName", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("LastName", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("x.Email", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("email =", source, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("KasanieClaimTypes.AnalyticsRegion", source);
+        Assert.Contains("x.Municipality.Region == region", source);
+        Assert.Contains("SuppressSmallCount", source);
         Assert.Contains("RequireAuthorization(Roles.RegionalAnalyst)", source);
     }
 

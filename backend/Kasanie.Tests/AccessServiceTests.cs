@@ -22,6 +22,18 @@ public sealed class AccessServiceTests
     }
 
     [Fact]
+    public async Task Coach_CannotAccessPlayerThroughSuspendedLink()
+    {
+        await using var db = Database();
+        db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach", DisplayName = "Coach" });
+        db.Players.Add(Player(1));
+        db.CoachPlayerLinks.Add(new CoachPlayerLink { CoachId = 1, PlayerId = 1, Status = LinkStatus.Suspended });
+        await db.SaveChangesAsync();
+
+        Assert.False(await new AccessService(db).CoachCanAccessAsync(User("coach"), 1));
+    }
+
+    [Fact]
     public async Task Parent_CannotAccessUnrelatedChild()
     {
         await using var db = Database();
@@ -32,6 +44,22 @@ public sealed class AccessServiceTests
         var access = new AccessService(db);
         Assert.True(await access.ParentCanAccessAsync(User("parent"), 1));
         Assert.False(await access.ParentCanAccessAsync(User("parent"), 2));
+    }
+
+    [Fact]
+    public async Task Player_CanResolveOnlyOwnProfile()
+    {
+        await using var db = Database();
+        var municipality = new Municipality { Id = 1, Name = "City", Region = "Region" };
+        var own = Player(1); own.UserId = "player"; own.Municipality = municipality;
+        var other = Player(2); other.UserId = "other"; other.Municipality = municipality;
+        db.Municipalities.Add(municipality);
+        db.Players.AddRange(own, other);
+        await db.SaveChangesAsync();
+
+        var result = await new AccessService(db).OwnPlayerAsync(User("player"));
+
+        Assert.Equal(1, result?.Id);
     }
 
     private static AppDbContext Database() => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

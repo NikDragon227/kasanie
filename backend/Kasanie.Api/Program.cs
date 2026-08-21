@@ -53,6 +53,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = StatusCodes.Status401Unauthorized; return Task.CompletedTask; };
     options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = StatusCodes.Status403Forbidden; return Task.CompletedTask; };
 });
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 builder.Services.AddAuthorization(options =>
 {
     foreach (var role in Roles.All) options.AddPolicy(role, policy => policy.RequireRole(role));

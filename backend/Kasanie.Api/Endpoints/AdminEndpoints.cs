@@ -91,7 +91,15 @@ public static partial class EndpointMapping
         admin.MapGet("/users", async (int page, int pageSize, AppDbContext db) =>
         {
             (page, pageSize) = Page(page, pageSize); var query = db.Users.AsNoTracking().OrderBy(x => x.Email);
-            var items = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new { x.Id, x.Email, x.LockoutEnd, x.CreatedAt, roles = from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name }).ToListAsync();
+            var items = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new
+            {
+                x.Id,
+                x.Email,
+                x.LockoutEnd,
+                x.CreatedAt,
+                roles = from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name,
+                analyticsRegion = db.UserClaims.Where(c => c.UserId == x.Id && c.ClaimType == KasanieClaimTypes.AnalyticsRegion).Select(c => c.ClaimValue).FirstOrDefault()
+            }).ToListAsync();
             return Results.Ok(new { total = await query.CountAsync(), page, pageSize, items });
         });
         admin.MapPut("/users/{id}/roles", async (string id, string[] roleNames, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
@@ -99,7 +107,28 @@ public static partial class EndpointMapping
             if (roleNames.Any(x => !Roles.All.Contains(x))) return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Неизвестная роль."] });
             var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
             var current = await users.GetRolesAsync(target); await users.RemoveFromRolesAsync(target, current); await users.AddToRolesAsync(target, roleNames.Distinct());
+            if (!roleNames.Contains(Roles.RegionalAnalyst))
+            {
+                var regionClaims = (await users.GetClaimsAsync(target)).Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
+                if (regionClaims.Count > 0) await users.RemoveClaimsAsync(target, regionClaims);
+            }
+            await users.UpdateSecurityStampAsync(target);
             await AddAudit(db, principal, "role_changed", nameof(ApplicationUser), id, string.Join(',', roleNames)); return Results.NoContent();
+        });
+        admin.MapPut("/users/{id}/analytics-region", async (string id, AnalystRegionRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
+        {
+            var region = request.Region?.Trim();
+            if (string.IsNullOrWhiteSpace(region) || !await db.Municipalities.AnyAsync(x => x.IsActive && x.Region == region))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["region"] = ["Выберите регион из активного справочника городов."] });
+            var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
+            if (!await users.IsInRoleAsync(target, Roles.RegionalAnalyst))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Сначала назначьте пользователю роль регионального аналитика."] });
+            var currentClaims = (await users.GetClaimsAsync(target)).Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
+            if (currentClaims.Count > 0) await users.RemoveClaimsAsync(target, currentClaims);
+            await users.AddClaimAsync(target, new Claim(KasanieClaimTypes.AnalyticsRegion, region));
+            await users.UpdateSecurityStampAsync(target);
+            await AddAudit(db, principal, "analyst_region_changed", nameof(ApplicationUser), id, region);
+            return Results.NoContent();
         });
 
         admin.MapGet("/coach-links", async (AppDbContext db) => Results.Ok(await db.CoachPlayerLinks.AsNoTracking().Select(x => new { x.CoachId, coach = x.Coach.DisplayName, x.PlayerId, player = x.Player.FirstName + " " + x.Player.LastName, status = x.Status.ToString(), x.CreatedAt }).ToListAsync()));

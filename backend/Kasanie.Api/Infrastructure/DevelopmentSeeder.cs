@@ -65,8 +65,9 @@ public sealed class DevelopmentSeeder(
         var playerUser = await EnsureUser("player@kasanie.local", Roles.Player);
         var coachUser = await EnsureUser("coach@kasanie.local", Roles.Coach);
         var parentUser = await EnsureUser("parent@kasanie.local", Roles.Parent);
-        await EnsureUser("analyst@kasanie.local", Roles.RegionalAnalyst);
+        var analystUser = await EnsureUser("analyst@kasanie.local", Roles.RegionalAnalyst);
         await EnsureUser("admin@kasanie.local", Roles.Admin);
+        await EnsureAnalystRegion(analystUser, "Республика Татарстан");
 
         if (!await db.AssessmentDefinitions.AnyAsync())
         {
@@ -176,6 +177,15 @@ public sealed class DevelopmentSeeder(
         }
         if (!await users.IsInRoleAsync(user, role)) await users.AddToRoleAsync(user, role);
         return user;
+    }
+
+    private async Task EnsureAnalystRegion(ApplicationUser user, string region)
+    {
+        var claims = await users.GetClaimsAsync(user);
+        var existing = claims.Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
+        if (existing.Count == 1 && existing[0].Value == region) return;
+        if (existing.Count > 0) await users.RemoveClaimsAsync(user, existing);
+        await users.AddClaimAsync(user, new System.Security.Claims.Claim(KasanieClaimTypes.AnalyticsRegion, region));
     }
 
     private void AddAssessment(string name, string description, string instructions, string unit, SkillCategory category, ScoringDirection direction, decimal min, decimal max, decimal low, decimal high, int order)
