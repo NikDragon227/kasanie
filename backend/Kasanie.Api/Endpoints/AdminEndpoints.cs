@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Kasanie.Api.Contracts;
 using Kasanie.Api.Domain;
@@ -93,7 +94,7 @@ public static partial class EndpointMapping
         {
             var email = request.Email?.Trim();
             var allowedRoles = new[] { Roles.Coach, Roles.Parent, Roles.RegionalAnalyst, Roles.Admin };
-            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+            if (string.IsNullOrWhiteSpace(email) || !new EmailAddressAttribute().IsValid(email))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["Укажите корректный email."] });
             if (!allowedRoles.Contains(request.Role))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Через приглашение можно создать тренера, родителя, регионального аналитика или администратора. Игрок регистрируется самостоятельно."] });
@@ -138,6 +139,20 @@ public static partial class EndpointMapping
             });
         });
 
+        admin.MapPost("/users/{id}/invite", async (string id, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db, IConfiguration configuration, IOptions<DataProtectionTokenProviderOptions> tokenOptions) =>
+        {
+            var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
+            if (await users.HasPasswordAsync(target))
+                return Results.Conflict(new { message = "Пользователь уже задал пароль — ему нужно восстановление, а не приглашение." });
+            if (await users.IsLockedOutAsync(target))
+                return Results.Conflict(new { message = "Учётная запись заблокирована. Сначала разблокируйте." });
+
+            await AddAudit(db, principal, "user_invite_reissued", nameof(ApplicationUser), target.Id);
+            var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(target));
+            var inviteUrl = BuildUrl(configuration, $"/reset-password?email={Uri.EscapeDataString(target.Email!)}&token={Uri.EscapeDataString(token)}");
+            return Results.Ok(new { target.Id, target.Email, inviteUrl, expiresAt = DateTimeOffset.UtcNow.Add(tokenOptions.Value.TokenLifespan) });
+        });
+
         admin.MapGet("/users", async (int page, int pageSize, AppDbContext db) =>
         {
             (page, pageSize) = Page(page, pageSize); var query = db.Users.AsNoTracking().OrderBy(x => x.Email);
@@ -148,6 +163,7 @@ public static partial class EndpointMapping
                 x.Email,
                 x.LockoutEnd,
                 isLocked = x.LockoutEnd != null && x.LockoutEnd > now,
+                hasPassword = x.PasswordHash != null,
                 x.CreatedAt,
                 roles = (from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name).ToList(),
                 analyticsRegion = db.UserClaims.Where(c => c.UserId == x.Id && c.ClaimType == KasanieClaimTypes.AnalyticsRegion).Select(c => c.ClaimValue).FirstOrDefault()

@@ -210,6 +210,51 @@ public sealed class AuthorizationIntegrationTests
         Assert.Contains(claims, x => x.Type == KasanieClaimTypes.AnalyticsRegion && x.Value == "Tatarstan");
     }
 
+    [Fact]
+    public async Task Admin_ReissuesUnusedInvite_WithNewWorkingLink()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var adminClient = factory.CreateClient();
+        var adminCsrf = await CsrfAsync(adminClient, "admin-a", Roles.Admin);
+        using var createResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "reissue@example.test", role = Roles.Coach, region = (string?)null }, "admin-a", Roles.Admin, adminCsrf));
+        using var createJson = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var userId = createJson.RootElement.GetProperty("id").GetString()!;
+        var originalUrl = createJson.RootElement.GetProperty("inviteUrl").GetString()!;
+
+        using var reissueResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, $"/api/admin/users/{userId}/invite", new { }, "admin-a", Roles.Admin, adminCsrf));
+        using var reissueJson = JsonDocument.Parse(await reissueResponse.Content.ReadAsStringAsync());
+        var reissuedUrl = reissueJson.RootElement.GetProperty("inviteUrl").GetString()!;
+        Assert.Equal(HttpStatusCode.OK, reissueResponse.StatusCode);
+        Assert.NotEqual(originalUrl, reissuedUrl);
+
+        var query = QueryHelpers.ParseQuery(new Uri(reissuedUrl).Query);
+        using var inviteClient = factory.CreateClient();
+        var inviteCsrf = await CsrfAsync(inviteClient);
+        using var resetResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = query["email"].ToString(), token = query["token"].ToString(), newPassword = "Secure-Reissue-2026!" }, null, null, inviteCsrf));
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_CannotReissueInvite_AfterPasswordWasSet()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var adminClient = factory.CreateClient();
+        var adminCsrf = await CsrfAsync(adminClient, "admin-a", Roles.Admin);
+        using var createResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/users", new { email = "activated@example.test", role = Roles.Parent, region = (string?)null }, "admin-a", Roles.Admin, adminCsrf));
+        using var createJson = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var userId = createJson.RootElement.GetProperty("id").GetString()!;
+        var inviteUrl = new Uri(createJson.RootElement.GetProperty("inviteUrl").GetString()!);
+        var query = QueryHelpers.ParseQuery(inviteUrl.Query);
+
+        using var inviteClient = factory.CreateClient();
+        var inviteCsrf = await CsrfAsync(inviteClient);
+        using var resetResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = query["email"].ToString(), token = query["token"].ToString(), newPassword = "Secure-Activated-2026!" }, null, null, inviteCsrf));
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+
+        using var reissueResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, $"/api/admin/users/{userId}/invite", new { }, "admin-a", Roles.Admin, adminCsrf));
+        Assert.Equal(HttpStatusCode.Conflict, reissueResponse.StatusCode);
+    }
+
     private static async Task<string> CsrfAsync(HttpClient client, string? userId = null, string? role = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/csrf");

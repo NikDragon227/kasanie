@@ -260,6 +260,7 @@ small { color: var(--muted); }
 
 .data-table.users > div { grid-template-columns: 2fr 1.5fr 1fr 1.1fr; }
 .data-table.users .button { padding: .55rem .75rem; font-size: .7rem; }
+.data-table.users > div > span:last-child { display: flex; flex-wrap: wrap; gap: .4rem; }
 .invite-result { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: .7rem; padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: #f5f7f2; }
 .invite-result label { min-width: 0; }
 .invite-result small { grid-column: 1 / -1; color: var(--muted); }
