@@ -218,6 +218,42 @@ public sealed class AuthorizationIntegrationTests
         Assert.True(await users.IsLockedOutAsync(invited));
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.True(await db.ParentProfiles.AnyAsync(x => x.UserId == userId));
+
+        using var resetResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, $"/api/admin/users/{userId}/invite", new { }, "admin-a", Roles.Admin, csrf));
+        Assert.Equal(HttpStatusCode.Conflict, resetResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task AuthenticatedUser_ChangesPassword_WithEightCharacterMinimum()
+    {
+        await using var factory = new TestApplicationFactory();
+        const string userId = "change-password-user";
+        await using (var setupScope = factory.Services.CreateAsyncScope())
+        {
+            var users = setupScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+            var user = new ApplicationUser { Id = userId, UserName = "change-password@example.test", Email = "change-password@example.test", EmailConfirmed = true };
+            var createResult = await users.CreateAsync(user, "Old-Password-2026!");
+            Assert.True(createResult.Succeeded);
+        }
+
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, userId, Roles.Coach);
+        using var wrongCurrentResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/change-password", new { currentPassword = "Wrong-Password-2026!", newPassword = "Aa1!aaaa" }, userId, Roles.Coach, csrf));
+        using var wrongCurrentJson = JsonDocument.Parse(await wrongCurrentResponse.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, wrongCurrentResponse.StatusCode);
+        Assert.True(wrongCurrentJson.RootElement.GetProperty("errors").TryGetProperty("currentPassword", out _));
+
+        using var changeResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/change-password", new { currentPassword = "Old-Password-2026!", newPassword = "Aa1!aaaa" }, userId, Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.OK, changeResponse.StatusCode);
+
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyUsers = verifyScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var changed = await verifyUsers.FindByIdAsync(userId);
+        Assert.NotNull(changed);
+        Assert.False(await verifyUsers.CheckPasswordAsync(changed, "Old-Password-2026!"));
+        Assert.True(await verifyUsers.CheckPasswordAsync(changed, "Aa1!aaaa"));
+        var db = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.UserId == userId && x.EventType == "password_changed"));
     }
 
     [Fact]
@@ -267,7 +303,7 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
-    public async Task Admin_CannotReissueInvite_AfterPasswordWasSet()
+    public async Task Admin_ResetsPassword_AfterPasswordWasSet()
     {
         await using var factory = new TestApplicationFactory();
         using var adminClient = factory.CreateClient();
@@ -284,7 +320,22 @@ public sealed class AuthorizationIntegrationTests
         Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
 
         using var reissueResponse = await adminClient.SendAsync(JsonRequest(HttpMethod.Post, $"/api/admin/users/{userId}/invite", new { }, "admin-a", Roles.Admin, adminCsrf));
-        Assert.Equal(HttpStatusCode.Conflict, reissueResponse.StatusCode);
+        var reissueBody = await reissueResponse.Content.ReadAsStringAsync();
+        using var reissueJson = JsonDocument.Parse(reissueBody);
+        Assert.True(reissueResponse.StatusCode == HttpStatusCode.OK, $"Expected 200, got {(int)reissueResponse.StatusCode}: {reissueBody}");
+
+        var resetUrl = new Uri(reissueJson.RootElement.GetProperty("inviteUrl").GetString()!);
+        var resetQuery = QueryHelpers.ParseQuery(resetUrl.Query);
+        using var adminResetResponse = await inviteClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/reset-password", new { email = resetQuery["email"].ToString(), token = resetQuery["token"].ToString(), newPassword = "Admin-Reset-2026!" }, null, null, inviteCsrf));
+        Assert.Equal(HttpStatusCode.OK, adminResetResponse.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var resetUser = await users.FindByIdAsync(userId);
+        Assert.NotNull(resetUser);
+        Assert.True(await users.CheckPasswordAsync(resetUser, "Admin-Reset-2026!"));
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.UserId == "admin-a" && x.EventType == "user_password_reset_by_admin" && x.EntityId == userId));
     }
 
     private static async Task<string> CsrfAsync(HttpClient client, string? userId = null, string? role = null)

@@ -23,6 +23,14 @@ export function RoleGuard({ role }: { role: string }) {
   return <Outlet />
 }
 
+export function AuthenticatedGuard() {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  if (loading) return <FullLoader />
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  return <Outlet />
+}
+
 export function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -30,7 +38,7 @@ export function AppShell() {
   return <div className="app-shell">
     <aside className="sidebar">
       <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></NavLink>
-      <nav aria-label="Основная навигация">{(navigation[role] ?? []).map(item => <NavLink key={item.to} to={item.to} end={item.to === roleHome[role]}><span aria-hidden>{item.icon}</span>{item.label}</NavLink>)}</nav>
+      <nav aria-label="Основная навигация">{[...(navigation[role] ?? []), { to: '/account/security', label: 'Безопасность', icon: '◇' }].map(item => <NavLink key={item.to} to={item.to} end={item.to === roleHome[role]}><span aria-hidden>{item.icon}</span>{item.label}</NavLink>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>
     </aside>

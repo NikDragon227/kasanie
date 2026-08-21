@@ -7,6 +7,7 @@ public sealed record LoginRequest(string Email, string Password);
 public sealed record EmailRequest(string Email);
 public sealed record ConfirmEmailRequest(string UserId, string Token);
 public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record UserDto(string Id, string Email, string[] Roles);
 public sealed record ProfileUpdateRequest(string FirstName, string LastName, string? Gender, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel, decimal? Height, decimal? Weight);
 public sealed record AssessmentValueRequest(int DefinitionId, decimal Value);
@@ -34,7 +35,7 @@ public static class Validation
     {
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(value.Email) || !value.Email.Contains('@')) errors["email"] = ["Укажите корректный email."];
-        if (value.Password.Length < 10) errors["password"] = ["Пароль должен содержать не менее 10 символов."];
+        if (string.IsNullOrEmpty(value.Password) || value.Password.Length < 8) errors["password"] = ["Пароль должен содержать не менее 8 символов."];
         if (string.IsNullOrWhiteSpace(value.FirstName)) errors["firstName"] = ["Укажите имя."];
         if (string.IsNullOrWhiteSpace(value.LastName)) errors["lastName"] = ["Укажите фамилию."];
         return errors;

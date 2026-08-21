@@ -87,7 +87,7 @@ export function LoginPage() {
 
 export function LoginForm() {
   const { login } = useAuth(); const navigate = useNavigate(); const location = useLocation()
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [pending, setPending] = useState(false)
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [show, setShow] = useState(false); const [error, setError] = useState(''); const [pending, setPending] = useState(false)
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError('')
     if (!email.includes('@')) return setError('Укажите корректный email.')
@@ -98,7 +98,7 @@ export function LoginForm() {
     finally { setPending(false) }
   }
   const showDemoAccounts = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.ru" /></label><label>Пароль<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p>Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
+  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.ru" /></label><label>Пароль<span className="password-control"><input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p>Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
 }
 
 export function RegisterPage() {
@@ -106,13 +106,13 @@ export function RegisterPage() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); const data = new FormData(event.currentTarget); const birth = String(data.get('dateOfBirth')); const age = new Date().getFullYear() - new Date(birth).getFullYear()
     if (!birth || age < 14) return setError('Игроку младше 14 лет профиль создаёт родитель из своего кабинета.')
-    if (String(data.get('password')).length < 10) return setError('Пароль должен содержать не менее 10 символов.')
+    if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     setPending(true)
     try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName'), city: data.get('city'), preferredPosition: data.get('preferredPosition'), dominantFoot: data.get('dominantFoot'), experienceLevel: data.get('experienceLevel') }); setDone(true) }
     catch (e) { setError(e instanceof Error ? e.message : 'Регистрация не выполнена.') } finally { setPending(false) }
   }
   if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title="Начни свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" required /></label><label>Фамилия<input name="lastName" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" required /></label><label>Пароль<input name="password" type="password" minLength={10} required /></label><label>Позиция<select name="preferredPosition"><option>Полузащитник</option><option>Нападающий</option><option>Защитник</option><option>Вратарь</option></select></label><label>Ведущая нога<select name="dominantFoot"><option>Правая</option><option>Левая</option><option>Обе</option></select></label><label>Опыт<select name="experienceLevel"><option>Начинающий</option><option>Любитель</option><option>Опытный</option></select></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
+  return <AuthFrame title="Начни свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" required /></label><label>Фамилия<input name="lastName" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" required /></label><label>Пароль<input name="password" type="password" minLength={8} required /><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><label>Позиция<select name="preferredPosition"><option>Полузащитник</option><option>Нападающий</option><option>Защитник</option><option>Вратарь</option></select></label><label>Ведущая нога<select name="dominantFoot"><option>Правая</option><option>Левая</option><option>Обе</option></select></label><label>Опыт<select name="experienceLevel"><option>Начинающий</option><option>Любитель</option><option>Опытный</option></select></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
 }
 
 export function ForgotPasswordPage() {
@@ -122,14 +122,14 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
-  const [params] = useSearchParams(); const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null); const [passwordError, setPasswordError] = useState(''); const [pending, setPending] = useState(false)
+  const [params] = useSearchParams(); const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null); const [passwordError, setPasswordError] = useState(''); const [show, setShow] = useState(false); const [pending, setPending] = useState(false)
   const email = params.get('email') ?? ''; const token = params.get('token') ?? ''
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const password = String(new FormData(event.currentTarget).get('password'))
     setStatus(null)
     setPasswordError('')
-    if (password.length < 10) return setPasswordError('Пароль должен содержать не менее 10 символов.')
+    if (password.length < 8) return setPasswordError('Пароль должен содержать не менее 8 символов.')
     setPending(true)
     try {
       const result = await post<{ message: string }>('/api/auth/reset-password', { email, token, newPassword: password })
@@ -144,7 +144,7 @@ export function ResetPasswordPage() {
     }
   }
   if (!email || !token) return <AuthFrame title="Ссылка недействительна" subtitle="Запросите восстановление пароля ещё раз."><Link className="button large" to="/forgot-password">Восстановить пароль</Link></AuthFrame>
-  return <AuthFrame title="Новый пароль" subtitle="Не менее 10 символов: строчная и заглавная буквы, цифра и специальный знак."><form className="auth-form" onSubmit={submit}><label>Новый пароль<input name="password" type="password" autoComplete="new-password" minLength={10} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'password-requirements password-error' : 'password-requirements'} required /><small id="password-requirements">Например: Kasanie-2026!</small>{passwordError && <span id="password-error" className="error-message" role="alert">{passwordError}</span>}</label><button className="button large" disabled={pending}>{pending ? 'Сохраняем…' : 'Сохранить пароль'}</button>{status && <div className={status.ok ? 'success-message' : 'form-error'} role={status.ok ? 'status' : 'alert'}>{status.text}</div>}<p><Link to="/login">Ко входу</Link></p></form></AuthFrame>
+  return <AuthFrame title="Новый пароль" subtitle="Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак."><form className="auth-form" onSubmit={submit}><label>Новый пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'password-requirements password-error' : 'password-requirements'} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small id="password-requirements">Например: Kasanie-2026!</small>{passwordError && <span id="password-error" className="error-message" role="alert">{passwordError}</span>}</label><button className="button large" disabled={pending}>{pending ? 'Сохраняем…' : 'Сохранить пароль'}</button>{status && <div className={status.ok ? 'success-message' : 'form-error'} role={status.ok ? 'status' : 'alert'}>{status.text}</div>}<p><Link to="/login">Ко входу</Link></p></form></AuthFrame>
 }
 
 export function ConfirmEmailPage() {

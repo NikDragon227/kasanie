@@ -142,12 +142,11 @@ public static partial class EndpointMapping
         admin.MapPost("/users/{id}/invite", async (string id, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db, IConfiguration configuration, IOptions<DataProtectionTokenProviderOptions> tokenOptions) =>
         {
             var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
-            if (await users.HasPasswordAsync(target))
-                return Results.Conflict(new { message = "Пользователь уже задал пароль — ему нужно восстановление, а не приглашение." });
+            var hasPassword = await users.HasPasswordAsync(target);
             if (await users.IsLockedOutAsync(target))
                 return Results.Conflict(new { message = "Учётная запись заблокирована. Сначала разблокируйте." });
 
-            await AddAudit(db, principal, "user_invite_reissued", nameof(ApplicationUser), target.Id);
+            await AddAudit(db, principal, hasPassword ? "user_password_reset_by_admin" : "user_invite_reissued", nameof(ApplicationUser), target.Id);
             var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(target));
             var inviteUrl = BuildUrl(configuration, $"/reset-password?email={Uri.EscapeDataString(target.Email!)}&token={Uri.EscapeDataString(token)}");
             return Results.Ok(new { target.Id, target.Email, inviteUrl, expiresAt = DateTimeOffset.UtcNow.Add(tokenOptions.Value.TokenLifespan) });

@@ -98,7 +98,7 @@ public static partial class EndpointMapping
 
         auth.MapPost("/reset-password", async (ResetPasswordRequest request, UserManager<ApplicationUser> users, AppDbContext db) =>
         {
-            if (request.NewPassword.Length < 10) return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["Пароль должен содержать не менее 10 символов."] });
+            if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length < 8) return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["Пароль должен содержать не менее 8 символов."] });
             var user = await users.FindByEmailAsync(request.Email.Trim()); if (user is null) return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
             var token = TryDecodeToken(request.Token); if (token is null) return Results.BadRequest(new { message = "Ссылка недействительна или устарела." });
             var result = await users.ResetPasswordAsync(user, token, request.NewPassword);
@@ -112,6 +112,29 @@ public static partial class EndpointMapping
             db.AuditLogs.Add(new AuditLog { UserId = user.Id, EventType = "password_reset", EntityType = nameof(ApplicationUser), EntityId = user.Id }); await db.SaveChangesAsync();
             return Results.Ok(new { message = "Пароль обновлён. Теперь можно войти." });
         }).RequireRateLimiting("login");
+
+        auth.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, AppDbContext db) =>
+        {
+            if (string.IsNullOrEmpty(request.CurrentPassword))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["currentPassword"] = ["Введите текущий пароль."] });
+            if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length < 8)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["Пароль должен содержать не менее 8 символов."] });
+            var user = await users.GetUserAsync(principal); if (user is null) return Results.Unauthorized();
+            var result = await users.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                var errors = new Dictionary<string, string[]>();
+                var currentPasswordErrors = result.Errors.Where(x => x.Code == "PasswordMismatch").Select(x => x.Description).ToArray();
+                var newPasswordErrors = result.Errors.Where(x => x.Code.StartsWith("Password") && x.Code != "PasswordMismatch").Select(x => x.Description).ToArray();
+                if (currentPasswordErrors.Length > 0) errors["currentPassword"] = currentPasswordErrors;
+                if (newPasswordErrors.Length > 0) errors["newPassword"] = newPasswordErrors;
+                if (errors.Count > 0) return Results.ValidationProblem(errors);
+                return Results.BadRequest(new { message = "Не удалось изменить пароль." });
+            }
+            await signIn.RefreshSignInAsync(user);
+            db.AuditLogs.Add(new AuditLog { UserId = user.Id, EventType = "password_changed", EntityType = nameof(ApplicationUser), EntityId = user.Id }); await db.SaveChangesAsync();
+            return Results.Ok(new { message = "Пароль изменён." });
+        }).RequireAuthorization();
 
         auth.MapPost("/logout", async (SignInManager<ApplicationUser> signIn) => { await signIn.SignOutAsync(); return Results.NoContent(); }).RequireAuthorization();
 

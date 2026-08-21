@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { AppShell, RoleGuard } from './components'
+import { AppShell, AuthenticatedGuard, RoleGuard } from './components'
+import { AccountSecurityPage } from './pages/AccountPages'
 import { ConfirmEmailPage, ForgotPasswordPage, LandingPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/PublicPages'
 import { AssessmentPage, PlayerDashboard, ProfilePage, ProgressPage, TrainingPlanPage, WorkoutPage } from './pages/PlayerPages'
 import { AdminAssessmentsPage, AdminDashboard, AdminExercisesPage, AdminMunicipalitiesPage, AdminProgramsPage, AdminUsersPage, AnalyticsPage, ChildDetailPage, CoachDashboard, CoachPlayerPage, CoachPlayersPage, ParentDashboard } from './pages/RolePages'
@@ -7,6 +8,7 @@ import { AdminAssessmentsPage, AdminDashboard, AdminExercisesPage, AdminMunicipa
 export default function App() {
   return <Routes>
     <Route path="/" element={<LandingPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/confirm-email" element={<ConfirmEmailPage />} />
+    <Route element={<AuthenticatedGuard />}><Route element={<AppShell />}><Route path="/account/security" element={<AccountSecurityPage />} /></Route></Route>
     <Route element={<RoleGuard role="Player" />}><Route element={<AppShell />}><Route path="/player" element={<PlayerDashboard />} /><Route path="/player/profile" element={<ProfilePage />} /><Route path="/player/assessment" element={<AssessmentPage />} /><Route path="/player/training" element={<TrainingPlanPage />} /><Route path="/player/training/:sessionId" element={<WorkoutPage />} /><Route path="/player/progress" element={<ProgressPage />} /></Route></Route>
     <Route element={<RoleGuard role="Coach" />}><Route element={<AppShell />}><Route path="/coach" element={<CoachDashboard />} /><Route path="/coach/players" element={<CoachPlayersPage />} /><Route path="/coach/players/:playerId" element={<CoachPlayerPage />} /></Route></Route>
     <Route element={<RoleGuard role="Parent" />}><Route element={<AppShell />}><Route path="/parent" element={<ParentDashboard />} /><Route path="/parent/children/:playerId" element={<ChildDetailPage />} /></Route></Route>

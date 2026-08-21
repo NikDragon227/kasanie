@@ -25,7 +25,7 @@ Directory.CreateDirectory(dataProtectionPath);
 builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath)).SetApplicationName("Kasanie");
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
-    options.Password.RequiredLength = 10;
+    options.Password.RequiredLength = 8;
     options.Password.RequireDigit = true;
     options.Password.RequireUppercase = true;
     options.Password.RequireLowercase = true;
