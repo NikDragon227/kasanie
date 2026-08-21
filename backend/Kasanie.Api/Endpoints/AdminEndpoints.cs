@@ -97,7 +97,7 @@ public static partial class EndpointMapping
                 x.Email,
                 x.LockoutEnd,
                 x.CreatedAt,
-                roles = from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name,
+                roles = (from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name).ToList(),
                 analyticsRegion = db.UserClaims.Where(c => c.UserId == x.Id && c.ClaimType == KasanieClaimTypes.AnalyticsRegion).Select(c => c.ClaimValue).FirstOrDefault()
             }).ToListAsync();
             return Results.Ok(new { total = await query.CountAsync(), page, pageSize, items });
