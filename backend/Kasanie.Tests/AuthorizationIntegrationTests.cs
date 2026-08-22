@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Kasanie.Api.Domain;
@@ -263,6 +264,61 @@ public sealed class AuthorizationIntegrationTests
         using var response = await client.SendAsync(Get("/api/school/2/teams/2/workspace", "owner-a", Roles.SchoolOwner));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    public static IEnumerable<object[]> ForeignTeamChildEndpointCases()
+    {
+        yield return ["GET", "/api/school/1/teams/2/workspace", null!, HttpStatusCode.NotFound];
+        yield return ["PUT", "/api/school/1/teams/2", """{"name":"Hacked","ageGroup":"U17","season":"2026/27","headCoachId":null,"isActive":true}""", HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/messages", """{"channel":"Owner","text":"foreign message"}""", HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/groups", """{"name":"Foreign group","purpose":"foreign","playerIds":[2]}""", HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/matches", """{"opponent":"Foreign opponent","competition":"Cup","scheduledAt":"2026-08-23T12:00:00Z","venue":"Home","status":"Planned","goalsFor":null,"goalsAgainst":null,"lineupNotes":null}""", HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/tournaments", """{"name":"Foreign cup","startDate":"2026-09-01","endDate":"2026-09-03","status":"Planned","placement":null,"entryFee":0,"travelCost":0,"accommodationCost":0,"mealCost":0,"equipmentCost":0,"otherCost":0,"income":0,"sourceUrl":null,"registrationDeadline":"2026-08-28"}""", HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/coaches", """{"coachId":2,"isHeadCoach":true}""", HttpStatusCode.NotFound];
+        yield return ["DELETE", "/api/school/1/teams/2/coaches/2", null!, HttpStatusCode.NotFound];
+        yield return ["POST", "/api/school/1/teams/2/players", """{"playerId":2,"shirtNumber":99}""", HttpStatusCode.NotFound];
+        yield return ["DELETE", "/api/school/1/teams/2/players/2", null!, HttpStatusCode.NotFound];
+        yield return ["PUT", "/api/school/1/teams/2/tactics", """{"formation":"4-3-3","notes":"must not be saved"}""", HttpStatusCode.Forbidden];
+    }
+
+    [Theory]
+    [MemberData(nameof(ForeignTeamChildEndpointCases))]
+    public async Task SchoolOwner_CannotAccessOrMutateForeignTeamThroughOwnSchoolRoute(string method, string path, string? body, HttpStatusCode expectedStatus)
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Schools.AddRange(
+                new School { Id = 1, Name = "School A", Slug = "school-a" },
+                new School { Id = 2, Name = "School B", Slug = "school-b" });
+            db.SchoolMemberships.AddRange(
+                new SchoolMembership { SchoolId = 1, UserId = "owner-a", Role = SchoolMembershipRole.Owner },
+                new SchoolMembership { SchoolId = 2, UserId = "owner-b", Role = SchoolMembershipRole.Owner },
+                new SchoolMembership { SchoolId = 2, UserId = "coach-b", Role = SchoolMembershipRole.Coach });
+            db.CoachProfiles.Add(new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.Players.Add(Player(2));
+            db.Teams.Add(new Team { Id = 2, SchoolId = 2, Name = "Foreign team", AgeGroup = "U17", TacticFormation = "4-4-2" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 2, CoachId = 2, IsHeadCoach = true });
+            db.TeamPlayers.Add(new TeamPlayer { TeamId = 2, PlayerId = 2, ShirtNumber = 8 });
+        });
+
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "owner-a", Roles.SchoolOwner);
+        using var request = PortalRequest(method, path, body, "owner-a", Roles.SchoolOwner, csrf);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(expectedStatus, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var foreignTeam = await db.Teams.SingleAsync(x => x.Id == 2);
+        Assert.Equal("Foreign team", foreignTeam.Name);
+        Assert.Equal("4-4-2", foreignTeam.TacticFormation);
+        Assert.False(await db.TeamMessages.AnyAsync());
+        Assert.False(await db.TeamTrainingGroups.AnyAsync());
+        Assert.False(await db.TeamMatches.AnyAsync());
+        Assert.False(await db.TeamTournaments.AnyAsync());
+        Assert.True(await db.TeamCoaches.AnyAsync(x => x.TeamId == 2 && x.CoachId == 2 && x.IsHeadCoach));
+        Assert.True(await db.TeamPlayers.AnyAsync(x => x.TeamId == 2 && x.PlayerId == 2 && x.IsActive && x.ShirtNumber == 8));
     }
 
     [Fact]
@@ -665,6 +721,16 @@ public sealed class AuthorizationIntegrationTests
         request.Headers.Add("X-CSRF-TOKEN", csrf);
         if (userId is not null) request.Headers.Add(TestAuthHandler.UserIdHeader, userId);
         if (role is not null) request.Headers.Add(TestAuthHandler.RoleHeader, role);
+        return request;
+    }
+
+    private static HttpRequestMessage PortalRequest(string method, string path, string? body, string userId, string role, string csrf)
+    {
+        var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (body is not null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        request.Headers.Add(TestAuthHandler.UserIdHeader, userId);
+        request.Headers.Add(TestAuthHandler.RoleHeader, role);
         return request;
     }
 
