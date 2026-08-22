@@ -17,6 +17,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TeamTrainingGroupPlayer> TeamTrainingGroupPlayers => Set<TeamTrainingGroupPlayer>();
     public DbSet<TeamMatch> TeamMatches => Set<TeamMatch>();
     public DbSet<TeamTournament> TeamTournaments => Set<TeamTournament>();
+    public DbSet<TeamMessage> TeamMessages => Set<TeamMessage>();
+    public DbSet<TeamInjury> TeamInjuries => Set<TeamInjury>();
+    public DbSet<TeamScheduleEvent> TeamScheduleEvents => Set<TeamScheduleEvent>();
     public DbSet<TeamTraining> TeamTrainings => Set<TeamTraining>();
     public DbSet<TeamTrainingExercise> TeamTrainingExercises => Set<TeamTrainingExercise>();
     public DbSet<TeamTrainingAttendance> TeamTrainingAttendances => Set<TeamTrainingAttendance>();
@@ -60,6 +63,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TeamTrainingAttendance>().HasKey(x => new { x.TeamTrainingId, x.PlayerId });
         builder.Entity<TeamTrainingPlayerResult>().HasKey(x => new { x.TeamTrainingExerciseId, x.PlayerId });
         builder.Entity<TeamTrainingExercise>().HasIndex(x => new { x.TeamTrainingId, x.ExerciseId }).IsUnique();
+        builder.Entity<TeamPlayer>().HasIndex(x => new { x.TeamId, x.ShirtNumber }).IsUnique().HasFilter("\"IsActive\" AND \"ShirtNumber\" IS NOT NULL");
+        builder.Entity<TeamMessage>().HasIndex(x => new { x.TeamId, x.Channel, x.CreatedAt });
+        builder.Entity<TeamInjury>().HasIndex(x => new { x.TeamId, x.Status });
+        builder.Entity<TeamScheduleEvent>().HasIndex(x => new { x.TeamId, x.StartsAt });
         builder.Entity<ParentPlayerLink>().HasKey(x => new { x.ParentId, x.PlayerId });
         builder.Entity<CoachPlayerLink>().HasKey(x => new { x.CoachId, x.PlayerId });
         builder.Entity<TrainingProgramExercise>().HasKey(x => new { x.TrainingProgramId, x.ExerciseId });

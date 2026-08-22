@@ -234,9 +234,6 @@ public sealed class AuthorizationIntegrationTests
             name = "Первый состав",
             ageGroup = "U17",
             season = "2026/27",
-            trainingCycleStage = "Соревновательный этап",
-            cycleStart = "2026-08-01",
-            cycleEnd = "2026-11-30",
             isActive = true
         }, "owner-a", Roles.SchoolOwner, csrf));
         using var json = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
@@ -248,7 +245,7 @@ public sealed class AuthorizationIntegrationTests
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         Assert.Equal(HttpStatusCode.OK, workspace.StatusCode);
         Assert.Equal("U17 — Первый состав", workspaceJson.RootElement.GetProperty("team").GetProperty("displayName").GetString());
-        Assert.Equal("Соревновательный этап", workspaceJson.RootElement.GetProperty("team").GetProperty("trainingCycleStage").GetString());
+        Assert.Equal("Цикл не назначен", workspaceJson.RootElement.GetProperty("team").GetProperty("trainingCycleStage").GetString());
     }
 
     [Fact]
@@ -318,6 +315,34 @@ public sealed class AuthorizationIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal("Высокий прессинг", (await db.Teams.FindAsync(1))!.TacticNotes);
         Assert.Null((await db.Teams.FindAsync(2))!.TacticNotes);
+    }
+
+    [Fact]
+    public async Task Coach_UpdatesCycleOnlyForAssignedTeam()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.AddRange(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" }, new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.AddRange(new Team { Id = 1, SchoolId = 1, Name = "A" }, new Team { Id = 2, SchoolId = 1, Name = "B" });
+            db.TeamCoaches.AddRange(new TeamCoach { TeamId = 1, CoachId = 1 }, new TeamCoach { TeamId = 2, CoachId = 2 });
+        });
+        using var client = factory.CreateClient(); var csrf = await CsrfAsync(client, "coach-a", Roles.Coach);
+        using var own = await client.SendAsync(JsonRequest(HttpMethod.Put, "/api/coach/teams/1/cycle", new { stage = "Соревновательный этап", startsOn = "2026-08-01", endsOn = "2026-11-30" }, "coach-a", Roles.Coach, csrf));
+        using var foreign = await client.SendAsync(JsonRequest(HttpMethod.Put, "/api/coach/teams/2/cycle", new { stage = "Базовый этап" }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, own.StatusCode); Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+        using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); Assert.Equal("Соревновательный этап", (await db.Teams.FindAsync(1))!.TrainingCycleStage);
+    }
+
+    [Fact]
+    public async Task SchoolOwner_CannotEditCoachTactics()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => { db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" }); db.SchoolMemberships.Add(new SchoolMembership { SchoolId = 1, UserId = "owner-a", Role = SchoolMembershipRole.Owner }); db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "A" }); });
+        using var client = factory.CreateClient(); var csrf = await CsrfAsync(client, "owner-a", Roles.SchoolOwner);
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Put, "/api/school/1/teams/1/tactics", new { formation = "4-3-3" }, "owner-a", Roles.SchoolOwner, csrf));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

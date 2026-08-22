@@ -27,6 +27,7 @@ public enum SessionStatus { Planned, InProgress, Completed }
 public enum SchoolMembershipRole { Owner, Administrator, Coach }
 public enum TeamTrainingStatus { Planned, InProgress, Completed }
 public enum AttendanceStatus { Unknown, Present, Late, Absent, Excused }
+public enum TeamMessageChannel { Owner, Team, Parents }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -80,6 +81,12 @@ public sealed class Team
     public DateOnly? CycleEnd { get; set; }
     public string? TacticFormation { get; set; }
     public string? TacticNotes { get; set; }
+    public string? TacticPlanJson { get; set; }
+    public string? SetPiecesJson { get; set; }
+    public string? OpponentInstructions { get; set; }
+    public string? OpponentReportUrl { get; set; }
+    public string? OpponentReportNotes { get; set; }
+    public string? CodeOfConduct { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -88,6 +95,9 @@ public sealed class Team
     public List<TeamTrainingGroup> TrainingGroups { get; set; } = [];
     public List<TeamMatch> Matches { get; set; } = [];
     public List<TeamTournament> Tournaments { get; set; } = [];
+    public List<TeamMessage> Messages { get; set; } = [];
+    public List<TeamInjury> Injuries { get; set; } = [];
+    public List<TeamScheduleEvent> ScheduleEvents { get; set; } = [];
 }
 
 public sealed class TeamTrainingGroup
@@ -143,6 +153,8 @@ public sealed class TeamTournament
     public decimal EquipmentCost { get; set; }
     public decimal OtherCost { get; set; }
     public decimal Income { get; set; }
+    public string? SourceUrl { get; set; }
+    public DateOnly? RegistrationDeadline { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -163,9 +175,56 @@ public sealed class TeamPlayer
     public int PlayerId { get; set; }
     public PlayerProfile Player { get; set; } = null!;
     public int? ShirtNumber { get; set; }
+    public string TournamentRegistrationStatus { get; set; } = "Не заявлен";
+    public string CurrentSeasonPlan { get; set; } = "Основной состав";
+    public string NextSeasonPlan { get; set; } = "Оценить развитие";
+    public string TwoYearPlan { get; set; } = "Перспектива";
     public bool IsActive { get; set; } = true;
     public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LeftAt { get; set; }
+}
+
+public sealed class TeamMessage
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public required string AuthorUserId { get; set; }
+    public ApplicationUser AuthorUser { get; set; } = null!;
+    public TeamMessageChannel Channel { get; set; }
+    public required string Text { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TeamInjury
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public required string Type { get; set; }
+    public string Severity { get; set; } = "Незначительная";
+    public string Status { get; set; } = "Лечение";
+    public int RiskLevel { get; set; }
+    public DateOnly StartedOn { get; set; }
+    public DateOnly? ExpectedReturnOn { get; set; }
+    public DateOnly? ClosedOn { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TeamScheduleEvent
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public required string Type { get; set; }
+    public required string Title { get; set; }
+    public DateTimeOffset StartsAt { get; set; }
+    public DateTimeOffset? ReminderAt { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class TeamTraining

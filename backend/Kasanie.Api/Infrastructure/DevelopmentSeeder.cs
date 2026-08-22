@@ -144,7 +144,7 @@ public sealed class DevelopmentSeeder(
         if (!await db.SchoolMemberships.AnyAsync(x => x.SchoolId == school.Id && x.UserId == coachUser.Id)) db.SchoolMemberships.Add(new SchoolMembership { SchoolId = school.Id, UserId = coachUser.Id, Role = SchoolMembershipRole.Coach });
         var team = await db.Teams.FirstOrDefaultAsync(x => x.SchoolId == school.Id && (x.Name == "Основная группа" || (x.Name == "Первый состав" && x.AgeGroup == "U17")));
         if (team is null) { team = new Team { SchoolId = school.Id, Name = "Первый состав", AgeGroup = "U17", Season = "2026/27", TrainingCycleStage = "Соревновательный этап", CycleStart = new DateOnly(2026, 8, 1), CycleEnd = new DateOnly(2026, 11, 30) }; db.Teams.Add(team); }
-        else { team.Name = "Первый состав"; team.AgeGroup = "U17"; team.Season ??= "2026/27"; team.TrainingCycleStage = "Соревновательный этап"; team.CycleStart ??= new DateOnly(2026, 8, 1); team.CycleEnd ??= new DateOnly(2026, 11, 30); }
+        else { team.Name = "Первый состав"; team.AgeGroup = "U17"; team.Season ??= "2026/27"; team.TrainingCycleStage = "Соревновательный этап"; team.CycleStart ??= new DateOnly(2026, 8, 1); team.CycleEnd ??= new DateOnly(2026, 11, 30); team.CodeOfConduct ??= "Приходим вовремя. Уважаем партнёров и соперника. Ошибку разбираем, а не высмеиваем. Учёба важнее дополнительной нагрузки."; }
         await db.SaveChangesAsync();
         var duplicateDemoTeams = await db.Teams.Where(x => x.SchoolId == school.Id && x.Id != team.Id && x.IsActive && (x.Name == "Основная группа" || x.Name == "U17 - первый состав") && !x.TeamPlayers.Any(p => p.IsActive) && !db.TeamTrainings.Any(t => t.TeamId == x.Id)).ToListAsync();
         foreach (var duplicate in duplicateDemoTeams) duplicate.IsActive = false;
@@ -187,7 +187,22 @@ public sealed class DevelopmentSeeder(
         if (!await db.TeamMatches.AnyAsync(x => x.TeamId == team.Id)) db.TeamMatches.AddRange(
             new TeamMatch { TeamId = team.Id, Opponent = "Академия Рубин", Competition = "Первенство города", ScheduledAt = DateTimeOffset.UtcNow.Date.AddDays(5).AddHours(12), Venue = "Дома" },
             new TeamMatch { TeamId = team.Id, Opponent = "Смена", Competition = "Товарищеский матч", ScheduledAt = DateTimeOffset.UtcNow.Date.AddDays(-8).AddHours(15), Venue = "В гостях", Status = "Завершён", GoalsFor = 3, GoalsAgainst = 1 });
-        if (!await db.TeamTournaments.AnyAsync(x => x.TeamId == team.Id)) db.TeamTournaments.Add(new TeamTournament { TeamId = team.Id, Name = "Кубок академий", StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(20)), EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(22)), Status = "Подготовка", EntryFee = 15000, TravelCost = 24000, AccommodationCost = 36000, MealCost = 18000, Income = 10000 });
+        var demoTournament = await db.TeamTournaments.FirstOrDefaultAsync(x => x.TeamId == team.Id);
+        if (demoTournament is null)
+        {
+            db.TeamTournaments.Add(new TeamTournament { TeamId = team.Id, Name = "Кубок академий", StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(20)), EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(22)), RegistrationDeadline = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(12)), Status = "Подготовка", EntryFee = 15000, TravelCost = 24000, AccommodationCost = 36000, MealCost = 18000, Income = 10000 });
+        }
+        else if (demoTournament.RegistrationDeadline is null)
+        {
+            demoTournament.RegistrationDeadline = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(12));
+        }
+        if (!await db.TeamMessages.AnyAsync(x => x.TeamId == team.Id)) db.TeamMessages.AddRange(
+            new TeamMessage { TeamId = team.Id, AuthorUserId = ownerUser.Id, Channel = TeamMessageChannel.Owner, Text = "Илья, подтвердите план подготовки к ближайшему матчу." },
+            new TeamMessage { TeamId = team.Id, AuthorUserId = coachUser.Id, Channel = TeamMessageChannel.Team, Text = "Завтра сбор за 20 минут до начала. Возьмите обе игровые футболки." });
+        if (!await db.TeamScheduleEvents.AnyAsync(x => x.TeamId == team.Id)) db.TeamScheduleEvents.AddRange(
+            new TeamScheduleEvent { TeamId = team.Id, Type = "Собрание", Title = "Разбор следующего соперника", StartsAt = DateTimeOffset.UtcNow.Date.AddDays(2).AddHours(18), ReminderAt = DateTimeOffset.UtcNow.Date.AddDays(2).AddHours(12) },
+            new TeamScheduleEvent { TeamId = team.Id, Type = "Регистрация", Title = "Закрыть заявку на Кубок академий", StartsAt = DateTimeOffset.UtcNow.Date.AddDays(12).AddHours(18) });
+        if (!await db.TeamInjuries.AnyAsync(x => x.TeamId == team.Id)) db.TeamInjuries.Add(new TeamInjury { TeamId = team.Id, PlayerId = child.Id, Type = "Ушиб голеностопа", Severity = "Незначительная", Status = "Наблюдение", RiskLevel = 35, StartedOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)), ExpectedReturnOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)), Notes = "Ограничить прыжковую нагрузку." });
         await db.SaveChangesAsync();
         if (!await db.TeamTrainings.AnyAsync(x => x.TeamId == team.Id))
         {

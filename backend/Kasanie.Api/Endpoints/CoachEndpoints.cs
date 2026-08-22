@@ -62,11 +62,16 @@ public static partial class EndpointMapping
             if (team is null) return Results.Forbid();
             team.TacticFormation = string.IsNullOrWhiteSpace(request.Formation) ? null : request.Formation.Trim();
             team.TacticNotes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+            team.TacticPlanJson = string.IsNullOrWhiteSpace(request.PlanJson) ? null : request.PlanJson;
+            team.SetPiecesJson = string.IsNullOrWhiteSpace(request.SetPiecesJson) ? null : request.SetPiecesJson;
+            team.OpponentInstructions = string.IsNullOrWhiteSpace(request.OpponentInstructions) ? null : request.OpponentInstructions.Trim();
             team.UpdatedAt = DateTimeOffset.UtcNow;
             db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "coach_team_tactics_updated", EntityType = nameof(Team), EntityId = teamId.ToString() });
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+
+        MapCoachCommandCenter(coach);
 
         coach.MapGet("/players/{playerId:int}", async (int playerId, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {

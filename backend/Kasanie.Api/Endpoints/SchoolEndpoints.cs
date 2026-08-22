@@ -146,7 +146,7 @@ public static partial class EndpointMapping
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.AgeGroup)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["team"] = ["Укажите возрастную команду и название состава."] });
             var name = request.Name.Trim(); var ageGroup = request.AgeGroup.Trim();
             if (await db.Teams.AnyAsync(x => x.SchoolId == schoolId && x.IsActive && x.Name.ToLower() == name.ToLower() && x.AgeGroup != null && x.AgeGroup.ToLower() == ageGroup.ToLower())) return Results.Conflict(new { message = "Такой состав уже существует." });
-            var team = new Team { SchoolId = schoolId, Name = name, AgeGroup = ageGroup, Season = Clean(request.Season), TrainingCycleStage = Clean(request.TrainingCycleStage) ?? "Подготовительный этап", CycleStart = request.CycleStart, CycleEnd = request.CycleEnd, IsActive = request.IsActive };
+            var team = new Team { SchoolId = schoolId, Name = name, AgeGroup = ageGroup, Season = Clean(request.Season), TrainingCycleStage = "Цикл не назначен", IsActive = request.IsActive };
             db.Teams.Add(team);
             if (request.HeadCoachId.HasValue)
             {
@@ -157,12 +157,19 @@ public static partial class EndpointMapping
             return Results.Created($"/api/school/{schoolId}/teams/{team.Id}", new { team.Id });
         });
 
-        portal.MapPut("/{schoolId:int}/teams/{teamId:int}", async (int schoolId, int teamId, TeamUpsertRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        portal.MapPut("/{schoolId:int}/teams/{teamId:int}", async (int schoolId, int teamId, TeamIdentityUpdateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
         {
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             var team = await db.Teams.SingleOrDefaultAsync(x => x.Id == teamId && x.SchoolId == schoolId); if (team is null) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.AgeGroup)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["team"] = ["Укажите возрастную команду и название состава."] });
-            team.Name = request.Name.Trim(); team.AgeGroup = request.AgeGroup.Trim(); team.Season = Clean(request.Season); team.TrainingCycleStage = Clean(request.TrainingCycleStage) ?? "Подготовительный этап"; team.CycleStart = request.CycleStart; team.CycleEnd = request.CycleEnd; team.IsActive = request.IsActive; team.UpdatedAt = DateTimeOffset.UtcNow;
+            team.Name = request.Name.Trim(); team.AgeGroup = request.AgeGroup.Trim(); team.Season = Clean(request.Season); team.IsActive = request.IsActive; team.UpdatedAt = DateTimeOffset.UtcNow;
+            if (request.HeadCoachId.HasValue && !await CoachBelongsToSchoolAsync(db, schoolId, request.HeadCoachId.Value)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["headCoachId"] = ["Тренер не состоит в этой школе."] });
+            foreach (var current in await db.TeamCoaches.Where(x => x.TeamId == teamId && x.IsHeadCoach).ToListAsync()) current.IsHeadCoach = false;
+            if (request.HeadCoachId.HasValue)
+            {
+                var link = await db.TeamCoaches.SingleOrDefaultAsync(x => x.TeamId == teamId && x.CoachId == request.HeadCoachId.Value);
+                if (link is null) db.TeamCoaches.Add(new TeamCoach { TeamId = teamId, CoachId = request.HeadCoachId.Value, IsHeadCoach = true }); else link.IsHeadCoach = true;
+            }
             await db.SaveChangesAsync(); await AddAudit(db, principal, "team_updated", nameof(Team), team.Id.ToString()); return Results.NoContent();
         });
 
@@ -171,31 +178,39 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             var team = await db.Teams.AsNoTracking().Where(x => x.Id == teamId && x.SchoolId == schoolId).Select(x => new
             {
-                x.Id, x.Name, x.AgeGroup, x.Season, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.TacticFormation, x.TacticNotes, x.IsActive,
+                x.Id, x.Name, x.AgeGroup, x.Season, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.TacticFormation, x.TacticNotes, x.TacticPlanJson, x.SetPiecesJson, x.OpponentInstructions, x.CodeOfConduct, x.IsActive,
                 displayName = (x.AgeGroup ?? "") + (x.AgeGroup == null ? "" : " — ") + x.Name,
                 coaches = x.TeamCoaches.OrderByDescending(c => c.IsHeadCoach).Select(c => new { c.CoachId, c.Coach.DisplayName, c.IsHeadCoach }).ToList()
             }).SingleOrDefaultAsync();
             if (team is null) return Results.NotFound();
-            var players = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new { x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.PreferredPosition, x.ShirtNumber }).ToListAsync();
+            var players = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new { x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.PreferredPosition, x.ShirtNumber, x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan }).ToListAsync();
             var groups = await db.TeamTrainingGroups.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Purpose, players = x.Players.Select(p => new { p.PlayerId, p.Player.FirstName, p.Player.LastName }).ToList() }).ToListAsync();
             var trainings = await db.TeamTrainings.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.ScheduledAt).Take(12).Select(x => new { x.Id, x.Title, x.ScheduledAt, status = x.Status.ToString(), players = x.Attendances.Count, present = x.Attendances.Count(a => a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late) }).ToListAsync();
             var matches = await db.TeamMatches.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.ScheduledAt).Select(x => new { x.Id, x.Opponent, x.Competition, x.ScheduledAt, x.Venue, x.Status, x.GoalsFor, x.GoalsAgainst, x.LineupNotes }).ToListAsync();
-            var tournaments = await db.TeamTournaments.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.StartDate).Select(x => new { x.Id, x.Name, x.StartDate, x.EndDate, x.Status, x.Placement, x.EntryFee, x.TravelCost, x.AccommodationCost, x.MealCost, x.EquipmentCost, x.OtherCost, x.Income }).ToListAsync();
+            var tournaments = await db.TeamTournaments.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.StartDate).Select(x => new { x.Id, x.Name, x.StartDate, x.EndDate, x.Status, x.Placement, x.EntryFee, x.TravelCost, x.AccommodationCost, x.MealCost, x.EquipmentCost, x.OtherCost, x.Income, x.SourceUrl, x.RegistrationDeadline }).ToListAsync();
+            var injuries = await db.TeamInjuries.AsNoTracking().Where(x => x.TeamId == teamId && x.Status != "Закрыта").Select(x => new { x.Id, x.PlayerId, player = x.Player.FirstName + " " + x.Player.LastName, x.Type, x.Severity, x.Status, x.RiskLevel, x.StartedOn, x.ExpectedReturnOn }).ToListAsync();
+            var messages = await db.TeamMessages.AsNoTracking().Where(x => x.TeamId == teamId && x.Channel == TeamMessageChannel.Owner).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, channel = x.Channel.ToString(), author = x.AuthorUser.Email, x.Text, x.CreatedAt }).ToListAsync();
             var attendanceTotal = await db.TeamTrainingAttendances.CountAsync(x => x.TeamTraining.TeamId == teamId && x.Status != AttendanceStatus.Unknown);
             var attendancePresent = await db.TeamTrainingAttendances.CountAsync(x => x.TeamTraining.TeamId == teamId && (x.Status == AttendanceStatus.Present || x.Status == AttendanceStatus.Late));
             var resultTotal = await db.TeamTrainingPlayerResults.CountAsync(x => x.TeamTrainingExercise.TeamTraining.TeamId == teamId);
             var completed = await db.TeamTrainingPlayerResults.CountAsync(x => x.TeamTrainingExercise.TeamTraining.TeamId == teamId && x.IsCompleted);
             var understood = await db.TeamTrainingPlayerResults.CountAsync(x => x.TeamTrainingExercise.TeamTraining.TeamId == teamId && x.Understood);
             var expenses = tournaments.Sum(x => x.EntryFee + x.TravelCost + x.AccommodationCost + x.MealCost + x.EquipmentCost + x.OtherCost);
-            return Results.Ok(new { team, players, groups, trainings, matches, tournaments, metrics = new { attendanceRate = attendanceTotal == 0 ? 0 : (int)Math.Round(attendancePresent * 100m / attendanceTotal), completionRate = resultTotal == 0 ? 0 : (int)Math.Round(completed * 100m / resultTotal), understandingRate = resultTotal == 0 ? 0 : (int)Math.Round(understood * 100m / resultTotal), trainingsCompleted = trainings.Count(x => x.status == TeamTrainingStatus.Completed.ToString()), attentionPlayers = await db.TeamTrainingPlayerResults.Where(x => x.TeamTrainingExercise.TeamTraining.TeamId == teamId && (!x.IsCompleted || !x.Understood)).Select(x => x.PlayerId).Distinct().CountAsync(), tournamentExpenses = expenses, tournamentIncome = tournaments.Sum(x => x.Income) } });
+            return Results.Ok(new { team, players, groups, trainings, matches, tournaments, injuries, messages, metrics = new { attendanceRate = attendanceTotal == 0 ? 0 : (int)Math.Round(attendancePresent * 100m / attendanceTotal), completionRate = resultTotal == 0 ? 0 : (int)Math.Round(completed * 100m / resultTotal), understandingRate = resultTotal == 0 ? 0 : (int)Math.Round(understood * 100m / resultTotal), trainingsCompleted = trainings.Count(x => x.status == TeamTrainingStatus.Completed.ToString()), attentionPlayers = await db.TeamTrainingPlayerResults.Where(x => x.TeamTrainingExercise.TeamTraining.TeamId == teamId && (!x.IsCompleted || !x.Understood)).Select(x => x.PlayerId).Distinct().CountAsync(), tournamentExpenses = expenses, tournamentIncome = tournaments.Sum(x => x.Income) } });
         });
 
-        portal.MapPut("/{schoolId:int}/teams/{teamId:int}/tactics", async (int schoolId, int teamId, TeamTacticRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        portal.MapPost("/{schoolId:int}/teams/{teamId:int}/messages", async (int schoolId, int teamId, TeamMessageRequest request, ClaimsPrincipal principal, AppDbContext db) =>
         {
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
-            var team = await db.Teams.SingleOrDefaultAsync(x => x.Id == teamId && x.SchoolId == schoolId); if (team is null) return Results.NotFound();
-            team.TacticFormation = Clean(request.Formation); team.TacticNotes = Clean(request.Notes); team.UpdatedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(); await AddAudit(db, principal, "team_tactics_updated", nameof(Team), teamId.ToString()); return Results.NoContent();
+            if (!await db.Teams.AnyAsync(x => x.Id == teamId && x.SchoolId == schoolId)) return Results.NotFound();
+            if (!request.Channel.Equals(nameof(TeamMessageChannel.Owner), StringComparison.OrdinalIgnoreCase)) return Results.Forbid();
+            if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Length > 2000) return Results.ValidationProblem(new Dictionary<string, string[]> { ["text"] = ["Введите сообщение до 2000 символов."] });
+            var item = new TeamMessage { TeamId = teamId, AuthorUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!, Channel = TeamMessageChannel.Owner, Text = request.Text.Trim() }; db.TeamMessages.Add(item); await db.SaveChangesAsync(); await AddAudit(db, principal, "school_owner_team_message_sent", nameof(TeamMessage), item.Id.ToString()); return Results.Ok(new { item.Id });
+        });
+
+        portal.MapPut("/{schoolId:int}/teams/{teamId:int}/tactics", (int schoolId, int teamId) =>
+        {
+            return Results.Problem("Тактика и тренировочный цикл находятся в зоне ответственности тренера.", statusCode: StatusCodes.Status403Forbidden);
         });
 
         portal.MapPost("/{schoolId:int}/teams/{teamId:int}/groups", async (int schoolId, int teamId, TeamTrainingGroupRequest request, ClaimsPrincipal principal, AppDbContext db) =>
@@ -223,7 +238,8 @@ public static partial class EndpointMapping
             if (!await db.Teams.AnyAsync(x => x.Id == teamId && x.SchoolId == schoolId)) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(request.Name)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Укажите название турнира."] });
             if (new[] { request.EntryFee, request.TravelCost, request.AccommodationCost, request.MealCost, request.EquipmentCost, request.OtherCost, request.Income }.Any(x => x < 0)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["economy"] = ["Суммы не могут быть отрицательными."] });
-            var item = new TeamTournament { TeamId = teamId, Name = request.Name.Trim(), StartDate = request.StartDate, EndDate = request.EndDate, Status = Clean(request.Status) ?? "Запланирован", Placement = Clean(request.Placement), EntryFee = request.EntryFee, TravelCost = request.TravelCost, AccommodationCost = request.AccommodationCost, MealCost = request.MealCost, EquipmentCost = request.EquipmentCost, OtherCost = request.OtherCost, Income = request.Income };
+            if (!string.IsNullOrWhiteSpace(request.SourceUrl) && (!Uri.TryCreate(request.SourceUrl, UriKind.Absolute, out var sourceUri) || sourceUri.Scheme != Uri.UriSchemeHttps)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["sourceUrl"] = ["Укажите безопасную ссылку https на официальный источник."] });
+            var item = new TeamTournament { TeamId = teamId, Name = request.Name.Trim(), StartDate = request.StartDate, EndDate = request.EndDate, Status = Clean(request.Status) ?? "Запланирован", Placement = Clean(request.Placement), EntryFee = request.EntryFee, TravelCost = request.TravelCost, AccommodationCost = request.AccommodationCost, MealCost = request.MealCost, EquipmentCost = request.EquipmentCost, OtherCost = request.OtherCost, Income = request.Income, SourceUrl = Clean(request.SourceUrl), RegistrationDeadline = request.RegistrationDeadline };
             db.TeamTournaments.Add(item); await db.SaveChangesAsync(); await AddAudit(db, principal, "team_tournament_created", nameof(TeamTournament), item.Id.ToString()); return Results.Created($"/api/school/{schoolId}/teams/{teamId}/tournaments/{item.Id}", new { item.Id });
         });
 
