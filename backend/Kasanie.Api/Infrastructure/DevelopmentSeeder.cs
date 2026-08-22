@@ -181,6 +181,37 @@ public sealed class DevelopmentSeeder(
             db.TeamTrainings.Add(journal);
             await db.SaveChangesAsync();
         }
+        var journalExercises = await db.Exercises.Where(x => x.IsActive).OrderBy(x => x.Id).Take(3).ToListAsync();
+        var topics = new[] { "Первый пас и открывание", "Скорость принятия решения", "Игра один в один", "Закрепление в малых составах" };
+        for (var sessionIndex = 0; sessionIndex < topics.Length; sessionIndex++)
+        {
+            var topic = topics[sessionIndex];
+            if (await db.TeamTrainings.AnyAsync(x => x.TeamId == team.Id && x.Title == topic)) continue;
+            var completedAt = DateTimeOffset.UtcNow.Date.AddDays(-21 + sessionIndex * 6).AddHours(18);
+            var journal = new TeamTraining { TeamId = team.Id, CoachId = coach.Id, Title = topic, ScheduledAt = completedAt.AddHours(-1), Status = TeamTrainingStatus.Completed, AttendanceSavedAt = completedAt.AddHours(-1), CompletedAt = completedAt, Notes = "DEMO: командная тренировка завершена" };
+            foreach (var playerId in demoPlayerIds)
+            {
+                var status = sessionIndex == 2 && playerId % 5 == 0 ? AttendanceStatus.Absent : sessionIndex == 1 && playerId % 4 == 0 ? AttendanceStatus.Late : AttendanceStatus.Present;
+                journal.Attendances.Add(new TeamTrainingAttendance { PlayerId = playerId, Status = status });
+            }
+            for (var exerciseIndex = 0; exerciseIndex < journalExercises.Count; exerciseIndex++)
+            {
+                var item = new TeamTrainingExercise { ExerciseId = journalExercises[exerciseIndex].Id, SortOrder = exerciseIndex + 1 };
+                foreach (var attendance in journal.Attendances.Where(x => x.Status is AttendanceStatus.Present or AttendanceStatus.Late))
+                {
+                    item.PlayerResults.Add(new TeamTrainingPlayerResult
+                    {
+                        PlayerId = attendance.PlayerId,
+                        IsCompleted = !(sessionIndex == 2 && exerciseIndex == attendance.PlayerId % journalExercises.Count),
+                        Understood = !(sessionIndex == 0 && exerciseIndex == attendance.PlayerId % journalExercises.Count),
+                        UpdatedAt = completedAt
+                    });
+                }
+                journal.Exercises.Add(item);
+            }
+            db.TeamTrainings.Add(journal);
+        }
+        await db.SaveChangesAsync();
         var profilesWithoutHistory = await db.Players.Where(x => !db.SkillSnapshots.Any(s => s.PlayerId == x.Id)).ToListAsync();
         foreach (var profile in profilesWithoutHistory)
         {

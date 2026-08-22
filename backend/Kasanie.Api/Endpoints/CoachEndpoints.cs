@@ -55,6 +55,12 @@ public static partial class EndpointMapping
             return Results.Ok(new { profile = PlayerDto(player), skillHistory = skills.Select(x => new { x.CapturedAt, skills = SkillsDto(x) }), plan = plan is null ? null : PlanDto(plan, []), sessions, notes = notes.Select(x => new { x.Id, x.Text, x.CreatedAt }) });
         });
 
+        coach.MapGet("/players/{playerId:int}/development", async (int playerId, ClaimsPrincipal user, IAccessService access, IPlayerDevelopmentService development) =>
+        {
+            if (!await access.CoachCanAccessAsync(user, playerId)) return Results.Forbid();
+            return Results.Ok(await development.BuildAsync(playerId));
+        });
+
         coach.MapPost("/players/{playerId:int}/notes", async (int playerId, CoachNoteRequest request, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {
             if (!await access.CoachCanAccessAsync(user, playerId)) return Results.Forbid();

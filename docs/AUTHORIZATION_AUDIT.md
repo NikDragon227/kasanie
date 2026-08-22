@@ -8,7 +8,7 @@
 |---|---|---|---|
 | AUTH-01 | Критический | `RegionalAnalyst` видел агрегаты всей базы: пользователь не был связан с регионом | Регион хранится в серверной Identity claim `kasanie:analytics-region`; endpoint фильтрует игроков по claim и возвращает 403 при её отсутствии |
 | AUTH-02 | Высокий | Верхнеуровневые метрики и дневной тренд могли раскрывать выборку меньше порога | Метрики подавляются по числу уникальных игроков; регион целиком скрывается ниже порога; разрез целиком скрывается, если остаток позволяет вывести малую группу |
-| TEST-01 | Высокий | `dotnet test` молча пропускал проект без `IsTestProject` | Включён реальный test discovery; 31 тест выполняется, включая негативные HTTP-сценарии |
+| TEST-01 | Высокий | `dotnet test` молча пропускал проект без `IsTestProject` | Включён реальный test discovery; 33 теста выполняются, включая негативные HTTP-сценарии |
 
 Прямых IDOR в маршрутах игрока, тренера и родителя не обнаружено. Идентификаторы ресурсов проверяются через владельца профиля либо активную связь с игроком.
 
@@ -31,6 +31,7 @@
 | `GET /api/player/profile` | Player | `OwnPlayerAsync` | Допустимо |
 | `PUT /api/player/profile` | Player | Изменяется только `OwnPlayerAsync` | Допустимо |
 | `GET /api/player/progress` | Player | Все запросы фильтруются по собственному `PlayerId` | Допустимо |
+| `GET /api/player/development` | Player | `OwnPlayerAsync` по `NameIdentifier` | Допустимо |
 | `GET /api/assessments/current` | Player | Сессия по собственному `PlayerId` | Допустимо |
 | `PUT /api/assessments/draft` | Player | Draft по собственному `PlayerId` | Допустимо |
 | `POST /api/assessments/submit` | Player | Сессия, snapshot и план создаются для собственного `PlayerId` | Допустимо |
@@ -43,6 +44,7 @@
 | `GET /api/coach/catalog` | Coach | Общий неперсональный справочник | Допустимо |
 | `GET /api/coach/players` | Coach | Только активные игроки команд, назначенных текущему тренеру | Допустимо |
 | `GET /api/coach/players/{playerId}` | Coach | `CoachCanAccessAsync`, активная команда и школа | Допустимо; чужой игрок даёт 403 |
+| `GET /api/coach/players/{playerId}/development` | Coach | `CoachCanAccessAsync`, активная команда и школа | Допустимо; чужой игрок даёт 403 |
 | `GET/POST/PUT /api/coach/team-trainings[...]` | Coach | Каждая операция проверяет `TeamCoach`; player/exercise ID сверяются со снимком занятия | Допустимо; чужая команда даёт 403 |
 | `/api/school/{schoolId}/...` | SchoolOwner/SchoolAdmin | Активное управляющее членство именно в указанной школе | Допустимо; чужая школа даёт 403 |
 | `/api/admin/schools[...]` | Admin | Глобальное создание и блокировка школ, операции аудируются | Допустимо |
@@ -53,6 +55,7 @@
 | `GET /api/parent/children` | Parent | Только `ParentPlayerLinks` текущего родителя | Допустимо |
 | `POST /api/parent/children` | Parent | Новый ребёнок сразу связывается с текущим `ParentProfile` | Допустимо |
 | `GET /api/parent/children/{playerId}` | Parent | `ParentCanAccessAsync` | Допустимо; чужой ребёнок даёт 403 |
+| `GET /api/parent/children/{playerId}/development` | Parent | `ParentCanAccessAsync` по явной связи родитель–ребёнок | Допустимо; чужой ребёнок даёт 403 |
 | `PUT /api/parent/children/{playerId}/consent` | Parent | `ParentCanAccessAsync`, меняется конкретная связь текущего родителя | Допустимо |
 | `GET /api/analytics/overview` | RegionalAnalyst | Обязательная серверная claim региона + фильтр `Municipality.Region` + suppression | Исправлено AUTH-01/02 |
 | `GET /api/admin/summary` | Admin | Глобальный доступ — назначение роли | Допустимо |

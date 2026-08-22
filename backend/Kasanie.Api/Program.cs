@@ -81,6 +81,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddScoped<IAssessmentScorer, AssessmentScorer>();
 builder.Services.AddScoped<ITrainingPlanGenerator, TrainingPlanGenerator>();
 builder.Services.AddScoped<IAccessService, AccessService>();
+builder.Services.AddScoped<IPlayerDevelopmentService, PlayerDevelopmentService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<ITransactionalEmailSender, TransactionalEmailSender>();

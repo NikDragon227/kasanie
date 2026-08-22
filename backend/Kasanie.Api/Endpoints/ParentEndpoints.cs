@@ -53,6 +53,12 @@ public static partial class EndpointMapping
             return Results.Ok(new { profile = PlayerDto(player), consent = new { link.ConsentAccepted, link.ConsentVersion, link.ConsentAcceptedAt }, skills = skills.Select(x => new { x.CapturedAt, values = SkillsDto(x) }), plan = plan is null ? null : PlanDto(plan, []), sessions });
         });
 
+        parent.MapGet("/children/{playerId:int}/development", async (int playerId, ClaimsPrincipal user, IAccessService access, IPlayerDevelopmentService development) =>
+        {
+            if (!await access.ParentCanAccessAsync(user, playerId)) return Results.Forbid();
+            return Results.Ok(await development.BuildAsync(playerId));
+        });
+
         parent.MapPut("/children/{playerId:int}/consent", async (int playerId, ConsentRequest request, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {
             if (!await access.ParentCanAccessAsync(user, playerId)) return Results.Forbid();

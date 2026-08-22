@@ -22,6 +22,78 @@ namespace Kasanie.Tests;
 public sealed class AuthorizationIntegrationTests
 {
     [Fact]
+    public async Task DevelopmentProfile_AggregatesJournalForPlayerCoachAndParent()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Municipalities.Add(new Municipality { Id = 1, Name = "Kazan", Region = "Tatarstan" });
+            db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" });
+            var player = Player(1); player.UserId = "player-a"; db.Players.Add(player);
+            db.ParentProfiles.Add(new ParentProfile { Id = 1, UserId = "parent-a" });
+            db.ParentPlayerLinks.Add(new ParentPlayerLink { ParentId = 1, PlayerId = 1, Relationship = "Parent", ConsentAccepted = true, ConsentVersion = "test" });
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "Team A" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 1 });
+            db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1 });
+            db.Exercises.AddRange(
+                new Exercise { Id = 100, Name = "Pass", Description = "D", Instructions = "I", SkillCategory = SkillCategory.Passing, Difficulty = 1, DurationMinutes = 10, Equipment = "Ball" },
+                new Exercise { Id = 101, Name = "Run", Description = "D", Instructions = "I", SkillCategory = SkillCategory.Speed, Difficulty = 1, DurationMinutes = 10, Equipment = "Cones" });
+            db.TeamTrainings.Add(new TeamTraining { Id = 1, TeamId = 1, CoachId = 1, Title = "Session", ScheduledAt = new DateTimeOffset(2026, 8, 20, 16, 0, 0, TimeSpan.Zero), Status = TeamTrainingStatus.Completed, CompletedAt = DateTimeOffset.UtcNow });
+            db.TeamTrainingAttendances.Add(new TeamTrainingAttendance { TeamTrainingId = 1, PlayerId = 1, Status = AttendanceStatus.Present });
+            db.TeamTrainingExercises.AddRange(
+                new TeamTrainingExercise { Id = 1000, TeamTrainingId = 1, ExerciseId = 100, SortOrder = 1 },
+                new TeamTrainingExercise { Id = 1001, TeamTrainingId = 1, ExerciseId = 101, SortOrder = 2 });
+            db.TeamTrainingPlayerResults.AddRange(
+                new TeamTrainingPlayerResult { TeamTrainingExerciseId = 1000, PlayerId = 1, IsCompleted = true, Understood = true },
+                new TeamTrainingPlayerResult { TeamTrainingExerciseId = 1001, PlayerId = 1, IsCompleted = false, Understood = false });
+        });
+        using var client = factory.CreateClient();
+
+        foreach (var request in new[]
+        {
+            Get("/api/player/development", "player-a", Roles.Player),
+            Get("/api/coach/players/1/development", "coach-a", Roles.Coach),
+            Get("/api/parent/children/1/development", "parent-a", Roles.Parent)
+        })
+        {
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(1, json.RootElement.GetProperty("completedTeamTrainings").GetInt32());
+            Assert.Equal(100, json.RootElement.GetProperty("attendanceRate").GetInt32());
+            Assert.Equal(50, json.RootElement.GetProperty("completionRate").GetInt32());
+            Assert.Equal(50, json.RootElement.GetProperty("understandingRate").GetInt32());
+            Assert.Single(json.RootElement.GetProperty("focusAreas").EnumerateArray());
+            Assert.Equal("Speed", json.RootElement.GetProperty("focusAreas")[0].GetProperty("skillCategory").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task DevelopmentProfile_DeniesUnrelatedCoachAndParent()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.AddRange(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" }, new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.ParentProfiles.AddRange(new ParentProfile { Id = 1, UserId = "parent-a" }, new ParentProfile { Id = 2, UserId = "parent-b" });
+            db.Players.Add(Player(1));
+            db.ParentPlayerLinks.Add(new ParentPlayerLink { ParentId = 2, PlayerId = 1, Relationship = "Parent", ConsentAccepted = true, ConsentVersion = "test" });
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "Team A" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 2 });
+            db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1 });
+        });
+        using var client = factory.CreateClient();
+
+        using var coachResponse = await client.SendAsync(Get("/api/coach/players/1/development", "coach-a", Roles.Coach));
+        using var parentResponse = await client.SendAsync(Get("/api/parent/children/1/development", "parent-a", Roles.Parent));
+
+        Assert.Equal(HttpStatusCode.Forbidden, coachResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, parentResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Coach_CompletesTeamJournal_WithAttendanceAndExerciseMarks()
     {
         await using var factory = new TestApplicationFactory();

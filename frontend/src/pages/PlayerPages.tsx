@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { post, put } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader, ProgressBar, RadarChart, StatCard, type Skills } from '../components'
 import { formatDate, useApiData } from '../hooks'
+import { DevelopmentProfile } from '../DevelopmentProfile'
 import { CityInput } from '../CityInput'
 
 type Profile = { id: number; firstName: string; lastName: string; dateOfBirth: string; gender?: string; city: string; preferredPosition: string; dominantFoot: string; experienceLevel: string; height?: number; weight?: number }
@@ -77,7 +78,7 @@ export function ProgressPage() {
   const { data, loading, error, reload } = useApiData<Progress>('/api/player/progress')
   const history = data?.assessmentHistory ?? []; const latest = history.at(-1); const previous = history.at(-2)
   if (loading) return <PageLoader />; if (error || !data) return <ErrorState message={error} retry={reload} />
-  return <><PageHeader eyebrow="Динамика" title="Прогресс в цифрах" /><section className="stat-grid"><StatCard label="Завершено тренировок" value={data.completedSessions} tone="accent" /><StatCard label="Соблюдение плана" value={`${data.adherence}%`} /><StatCard label="Тестирований" value={history.length} /></section><div className="content-grid"><section className="card"><div className="card-heading"><div><span className="eyebrow">Сравнение</span><h2>Навыки</h2></div></div>{latest ? <RadarChart values={latest.skills} previous={previous?.skills} /> : <EmptyState title="История пока пуста" />}</section><section className="card"><div className="card-heading"><h2>Последняя активность</h2></div>{data.recentActivity.length ? data.recentActivity.map(x => <article className="activity-row" key={x.id}><span>{x.status === 'Completed' ? '✓' : '▶'}</span><div><strong>{x.title}</strong><small>{formatDate(x.completedAt ?? x.startedAt)}</small></div></article>) : <EmptyState title="Тренировок пока нет" />}</section></div></>
+  return <><PageHeader eyebrow="Динамика" title="Прогресс в цифрах" /><DevelopmentProfile endpoint="/api/player/development" title="Моя работа с командой" /><section className="stat-grid"><StatCard label="Самостоятельных тренировок" value={data.completedSessions} tone="accent" /><StatCard label="Соблюдение личного плана" value={`${data.adherence}%`} /><StatCard label="Тестирований" value={history.length} /></section><div className="content-grid"><section className="card"><div className="card-heading"><div><span className="eyebrow">Сравнение</span><h2>Диагностика навыков</h2></div></div>{latest ? <RadarChart values={latest.skills} previous={previous?.skills} /> : <EmptyState title="История пока пуста" />}</section><section className="card"><div className="card-heading"><h2>Личный план</h2></div>{data.recentActivity.length ? data.recentActivity.map(x => <article className="activity-row" key={x.id}><span>{x.status === 'Completed' ? '✓' : '▶'}</span><div><strong>{x.title}</strong><small>{formatDate(x.completedAt ?? x.startedAt)}</small></div></article>) : <EmptyState title="Самостоятельных тренировок пока нет" />}</section></div></>
 }
 
 function skillRu(value: string) { return ({ Speed: 'Скорость', Endurance: 'Выносливость', BallControl: 'Контроль мяча', Passing: 'Передачи', Shooting: 'Удары', Agility: 'Ловкость' } as Record<string, string>)[value] ?? value }

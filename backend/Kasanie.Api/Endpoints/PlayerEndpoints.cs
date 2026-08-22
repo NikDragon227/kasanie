@@ -44,6 +44,12 @@ public static partial class EndpointMapping
             return player is null ? Results.NotFound() : Results.Ok(PlayerDto(player));
         });
 
+        playerApi.MapGet("/development", async (ClaimsPrincipal user, IAccessService access, IPlayerDevelopmentService development) =>
+        {
+            var player = await access.OwnPlayerAsync(user);
+            return player is null ? Results.NotFound() : Results.Ok(await development.BuildAsync(player.Id));
+        });
+
         playerApi.MapPut("/profile", async (ProfileUpdateRequest request, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {
             var player = await access.OwnPlayerAsync(user);
