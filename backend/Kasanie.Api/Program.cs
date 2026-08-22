@@ -86,6 +86,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<ITransactionalEmailSender, TransactionalEmailSender>();
 builder.Services.AddScoped<DevelopmentSeeder>();
+builder.Services.AddScoped<PlatformCatalogSeeder>();
 builder.Services.AddScoped<IdentityInitializer>();
 
 var app = builder.Build();
@@ -143,6 +144,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     else await db.Database.EnsureCreatedAsync();
     await scope.ServiceProvider.GetRequiredService<IdentityInitializer>().InitializeAsync();
     if (app.Environment.IsDevelopment()) await scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>().SeedAsync();
+    await scope.ServiceProvider.GetRequiredService<PlatformCatalogSeeder>().SeedAsync();
 }
 
 app.Run();

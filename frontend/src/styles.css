@@ -87,6 +87,7 @@ small { color: var(--muted); }
 
 /* School command center */
 .school-hint { max-width: 790px; margin: -1.8rem 0 1.7rem; color: #71807d; font-size: .82rem; line-height: 1.6; }
+.coach-command-nav + .school-hint { margin-top: 0; }
 .school-core-stats .stat-card.accent { background: var(--white); color: var(--ink); }
 .school-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(330px, .75fr); gap: 1rem; margin: 1rem 0; }
 .school-pulse { background: #0d292d; color: #fff; }
