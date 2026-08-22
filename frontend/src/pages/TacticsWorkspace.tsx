@@ -7,6 +7,7 @@ type Slot = { id: string; x: number; y: number; label: string }
 type Lineup = Record<string, number>
 type RoleAssignments = Record<string, number[]>
 type CornerPlans = Record<'attack' | 'defence', Lineup>
+type CornerLayouts = Record<'attack' | 'defence', Slot[]>
 const CUSTOM_FORMATION = 'Своя схема'
 
 const formations: Record<string, Slot[]> = {
@@ -54,6 +55,12 @@ export function TacticsWorkspace({ data, save }: Props) {
   })
   const [roles, setRoles] = useState<RoleAssignments>(() => asRoleAssignments(storedSetPieces.roles ?? initialSetPieces))
   const [corners, setCorners] = useState<CornerPlans>(() => ({ attack: asLineup(storedSetPieces.corners && typeof storedSetPieces.corners === 'object' ? (storedSetPieces.corners as Record<string, unknown>).attack : {}), defence: asLineup(storedSetPieces.corners && typeof storedSetPieces.corners === 'object' ? (storedSetPieces.corners as Record<string, unknown>).defence : {}) }))
+  const [cornerLayouts, setCornerLayouts] = useState<CornerLayouts>(() => {
+    const saved = storedSetPieces.cornerLayouts && typeof storedSetPieces.cornerLayouts === 'object' ? storedSetPieces.cornerLayouts as Record<string, unknown> : {}
+    const attack = asSlots(saved.attack)
+    const defence = asSlots(saved.defence)
+    return { attack: attack.length ? attack : cornerSlots.attack.map(position => ({ ...position })), defence: defence.length ? defence : cornerSlots.defence.map(position => ({ ...position })) }
+  })
   const [cornerMode, setCornerMode] = useState<'attack' | 'defence'>('attack')
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
@@ -93,6 +100,15 @@ export function TacticsWorkspace({ data, save }: Props) {
     const y = Math.max(9, Math.min(91, (event.clientY - bounds.top) / bounds.height * 100))
     setCustomSlots(current => current.map(slot => slot.id === slotId ? { ...slot, x, y } : slot))
   }
+  const moveCornerToken = (event: React.DragEvent<HTMLElement>) => {
+    const slotId = event.dataTransfer.getData('slotId')
+    if (!slotId) return
+    event.preventDefault()
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = Math.max(7, Math.min(93, (event.clientX - bounds.left) / bounds.width * 100))
+    const y = Math.max(9, Math.min(91, (event.clientY - bounds.top) / bounds.height * 100))
+    setCornerLayouts(current => ({ ...current, [cornerMode]: current[cornerMode].map(slot => slot.id === slotId ? { ...slot, x, y } : slot) }))
+  }
   const clickSlot = (target: 'lineup' | 'corner', slotId: string) => {
     const selected = selectedPlayerId
     const update = target === 'lineup' ? setLineup : (update: React.SetStateAction<Lineup>) => setCorners(current => ({ ...current, [cornerMode]: typeof update === 'function' ? update(current[cornerMode]) : update }))
@@ -107,7 +123,7 @@ export function TacticsWorkspace({ data, save }: Props) {
     }
     setValidationMessage(null)
     const form = new FormData(event.currentTarget)
-    save({ formation, notes: form.get('notes'), planJson: JSON.stringify({ formation, lineup, customSlots: formation === CUSTOM_FORMATION ? customSlots : undefined }), setPiecesJson: JSON.stringify({ roles, corners }), opponentInstructions: form.get('opponentInstructions') })
+    save({ formation, notes: form.get('notes'), planJson: JSON.stringify({ formation, lineup, customSlots: formation === CUSTOM_FORMATION ? customSlots : undefined }), setPiecesJson: JSON.stringify({ roles, corners, cornerLayouts }), opponentInstructions: form.get('opponentInstructions') })
   }
 
   return <form className="tactics-workspace" onSubmit={submit}>
@@ -117,7 +133,7 @@ export function TacticsWorkspace({ data, save }: Props) {
     </section>
 
     <section className="set-piece-layout">
-      <article className="card set-piece-board"><div className="card-heading"><div><span className="eyebrow">Угловые</span><h2>Расстановка на стандарт</h2></div><div className="segment-control"><button type="button" className={cornerMode === 'attack' ? 'active' : ''} onClick={() => setCornerMode('attack')}>Атака</button><button type="button" className={cornerMode === 'defence' ? 'active' : ''} onClick={() => setCornerMode('defence')}>Оборона</button></div></div><p>На поле все 11 игроков. Фишка «Подающий» обязательна для сохранения.</p><div className="tactical-pitch set-piece-pitch"><Pitch slots={cornerSlots[cornerMode]} lineup={corners[cornerMode]} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('corner', slotId, event)} onClick={slotId => () => clickSlot('corner', slotId)} /></div>{validationMessage && <p className="error-message">{validationMessage}</p>}</article>
+      <article className="card set-piece-board"><div className="card-heading"><div><span className="eyebrow">Угловые</span><h2>Расстановка на стандарт</h2></div><div className="segment-control"><button type="button" className={cornerMode === 'attack' ? 'active' : ''} onClick={() => setCornerMode('attack')}>Атака</button><button type="button" className={cornerMode === 'defence' ? 'active' : ''} onClick={() => setCornerMode('defence')}>Оборона</button></div></div><p>На поле все 11 игроков. Перетаскивайте любые фишки; «Подающий» обязателен для сохранения.</p><div className="tactical-pitch set-piece-pitch" onDragOver={event => event.preventDefault()} onDrop={moveCornerToken}><Pitch slots={cornerLayouts[cornerMode]} lineup={corners[cornerMode]} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('corner', slotId, event)} onClick={slotId => () => clickSlot('corner', slotId)} /></div>{validationMessage && <p className="error-message">{validationMessage}</p>}</article>
       <details className="card role-panel"><summary><span><span className="eyebrow">Роли и исполнители</span><strong>Капитан, стандарты и ауты</strong></span><span>⌄</span></summary><p>Для штрафных, угловых и аутов можно назначить до двух исполнителей на каждую сторону.</p><div className="role-grid">{roleDefinitions.map(([id, label, max]) => <RoleAssignment key={id} label={label} max={max} players={data.players} selected={roles[id] ?? []} playerById={playerById} onAssign={playerId => assignRole(id, playerId, max)} onRemove={playerId => removeRole(id, playerId)} />)}</div></details>
     </section>
 
