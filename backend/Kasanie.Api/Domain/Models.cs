@@ -25,6 +25,8 @@ public enum LinkStatus { Pending, Active, Suspended }
 public enum PlanStatus { Active, Completed, Archived }
 public enum SessionStatus { Planned, InProgress, Completed }
 public enum SchoolMembershipRole { Owner, Administrator, Coach }
+public enum TeamTrainingStatus { Planned, InProgress, Completed }
+public enum AttendanceStatus { Unknown, Present, Late, Absent, Excused }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -100,6 +102,55 @@ public sealed class TeamPlayer
     public bool IsActive { get; set; } = true;
     public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LeftAt { get; set; }
+}
+
+public sealed class TeamTraining
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int CoachId { get; set; }
+    public CoachProfile Coach { get; set; } = null!;
+    public required string Title { get; set; }
+    public DateTimeOffset ScheduledAt { get; set; }
+    public TeamTrainingStatus Status { get; set; } = TeamTrainingStatus.Planned;
+    public string? Notes { get; set; }
+    public DateTimeOffset? AttendanceSavedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamTrainingExercise> Exercises { get; set; } = [];
+    public List<TeamTrainingAttendance> Attendances { get; set; } = [];
+}
+
+public sealed class TeamTrainingExercise
+{
+    public int Id { get; set; }
+    public int TeamTrainingId { get; set; }
+    public TeamTraining TeamTraining { get; set; } = null!;
+    public int ExerciseId { get; set; }
+    public Exercise Exercise { get; set; } = null!;
+    public int SortOrder { get; set; }
+    public List<TeamTrainingPlayerResult> PlayerResults { get; set; } = [];
+}
+
+public sealed class TeamTrainingAttendance
+{
+    public int TeamTrainingId { get; set; }
+    public TeamTraining TeamTraining { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public AttendanceStatus Status { get; set; } = AttendanceStatus.Unknown;
+}
+
+public sealed class TeamTrainingPlayerResult
+{
+    public int TeamTrainingExerciseId { get; set; }
+    public TeamTrainingExercise TeamTrainingExercise { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public bool IsCompleted { get; set; }
+    public bool Understood { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PlayerProfile

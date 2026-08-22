@@ -36,6 +36,11 @@ public sealed record SchoolCoachInviteRequest(string Email, string DisplayName);
 public sealed record TeamCoachRequest(int CoachId, bool IsHeadCoach);
 public sealed record SchoolPlayerCreateRequest(string FirstName, string LastName, DateOnly DateOfBirth, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel, int TeamId, int? ShirtNumber);
 public sealed record TeamPlayerRequest(int PlayerId, int? ShirtNumber);
+public sealed record CreateTeamTrainingRequest(int TeamId, string Title, DateTimeOffset ScheduledAt, List<int> ExerciseIds);
+public sealed record TeamAttendanceItemRequest(int PlayerId, string Status);
+public sealed record SaveTeamAttendanceRequest(List<TeamAttendanceItemRequest> Players);
+public sealed record TeamTrainingResultRequest(int PlayerId, int TeamTrainingExerciseId, bool IsCompleted, bool Understood);
+public sealed record SaveTeamTrainingReviewRequest(List<TeamTrainingResultRequest> Results, string? Notes);
 
 public static class Validation
 {

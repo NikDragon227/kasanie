@@ -22,6 +22,65 @@ namespace Kasanie.Tests;
 public sealed class AuthorizationIntegrationTests
 {
     [Fact]
+    public async Task Coach_CompletesTeamJournal_WithAttendanceAndExerciseMarks()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" });
+            db.Players.AddRange(Player(1), Player(2));
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "Team A" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 1 });
+            db.TeamPlayers.AddRange(new TeamPlayer { TeamId = 1, PlayerId = 1 }, new TeamPlayer { TeamId = 1, PlayerId = 2 });
+            db.Exercises.AddRange(
+                new Exercise { Id = 100, Name = "Pass", Description = "D", Instructions = "I", SkillCategory = SkillCategory.Passing, Difficulty = 1, DurationMinutes = 10, Equipment = "Ball" },
+                new Exercise { Id = 101, Name = "Run", Description = "D", Instructions = "I", SkillCategory = SkillCategory.Speed, Difficulty = 1, DurationMinutes = 10, Equipment = "Cones" });
+        });
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "coach-a", Roles.Coach);
+        using var createResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/coach/team-trainings", new { teamId = 1, title = "Session", scheduledAt = DateTimeOffset.UtcNow, exerciseIds = new[] { 100, 101 } }, "coach-a", Roles.Coach, csrf));
+        using var createJson = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var trainingId = createJson.RootElement.GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var earlyComplete = await client.SendAsync(JsonRequest(HttpMethod.Post, $"/api/coach/team-trainings/{trainingId}/complete", new { }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, earlyComplete.StatusCode);
+        using var attendanceResponse = await client.SendAsync(JsonRequest(HttpMethod.Put, $"/api/coach/team-trainings/{trainingId}/attendance", new { players = new[] { new { playerId = 1, status = "Present" }, new { playerId = 2, status = "Absent" } } }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, attendanceResponse.StatusCode);
+        using var detailResponse = await client.SendAsync(Get($"/api/coach/team-trainings/{trainingId}", "coach-a", Roles.Coach));
+        using var detailJson = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
+        var exerciseIds = detailJson.RootElement.GetProperty("exercises").EnumerateArray().Select(x => x.GetProperty("id").GetInt32()).ToArray();
+        var results = exerciseIds.Select((id, index) => new { playerId = 1, teamTrainingExerciseId = id, isCompleted = true, understood = index == 0 }).ToArray();
+        using var reviewResponse = await client.SendAsync(JsonRequest(HttpMethod.Put, $"/api/coach/team-trainings/{trainingId}/review", new { results, notes = "Repeat running" }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, reviewResponse.StatusCode);
+        using var completeResponse = await client.SendAsync(JsonRequest(HttpMethod.Post, $"/api/coach/team-trainings/{trainingId}/complete", new { }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.OK, completeResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(TeamTrainingStatus.Completed, (await db.TeamTrainings.FindAsync(trainingId))!.Status);
+        Assert.Equal(2, await db.TeamTrainingPlayerResults.CountAsync(x => x.TeamTrainingExercise.TeamTrainingId == trainingId));
+        Assert.Single(await db.TeamTrainingPlayerResults.Where(x => x.TeamTrainingExercise.TeamTrainingId == trainingId && !x.Understood).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Coach_CannotCreateJournalForAnotherTeam()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.AddRange(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" }, new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.Players.Add(Player(1)); db.Schools.Add(new School { Id = 1, Name = "School B", Slug = "school-b" }); db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "Team B" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 2 }); db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1 });
+            db.Exercises.Add(new Exercise { Id = 100, Name = "Pass", Description = "D", Instructions = "I", SkillCategory = SkillCategory.Passing, Difficulty = 1, DurationMinutes = 10, Equipment = "Ball" });
+        });
+        using var client = factory.CreateClient(); var csrf = await CsrfAsync(client, "coach-a", Roles.Coach);
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/coach/team-trainings", new { teamId = 1, title = "Foreign", scheduledAt = DateTimeOffset.UtcNow, exerciseIds = new[] { 100 } }, "coach-a", Roles.Coach, csrf));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task PlatformAdmin_CreatesSchoolAndOwnerInvitation()
     {
         await using var factory = new TestApplicationFactory();

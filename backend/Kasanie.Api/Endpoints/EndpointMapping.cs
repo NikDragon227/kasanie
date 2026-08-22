@@ -11,6 +11,7 @@ public static partial class EndpointMapping
         app.MapAuth();
         app.MapPlayer();
         app.MapCoach();
+        app.MapTeamTraining();
         app.MapParent();
         app.MapAnalytics();
         app.MapAdmin();

@@ -8,7 +8,7 @@ const navigation: Record<string, { to: string; label: string; icon: string }[]> 
     { to: '/player', label: 'Главная', icon: '⌂' }, { to: '/player/assessment', label: 'Тестирование', icon: '◎' },
     { to: '/player/training', label: 'Тренировки', icon: '▶' }, { to: '/player/progress', label: 'Прогресс', icon: '↗' }, { to: '/player/profile', label: 'Профиль', icon: '◉' },
   ],
-  Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/players', label: 'Игроки', icon: '◉' }],
+  Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/trainings', label: 'Журнал', icon: '✓' }, { to: '/coach/players', label: 'Игроки', icon: '◉' }],
   Parent: [{ to: '/parent', label: 'Мои дети', icon: '⌂' }],
   RegionalAnalyst: [{ to: '/analytics', label: 'Регион', icon: '▥' }],
   SchoolOwner: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],

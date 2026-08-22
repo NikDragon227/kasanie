@@ -172,6 +172,15 @@ public sealed class DevelopmentSeeder(
         var assignedPlayerIds = await db.TeamPlayers.Where(x => x.TeamId == team.Id).Select(x => x.PlayerId).ToListAsync();
         db.TeamPlayers.AddRange(demoPlayerIds.Except(assignedPlayerIds).Select(x => new TeamPlayer { TeamId = team.Id, PlayerId = x }));
         await db.SaveChangesAsync();
+        if (!await db.TeamTrainings.AnyAsync(x => x.TeamId == team.Id))
+        {
+            var journalExerciseIds = await db.Exercises.Where(x => x.IsActive).OrderBy(x => x.Id).Take(3).Select(x => x.Id).ToListAsync();
+            var journal = new TeamTraining { TeamId = team.Id, CoachId = coach.Id, Title = "Техника и первый пас", ScheduledAt = DateTimeOffset.UtcNow.Date.AddHours(16).AddDays(1) };
+            for (var i = 0; i < journalExerciseIds.Count; i++) journal.Exercises.Add(new TeamTrainingExercise { ExerciseId = journalExerciseIds[i], SortOrder = i + 1 });
+            foreach (var playerId in demoPlayerIds) journal.Attendances.Add(new TeamTrainingAttendance { PlayerId = playerId });
+            db.TeamTrainings.Add(journal);
+            await db.SaveChangesAsync();
+        }
         var profilesWithoutHistory = await db.Players.Where(x => !db.SkillSnapshots.Any(s => s.PlayerId == x.Id)).ToListAsync();
         foreach (var profile in profilesWithoutHistory)
         {

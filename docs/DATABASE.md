@@ -6,6 +6,7 @@ PostgreSQL 18 — единственное постоянное хранилищ
 
 - ASP.NET Identity: пользователи, роли, claims и связи;
 - организации: `Schools`, `SchoolMemberships`, `Teams`, `TeamCoaches`, `TeamPlayers`;
+- командный журнал: `TeamTrainings`, `TeamTrainingExercises`, `TeamTrainingAttendances`, `TeamTrainingPlayerResults`;
 - профили: `Players`, `ParentProfiles`, `CoachProfiles`, `ParentPlayerLinks`, `CoachPlayerLinks`, `Municipalities`;
 - диагностика: определения, DEMO-нормы, сессии, результаты и исторические skill snapshots;
 - тренировки: упражнения, программы, планы, дни, задания, сессии и результаты;
