@@ -1,6 +1,16 @@
 # Статус проекта Kasanie
 
-Обновлено: 20 августа 2026.
+Обновлено: 22 августа 2026.
+
+## Фаза 20 — школы и команды
+
+- Добавлены школы, членство с ролями владельца/администратора/тренера, команды, тренеры команд и составы игроков.
+- Платформенный администратор создаёт школу и владельца по одноразовому приглашению, видит показатели и может заблокировать школу.
+- Владелец школы управляет настройками, командами, приглашениями тренеров, назначениями и игроками в собственном кабинете.
+- Кабинет тренера строится по назначенным командам; legacy-связь `CoachPlayerLink` больше не даёт доступ к игроку.
+- Миграция `AddSchoolsAndTeams` сохраняет старые данные в школе «Касание Demo»; Development seed добавляет `owner@kasanie.local`.
+- Docker stack пересобран, миграция применена к существующему volume без удаления данных; новые кабинеты проверены в браузере без console errors.
+- Проверена изоляция двух школ: чужой владелец получает 403, тренер видит только состав своей команды.
 
 ## Фаза 11 — стабилизация MVP
 
@@ -110,7 +120,7 @@
 - Frontend lint: PASS.
 - Frontend Vitest: PASS, 7 tests.
 - Frontend build: PASS.
-- Backend xUnit: PASS, 11 tests.
+- Backend xUnit: PASS, 29 tests.
 - Docker config/build/start: PASS.
 - API/runtime smoke and persistence: PASS.
 - Playwright E2E: PASS, 9 tests (fixture cleanup, Player persistence and feedback, Coach feedback view, Parent, RegionalAnalyst, Admin CRUD with cleanup, password recovery).

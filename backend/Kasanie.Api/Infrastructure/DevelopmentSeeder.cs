@@ -66,6 +66,7 @@ public sealed class DevelopmentSeeder(
         var coachUser = await EnsureUser("coach@kasanie.local", Roles.Coach);
         var parentUser = await EnsureUser("parent@kasanie.local", Roles.Parent);
         var analystUser = await EnsureUser("analyst@kasanie.local", Roles.RegionalAnalyst);
+        var ownerUser = await EnsureUser("owner@kasanie.local", Roles.SchoolOwner);
         await EnsureUser("admin@kasanie.local", Roles.Admin);
         await EnsureAnalystRegion(analystUser, "Республика Татарстан");
 
@@ -132,6 +133,24 @@ public sealed class DevelopmentSeeder(
         if (!await db.ParentPlayerLinks.AnyAsync(x => x.ParentId == parent.Id && x.PlayerId == child.Id)) db.ParentPlayerLinks.Add(new ParentPlayerLink { ParentId = parent.Id, PlayerId = child.Id, Relationship = "Отец", IsPrimary = true, ConsentAccepted = true, ConsentVersion = "demo-v1", ConsentAcceptedAt = DateTimeOffset.UtcNow.AddDays(-30) });
         await db.SaveChangesAsync();
 
+        var school = await db.Schools.SingleOrDefaultAsync(x => x.Slug == "kasanie-demo");
+        if (school is null)
+        {
+            school = new School { Name = "Касание Demo", Slug = "kasanie-demo", City = "Казань", ContactEmail = "owner@kasanie.local" };
+            db.Schools.Add(school);
+            await db.SaveChangesAsync();
+        }
+        if (!await db.SchoolMemberships.AnyAsync(x => x.SchoolId == school.Id && x.UserId == ownerUser.Id)) db.SchoolMemberships.Add(new SchoolMembership { SchoolId = school.Id, UserId = ownerUser.Id, Role = SchoolMembershipRole.Owner });
+        if (!await db.SchoolMemberships.AnyAsync(x => x.SchoolId == school.Id && x.UserId == coachUser.Id)) db.SchoolMemberships.Add(new SchoolMembership { SchoolId = school.Id, UserId = coachUser.Id, Role = SchoolMembershipRole.Coach });
+        var team = await db.Teams.SingleOrDefaultAsync(x => x.SchoolId == school.Id && x.Name == "Основная группа");
+        if (team is null) { team = new Team { SchoolId = school.Id, Name = "Основная группа", AgeGroup = "U14–U16", Season = "2026/27" }; db.Teams.Add(team); }
+        else { team.AgeGroup ??= "U14–U16"; team.Season ??= "2026/27"; }
+        await db.SaveChangesAsync();
+        if (!await db.TeamCoaches.AnyAsync(x => x.TeamId == team.Id && x.CoachId == coach.Id)) db.TeamCoaches.Add(new TeamCoach { TeamId = team.Id, CoachId = coach.Id, IsHeadCoach = true });
+        if (!await db.TeamPlayers.AnyAsync(x => x.TeamId == team.Id && x.PlayerId == player.Id)) db.TeamPlayers.Add(new TeamPlayer { TeamId = team.Id, PlayerId = player.Id, ShirtNumber = 10 });
+        if (!await db.TeamPlayers.AnyAsync(x => x.TeamId == team.Id && x.PlayerId == child.Id)) db.TeamPlayers.Add(new TeamPlayer { TeamId = team.Id, PlayerId = child.Id, ShirtNumber = 9 });
+        await db.SaveChangesAsync();
+
         if (!await db.SkillSnapshots.AnyAsync(x => x.PlayerId == player.Id))
         {
             await CreateHistory(player, [62, 55, 48, 70, 51, 58], DateTimeOffset.UtcNow.AddDays(-42));
@@ -148,6 +167,10 @@ public sealed class DevelopmentSeeder(
             if (await db.Players.AnyAsync(x => x.FirstName == name)) continue;
             db.Players.Add(new PlayerProfile { FirstName = name, LastName = "Регион", DateOfBirth = new DateOnly(2011, 1, 1), MunicipalityId = municipality.Id, PreferredPosition = "Защитник", DominantFoot = "Правая", ExperienceLevel = "Начинающий", CreatedAt = DateTimeOffset.UtcNow.AddDays(-15) });
         }
+        await db.SaveChangesAsync();
+        var demoPlayerIds = await db.Players.Select(x => x.Id).ToListAsync();
+        var assignedPlayerIds = await db.TeamPlayers.Where(x => x.TeamId == team.Id).Select(x => x.PlayerId).ToListAsync();
+        db.TeamPlayers.AddRange(demoPlayerIds.Except(assignedPlayerIds).Select(x => new TeamPlayer { TeamId = team.Id, PlayerId = x }));
         await db.SaveChangesAsync();
         var profilesWithoutHistory = await db.Players.Where(x => !db.SkillSnapshots.Any(s => s.PlayerId == x.Id)).ToListAsync();
         foreach (var profile in profilesWithoutHistory)

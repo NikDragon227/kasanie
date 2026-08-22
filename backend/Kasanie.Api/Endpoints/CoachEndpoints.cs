@@ -20,7 +20,7 @@ public static partial class EndpointMapping
         coach.MapGet("/players", async (string? search, string? level, ClaimsPrincipal user, AppDbContext db) =>
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            var query = db.CoachPlayerLinks.AsNoTracking().Where(x => x.Coach.UserId == userId && x.Status == LinkStatus.Active).Select(x => x.Player);
+            var query = db.TeamPlayers.AsNoTracking().Where(x => x.IsActive && x.Team.IsActive && x.Team.School.IsActive && x.Team.TeamCoaches.Any(c => c.Coach.UserId == userId)).Select(x => x.Player).Distinct();
             if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => (x.FirstName + " " + x.LastName).ToLower().Contains(search.ToLower()));
             if (!string.IsNullOrWhiteSpace(level)) query = query.Where(x => x.ExperienceLevel == level);
             var players = await query.OrderBy(x => x.LastName).Select(x => new
@@ -31,6 +31,13 @@ public static partial class EndpointMapping
                 planned = db.TrainingSessions.Count(s => s.PlayerId == x.Id)
             }).ToListAsync();
             return Results.Ok(players.Select(x => new { x.Id, x.FirstName, x.LastName, x.PreferredPosition, x.ExperienceLevel, x.lastActivity, planCompletion = x.planned == 0 ? 0 : (int)Math.Round(x.completed * 100m / x.planned) }));
+        });
+
+        coach.MapGet("/teams", async (ClaimsPrincipal user, AppDbContext db) =>
+        {
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Results.Ok(await db.TeamCoaches.AsNoTracking().Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
+                .OrderBy(x => x.Team.Name).Select(x => new { x.TeamId, x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
         });
 
         coach.MapGet("/players/{playerId:int}", async (int playerId, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>

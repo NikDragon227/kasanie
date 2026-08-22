@@ -13,9 +13,9 @@ Kasanie — модульный монолит для одного Linux VPS. П�
 - `Infrastructure` — EF Core context, миграции, Development-seed;
 - `Application` — подсчёт оценки, генератор плана, проверки ресурсного доступа и аудит;
 - `Endpoints` — DTO-oriented minimal REST API по контурам;
-- `Kasanie.Tests` — xUnit для алгоритмов, возраста, ролей и границ coach/parent.
+- `Kasanie.Tests` — xUnit для алгоритмов, возраста, ролей и границ school/coach/parent.
 
-Аутентификация — ASP.NET Core Identity application cookie. Для меняющих запросов нужен antiforgery token. Ролевые политики дополняются проверкой связи с конкретным игроком. `DevelopmentSeeder` запускается только при `ASPNETCORE_ENVIRONMENT=Development`.
+Аутентификация — ASP.NET Core Identity application cookie. Для меняющих запросов нужен antiforgery token. Ролевые политики дополняются ресурсной проверкой членства в школе и состава команды. Владелец управляет только своей школой; тренер получает игрока только через `TeamCoach → Team → TeamPlayer`. `DevelopmentSeeder` запускается только при `ASPNETCORE_ENVIRONMENT=Development`.
 
 ## Frontend
 
@@ -24,4 +24,3 @@ React 19 + TypeScript + React Router. `api.ts` всегда передаёт coo
 ## Эксплуатация
 
 Контейнер API сам применяет EF migrations до начала приёма запросов. PostgreSQL и Data Protection keys размещены в named volumes. Горизонтальное масштабирование не входит в MVP; для одного VPS это уменьшает сложность эксплуатации.
-

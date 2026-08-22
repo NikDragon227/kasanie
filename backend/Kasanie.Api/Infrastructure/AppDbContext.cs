@@ -8,6 +8,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<Municipality> Municipalities => Set<Municipality>();
+    public DbSet<School> Schools => Set<School>();
+    public DbSet<SchoolMembership> SchoolMemberships => Set<SchoolMembership>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<TeamCoach> TeamCoaches => Set<TeamCoach>();
+    public DbSet<TeamPlayer> TeamPlayers => Set<TeamPlayer>();
     public DbSet<PlayerProfile> Players => Set<PlayerProfile>();
     public DbSet<ParentProfile> ParentProfiles => Set<ParentProfile>();
     public DbSet<ParentPlayerLink> ParentPlayerLinks => Set<ParentPlayerLink>();
@@ -39,6 +44,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PlayerProfile>().HasIndex(x => x.UserId).IsUnique();
         builder.Entity<ParentProfile>().HasIndex(x => x.UserId).IsUnique();
         builder.Entity<CoachProfile>().HasIndex(x => x.UserId).IsUnique();
+        builder.Entity<School>().HasIndex(x => x.Slug).IsUnique();
+        builder.Entity<SchoolMembership>().HasKey(x => new { x.SchoolId, x.UserId });
+        builder.Entity<TeamCoach>().HasKey(x => new { x.TeamId, x.CoachId });
+        builder.Entity<TeamPlayer>().HasKey(x => new { x.TeamId, x.PlayerId });
         builder.Entity<ParentPlayerLink>().HasKey(x => new { x.ParentId, x.PlayerId });
         builder.Entity<CoachPlayerLink>().HasKey(x => new { x.CoachId, x.PlayerId });
         builder.Entity<TrainingProgramExercise>().HasKey(x => new { x.TrainingProgramId, x.ExerciseId });

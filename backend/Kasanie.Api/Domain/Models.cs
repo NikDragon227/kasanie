@@ -8,8 +8,10 @@ public static class Roles
     public const string Coach = "Coach";
     public const string Parent = "Parent";
     public const string RegionalAnalyst = "RegionalAnalyst";
+    public const string SchoolOwner = "SchoolOwner";
+    public const string SchoolAdmin = "SchoolAdmin";
     public const string Admin = "Admin";
-    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, Admin];
+    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, SchoolOwner, SchoolAdmin, Admin];
 }
 
 public static class KasanieClaimTypes
@@ -22,6 +24,7 @@ public enum ScoringDirection { HigherIsBetter, LowerIsBetter }
 public enum LinkStatus { Pending, Active, Suspended }
 public enum PlanStatus { Active, Completed, Archived }
 public enum SessionStatus { Planned, InProgress, Completed }
+public enum SchoolMembershipRole { Owner, Administrator, Coach }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -35,6 +38,68 @@ public sealed class Municipality
     public required string Name { get; set; }
     public required string Region { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public sealed class School
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Slug { get; set; }
+    public string? City { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? Phone { get; set; }
+    public string? LogoUrl { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class SchoolMembership
+{
+    public int SchoolId { get; set; }
+    public School School { get; set; } = null!;
+    public required string UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+    public SchoolMembershipRole Role { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class Team
+{
+    public int Id { get; set; }
+    public int SchoolId { get; set; }
+    public School School { get; set; } = null!;
+    public required string Name { get; set; }
+    public string? AgeGroup { get; set; }
+    public string? Season { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamCoach> TeamCoaches { get; set; } = [];
+    public List<TeamPlayer> TeamPlayers { get; set; } = [];
+}
+
+public sealed class TeamCoach
+{
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int CoachId { get; set; }
+    public CoachProfile Coach { get; set; } = null!;
+    public bool IsHeadCoach { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TeamPlayer
+{
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public int? ShirtNumber { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LeftAt { get; set; }
 }
 
 public sealed class PlayerProfile

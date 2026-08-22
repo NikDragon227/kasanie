@@ -138,7 +138,8 @@ public sealed class AccessService(AppDbContext db) : IAccessService
     public Task<bool> CoachCanAccessAsync(ClaimsPrincipal user, int playerId)
     {
         var id = UserId(user);
-        return db.CoachPlayerLinks.AnyAsync(x => x.PlayerId == playerId && x.Status == LinkStatus.Active && x.Coach.UserId == id);
+        return db.TeamPlayers.AnyAsync(x => x.PlayerId == playerId && x.IsActive && x.Team.IsActive && x.Team.School.IsActive &&
+            x.Team.TeamCoaches.Any(c => c.Coach.UserId == id));
     }
 
     public Task<bool> ParentCanAccessAsync(ClaimsPrincipal user, int playerId)

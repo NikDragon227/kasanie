@@ -7,6 +7,7 @@ using Kasanie.Api.Domain;
 using Kasanie.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,30 @@ namespace Kasanie.Tests;
 public sealed class AuthorizationIntegrationTests
 {
     [Fact]
+    public async Task PlatformAdmin_CreatesSchoolAndOwnerInvitation()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "admin-a", Roles.Admin);
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/admin/schools", new
+        {
+            name = "Academy One", ownerEmail = "owner-one@example.test", city = "Казань", contactEmail = "office@example.test", phone = "+70000000000"
+        }, "admin-a", Roles.Admin, csrf));
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Contains("/reset-password?", json.RootElement.GetProperty("inviteUrl").GetString());
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var school = await db.Schools.SingleAsync(x => x.Name == "Academy One");
+        var owner = await users.FindByEmailAsync("owner-one@example.test");
+        Assert.NotNull(owner);
+        Assert.True(await users.IsInRoleAsync(owner!, Roles.SchoolOwner));
+        Assert.True(await db.SchoolMemberships.AnyAsync(x => x.SchoolId == school.Id && x.UserId == owner!.Id && x.Role == SchoolMembershipRole.Owner));
+    }
+
+    [Fact]
     public async Task Coach_CannotOpenUnlinkedPlayerByDirectUrl()
     {
         await using var factory = new TestApplicationFactory();
@@ -28,13 +53,64 @@ public sealed class AuthorizationIntegrationTests
         {
             db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" });
             db.Players.AddRange(Player(1), Player(2));
-            db.CoachPlayerLinks.Add(new CoachPlayerLink { CoachId = 1, PlayerId = 1, Status = LinkStatus.Active });
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "Team A" });
+            db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 1 });
+            db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1 });
         });
 
         using var client = factory.CreateClient();
         using var response = await client.SendAsync(Get("/api/coach/players/2", "coach-a", Roles.Coach));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SchoolOwner_CannotOpenAnotherSchoolsTeams()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Schools.AddRange(
+                new School { Id = 1, Name = "School A", Slug = "school-a" },
+                new School { Id = 2, Name = "School B", Slug = "school-b" });
+            db.SchoolMemberships.AddRange(
+                new SchoolMembership { SchoolId = 1, UserId = "owner-a", Role = SchoolMembershipRole.Owner },
+                new SchoolMembership { SchoolId = 2, UserId = "owner-b", Role = SchoolMembershipRole.Owner });
+            db.Teams.Add(new Team { Id = 2, SchoolId = 2, Name = "Team B" });
+        });
+
+        using var client = factory.CreateClient();
+        using var response = await client.SendAsync(Get("/api/school/2/teams", "owner-a", Roles.SchoolOwner));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CoachList_ContainsOnlyPlayersFromAssignedTeam()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.AddRange(
+                new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" },
+                new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.Players.AddRange(Player(1), Player(2));
+            db.Schools.AddRange(
+                new School { Id = 1, Name = "School A", Slug = "school-a" },
+                new School { Id = 2, Name = "School B", Slug = "school-b" });
+            db.Teams.AddRange(new Team { Id = 1, SchoolId = 1, Name = "Team A" }, new Team { Id = 2, SchoolId = 2, Name = "Team B" });
+            db.TeamCoaches.AddRange(new TeamCoach { TeamId = 1, CoachId = 1 }, new TeamCoach { TeamId = 2, CoachId = 2 });
+            db.TeamPlayers.AddRange(new TeamPlayer { TeamId = 1, PlayerId = 1 }, new TeamPlayer { TeamId = 2, PlayerId = 2 });
+        });
+
+        using var client = factory.CreateClient();
+        using var response = await client.SendAsync(Get("/api/coach/players", "coach-a", Roles.Coach));
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(json.RootElement.EnumerateArray());
+        Assert.Equal(1, json.RootElement[0].GetProperty("id").GetInt32());
     }
 
     [Fact]

@@ -14,7 +14,10 @@ public sealed class AccessServiceTests
         await using var db = Database();
         db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach", DisplayName = "Coach" });
         db.Players.AddRange(Player(1), Player(2));
-        db.CoachPlayerLinks.Add(new CoachPlayerLink { CoachId = 1, PlayerId = 1, Status = LinkStatus.Active });
+        db.Schools.Add(new School { Id = 1, Name = "A", Slug = "a" });
+        db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "A1" });
+        db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 1 });
+        db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1 });
         await db.SaveChangesAsync();
         var access = new AccessService(db);
         Assert.True(await access.CoachCanAccessAsync(User("coach"), 1));
@@ -22,12 +25,15 @@ public sealed class AccessServiceTests
     }
 
     [Fact]
-    public async Task Coach_CannotAccessPlayerThroughSuspendedLink()
+    public async Task Coach_CannotAccessPlayerAfterLeavingTeam()
     {
         await using var db = Database();
         db.CoachProfiles.Add(new CoachProfile { Id = 1, UserId = "coach", DisplayName = "Coach" });
         db.Players.Add(Player(1));
-        db.CoachPlayerLinks.Add(new CoachPlayerLink { CoachId = 1, PlayerId = 1, Status = LinkStatus.Suspended });
+        db.Schools.Add(new School { Id = 1, Name = "A", Slug = "a" });
+        db.Teams.Add(new Team { Id = 1, SchoolId = 1, Name = "A1" });
+        db.TeamCoaches.Add(new TeamCoach { TeamId = 1, CoachId = 1 });
+        db.TeamPlayers.Add(new TeamPlayer { TeamId = 1, PlayerId = 1, IsActive = false, LeftAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync();
 
         Assert.False(await new AccessService(db).CoachCanAccessAsync(User("coach"), 1));

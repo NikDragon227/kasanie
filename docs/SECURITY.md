@@ -6,7 +6,8 @@
 - HttpOnly cookie, `Secure` в production, SameSite Lax, 8-часовая sliding session;
 - antiforgery token для POST/PUT/PATCH/DELETE;
 - блокировка после 5 неудачных входов и IP rate limit входа;
-- роли на API и ресурсные проверки для coach/player и parent/child;
+- роли на API и ресурсные проверки для school/owner, team/coach/player и parent/child;
+- изоляция школ: владелец не может читать или изменять другую школу, тренер получает доступ только к активному составу назначенной команды активной школы;
 - отсутствие bearer token и учётных данных в localStorage;
 - DTO вместо возврата EF entities; централизованный ProblemDetails handler;
 - региональный endpoint ограничен серверной Identity claim региона, подавляет метрики по числу уникальных игроков и не возвращает PII;

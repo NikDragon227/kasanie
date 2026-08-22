@@ -28,6 +28,14 @@ public sealed record UserLockRequest(bool Locked);
 public sealed record TrainingProgramUpsertRequest(string Name, string Description, int Weeks, bool IsActive);
 public sealed record AssessmentNormRequest(int MinimumAge, int MaximumAge, decimal LowPerformanceValue, decimal HighPerformanceValue, bool IsDemo, string SourceNote);
 public sealed record AssessmentUpsertRequest(string Name, string Description, string Instructions, string Unit, SkillCategory SkillCategory, ScoringDirection ScoringDirection, decimal MinimumReasonableValue, decimal MaximumReasonableValue, int SortOrder, bool IsActive, List<AssessmentNormRequest> Norms);
+public sealed record SchoolCreateRequest(string Name, string OwnerEmail, string? City, string? ContactEmail, string? Phone);
+public sealed record SchoolUpdateRequest(string Name, string? City, string? ContactEmail, string? Phone, string? LogoUrl);
+public sealed record SchoolStatusRequest(bool IsActive);
+public sealed record TeamUpsertRequest(string Name, string? AgeGroup, string? Season, bool IsActive = true);
+public sealed record SchoolCoachInviteRequest(string Email, string DisplayName);
+public sealed record TeamCoachRequest(int CoachId, bool IsHeadCoach);
+public sealed record SchoolPlayerCreateRequest(string FirstName, string LastName, DateOnly DateOfBirth, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel, int TeamId, int? ShirtNumber);
+public sealed record TeamPlayerRequest(int PlayerId, int? ShirtNumber);
 
 public static class Validation
 {

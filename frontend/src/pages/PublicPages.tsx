@@ -4,12 +4,14 @@ import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
 import { CityInput } from '../CityInput'
 
-const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', Admin: '/admin' }
+const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Admin: '/admin' }
+const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'RegionalAnalyst'].find(x => roles.includes(x)) ?? roles[0]
 const demoAccounts = [
   { role: 'Игрок', email: 'player@kasanie.local' },
   { role: 'Тренер', email: 'coach@kasanie.local' },
   { role: 'Родитель', email: 'parent@kasanie.local' },
   { role: 'Региональный аналитик', email: 'analyst@kasanie.local' },
+  { role: 'Владелец школы', email: 'owner@kasanie.local' },
   { role: 'Администратор', email: 'admin@kasanie.local' }
 ]
 const demoPassword = 'Kasanie-Demo-2026!'
@@ -93,7 +95,7 @@ export function LoginForm() {
     if (!email.includes('@')) return setError('Укажите корректный email.')
     if (!password) return setError('Введите пароль.')
     setPending(true)
-    try { const next = await login(email, password); const from = (location.state as { from?: string } | null)?.from; navigate(from ?? roleHome[next.roles[0]] ?? '/') }
+    try { const next = await login(email, password); const from = (location.state as { from?: string } | null)?.from; navigate(from ?? roleHome[primaryRole(next.roles)] ?? '/') }
     catch (e) { setError(e instanceof ApiError && (e.status === 423 || e.status === 403) ? e.message : 'Неверный email или пароль.') }
     finally { setPending(false) }
   }
@@ -173,4 +175,4 @@ function AuthFrame({ title, subtitle, children }: { title: string; subtitle: str
     </section>
   </div>
 }
-function RoleRedirect({ roles }: { roles: string[] }) { return <Navigate to={roleHome[roles[0]] ?? '/'} replace /> }
+function RoleRedirect({ roles }: { roles: string[] }) { return <Navigate to={roleHome[primaryRole(roles)] ?? '/'} replace /> }

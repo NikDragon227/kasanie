@@ -4,6 +4,7 @@ import { AccountSecurityPage } from './pages/AccountPages'
 import { ConfirmEmailPage, ForgotPasswordPage, LandingPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/PublicPages'
 import { AssessmentPage, PlayerDashboard, ProfilePage, ProgressPage, TrainingPlanPage, WorkoutPage } from './pages/PlayerPages'
 import { AdminAssessmentsPage, AdminDashboard, AdminExercisesPage, AdminMunicipalitiesPage, AdminProgramsPage, AdminUsersPage, AnalyticsPage, ChildDetailPage, CoachDashboard, CoachPlayerPage, CoachPlayersPage, ParentDashboard } from './pages/RolePages'
+import { AdminSchoolsPage, SchoolCoachesPage, SchoolDashboardPage, SchoolPlayersPage, SchoolSettingsPage, SchoolTeamsPage } from './pages/SchoolPages'
 
 export default function App() {
   return <Routes>
@@ -13,7 +14,8 @@ export default function App() {
     <Route element={<RoleGuard role="Coach" />}><Route element={<AppShell />}><Route path="/coach" element={<CoachDashboard />} /><Route path="/coach/players" element={<CoachPlayersPage />} /><Route path="/coach/players/:playerId" element={<CoachPlayerPage />} /></Route></Route>
     <Route element={<RoleGuard role="Parent" />}><Route element={<AppShell />}><Route path="/parent" element={<ParentDashboard />} /><Route path="/parent/children/:playerId" element={<ChildDetailPage />} /></Route></Route>
     <Route element={<RoleGuard role="RegionalAnalyst" />}><Route element={<AppShell />}><Route path="/analytics" element={<AnalyticsPage />} /></Route></Route>
-    <Route element={<RoleGuard role="Admin" />}><Route element={<AppShell />}><Route path="/admin" element={<AdminDashboard />} /><Route path="/admin/exercises" element={<AdminExercisesPage />} /><Route path="/admin/assessments" element={<AdminAssessmentsPage />} /><Route path="/admin/programs" element={<AdminProgramsPage />} /><Route path="/admin/municipalities" element={<AdminMunicipalitiesPage />} /><Route path="/admin/users" element={<AdminUsersPage />} /></Route></Route>
+    <Route element={<RoleGuard role={["SchoolOwner", "SchoolAdmin"]} />}><Route element={<AppShell />}><Route path="/school" element={<SchoolDashboardPage />} /><Route path="/school/teams" element={<SchoolTeamsPage />} /><Route path="/school/coaches" element={<SchoolCoachesPage />} /><Route path="/school/players" element={<SchoolPlayersPage />} /><Route path="/school/settings" element={<SchoolSettingsPage />} /></Route></Route>
+    <Route element={<RoleGuard role="Admin" />}><Route element={<AppShell />}><Route path="/admin" element={<AdminDashboard />} /><Route path="/admin/schools" element={<AdminSchoolsPage />} /><Route path="/admin/exercises" element={<AdminExercisesPage />} /><Route path="/admin/assessments" element={<AdminAssessmentsPage />} /><Route path="/admin/programs" element={<AdminProgramsPage />} /><Route path="/admin/municipalities" element={<AdminMunicipalitiesPage />} /><Route path="/admin/users" element={<AdminUsersPage />} /></Route></Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }
