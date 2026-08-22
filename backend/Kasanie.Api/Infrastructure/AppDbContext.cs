@@ -13,6 +13,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamCoach> TeamCoaches => Set<TeamCoach>();
     public DbSet<TeamPlayer> TeamPlayers => Set<TeamPlayer>();
+    public DbSet<TeamTrainingGroup> TeamTrainingGroups => Set<TeamTrainingGroup>();
+    public DbSet<TeamTrainingGroupPlayer> TeamTrainingGroupPlayers => Set<TeamTrainingGroupPlayer>();
+    public DbSet<TeamMatch> TeamMatches => Set<TeamMatch>();
+    public DbSet<TeamTournament> TeamTournaments => Set<TeamTournament>();
     public DbSet<TeamTraining> TeamTrainings => Set<TeamTraining>();
     public DbSet<TeamTrainingExercise> TeamTrainingExercises => Set<TeamTrainingExercise>();
     public DbSet<TeamTrainingAttendance> TeamTrainingAttendances => Set<TeamTrainingAttendance>();
@@ -52,6 +56,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<SchoolMembership>().HasKey(x => new { x.SchoolId, x.UserId });
         builder.Entity<TeamCoach>().HasKey(x => new { x.TeamId, x.CoachId });
         builder.Entity<TeamPlayer>().HasKey(x => new { x.TeamId, x.PlayerId });
+        builder.Entity<TeamTrainingGroupPlayer>().HasKey(x => new { x.TeamTrainingGroupId, x.PlayerId });
         builder.Entity<TeamTrainingAttendance>().HasKey(x => new { x.TeamTrainingId, x.PlayerId });
         builder.Entity<TeamTrainingPlayerResult>().HasKey(x => new { x.TeamTrainingExerciseId, x.PlayerId });
         builder.Entity<TeamTrainingExercise>().HasIndex(x => new { x.TeamTrainingId, x.ExerciseId }).IsUnique();
@@ -69,6 +74,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<AssessmentDefinition>().Property(x => x.MaximumReasonableValue).HasPrecision(10, 2);
         builder.Entity<AssessmentNorm>().Property(x => x.LowPerformanceValue).HasPrecision(10, 2);
         builder.Entity<AssessmentNorm>().Property(x => x.HighPerformanceValue).HasPrecision(10, 2);
+        builder.Entity<TeamTournament>().Property(x => x.EntryFee).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.TravelCost).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.AccommodationCost).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.MealCost).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.EquipmentCost).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.OtherCost).HasPrecision(12, 2);
+        builder.Entity<TeamTournament>().Property(x => x.Income).HasPrecision(12, 2);
+        builder.Entity<Team>().Property(x => x.TrainingCycleStage).HasDefaultValue("Подготовительный этап");
 
         foreach (var relationship in builder.Model.GetEntityTypes().SelectMany(x => x.GetForeignKeys()))
             relationship.DeleteBehavior = DeleteBehavior.Restrict;

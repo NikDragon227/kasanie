@@ -19,7 +19,7 @@ public static partial class EndpointMapping
             if (teamId.HasValue) query = query.Where(x => x.TeamId == teamId.Value);
             return Results.Ok(await query.OrderByDescending(x => x.ScheduledAt).Take(100).Select(x => new
             {
-                x.Id, x.TeamId, team = x.Team.Name, school = x.Team.School.Name, x.Title, x.ScheduledAt,
+                x.Id, x.TeamId, team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, school = x.Team.School.Name, x.Title, x.ScheduledAt,
                 status = x.Status.ToString(), x.CompletedAt,
                 players = x.Attendances.Count,
                 present = x.Attendances.Count(a => a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late),
@@ -59,7 +59,7 @@ public static partial class EndpointMapping
                 .SingleAsync(x => x.Id == id);
             return Results.Ok(new
             {
-                training.Id, training.TeamId, team = training.Team.Name, school = training.Team.School.Name, training.Title, training.ScheduledAt,
+                training.Id, training.TeamId, team = (training.Team.AgeGroup ?? "") + (training.Team.AgeGroup == null ? "" : " — ") + training.Team.Name, school = training.Team.School.Name, training.Title, training.ScheduledAt,
                 status = training.Status.ToString(), training.Notes, training.AttendanceSavedAt, training.CompletedAt,
                 exercises = training.Exercises.OrderBy(x => x.SortOrder).Select(x => new { x.Id, x.ExerciseId, x.Exercise.Name, skillCategory = x.Exercise.SkillCategory.ToString(), x.Exercise.DurationMinutes }),
                 players = training.Attendances.OrderBy(x => x.Player.LastName).ThenBy(x => x.Player.FirstName).Select(x => new

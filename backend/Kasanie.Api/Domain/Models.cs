@@ -75,11 +75,75 @@ public sealed class Team
     public required string Name { get; set; }
     public string? AgeGroup { get; set; }
     public string? Season { get; set; }
+    public string TrainingCycleStage { get; set; } = "Подготовительный этап";
+    public DateOnly? CycleStart { get; set; }
+    public DateOnly? CycleEnd { get; set; }
+    public string? TacticFormation { get; set; }
+    public string? TacticNotes { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<TeamCoach> TeamCoaches { get; set; } = [];
     public List<TeamPlayer> TeamPlayers { get; set; } = [];
+    public List<TeamTrainingGroup> TrainingGroups { get; set; } = [];
+    public List<TeamMatch> Matches { get; set; } = [];
+    public List<TeamTournament> Tournaments { get; set; } = [];
+}
+
+public sealed class TeamTrainingGroup
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public required string Name { get; set; }
+    public string? Purpose { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamTrainingGroupPlayer> Players { get; set; } = [];
+}
+
+public sealed class TeamTrainingGroupPlayer
+{
+    public int TeamTrainingGroupId { get; set; }
+    public TeamTrainingGroup TeamTrainingGroup { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+}
+
+public sealed class TeamMatch
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public required string Opponent { get; set; }
+    public string? Competition { get; set; }
+    public DateTimeOffset ScheduledAt { get; set; }
+    public string Venue { get; set; } = "Дома";
+    public string Status { get; set; } = "Запланирован";
+    public int? GoalsFor { get; set; }
+    public int? GoalsAgainst { get; set; }
+    public string? LineupNotes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TeamTournament
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public required string Name { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public string Status { get; set; } = "Запланирован";
+    public string? Placement { get; set; }
+    public decimal EntryFee { get; set; }
+    public decimal TravelCost { get; set; }
+    public decimal AccommodationCost { get; set; }
+    public decimal MealCost { get; set; }
+    public decimal EquipmentCost { get; set; }
+    public decimal OtherCost { get; set; }
+    public decimal Income { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class TeamCoach

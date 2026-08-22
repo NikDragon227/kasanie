@@ -73,7 +73,7 @@ public sealed class PlayerDevelopmentService(AppDbContext db) : IPlayerDevelopme
             .Select(x => new AttendanceRow(
                 x.TeamTrainingId,
                 x.TeamTraining.Title,
-                x.TeamTraining.Team.Name,
+                (x.TeamTraining.Team.AgeGroup ?? "") + (x.TeamTraining.Team.AgeGroup == null ? "" : " — ") + x.TeamTraining.Team.Name,
                 x.TeamTraining.Team.School.Name,
                 x.TeamTraining.ScheduledAt,
                 x.Status))

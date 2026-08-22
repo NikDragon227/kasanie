@@ -31,11 +31,15 @@ public sealed record AssessmentUpsertRequest(string Name, string Description, st
 public sealed record SchoolCreateRequest(string Name, string OwnerEmail, string? City, string? ContactEmail, string? Phone);
 public sealed record SchoolUpdateRequest(string Name, string? City, string? ContactEmail, string? Phone, string? LogoUrl);
 public sealed record SchoolStatusRequest(bool IsActive);
-public sealed record TeamUpsertRequest(string Name, string? AgeGroup, string? Season, bool IsActive = true);
+public sealed record TeamUpsertRequest(string Name, string? AgeGroup, string? Season, string? TrainingCycleStage = null, DateOnly? CycleStart = null, DateOnly? CycleEnd = null, int? HeadCoachId = null, bool IsActive = true);
 public sealed record SchoolCoachInviteRequest(string Email, string DisplayName);
 public sealed record TeamCoachRequest(int CoachId, bool IsHeadCoach);
 public sealed record SchoolPlayerCreateRequest(string FirstName, string LastName, DateOnly DateOfBirth, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel, int TeamId, int? ShirtNumber);
 public sealed record TeamPlayerRequest(int PlayerId, int? ShirtNumber);
+public sealed record TeamTrainingGroupRequest(string Name, string? Purpose, List<int> PlayerIds);
+public sealed record TeamTacticRequest(string? Formation, string? Notes);
+public sealed record TeamMatchRequest(string Opponent, string? Competition, DateTimeOffset ScheduledAt, string Venue, string Status = "Запланирован", int? GoalsFor = null, int? GoalsAgainst = null, string? LineupNotes = null);
+public sealed record TeamTournamentRequest(string Name, DateOnly StartDate, DateOnly? EndDate, string Status, string? Placement, decimal EntryFee, decimal TravelCost, decimal AccommodationCost, decimal MealCost, decimal EquipmentCost, decimal OtherCost, decimal Income);
 public sealed record CreateTeamTrainingRequest(int TeamId, string Title, DateTimeOffset ScheduledAt, List<int> ExerciseIds);
 public sealed record TeamAttendanceItemRequest(int PlayerId, string Status);
 public sealed record SaveTeamAttendanceRequest(List<TeamAttendanceItemRequest> Players);

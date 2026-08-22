@@ -37,7 +37,35 @@ public static partial class EndpointMapping
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
             return Results.Ok(await db.TeamCoaches.AsNoTracking().Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
-                .OrderBy(x => x.Team.Name).Select(x => new { x.TeamId, x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
+                .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).Select(x => new { x.TeamId, name = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
+        });
+
+        coach.MapGet("/teams/{teamId:int}/workspace", async (int teamId, ClaimsPrincipal user, AppDbContext db) =>
+        {
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var team = await db.TeamCoaches.AsNoTracking().Where(x => x.TeamId == teamId && x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive).Select(x => new
+            {
+                x.TeamId,
+                name = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                x.Team.Season, x.Team.TrainingCycleStage, x.Team.TacticFormation, x.Team.TacticNotes,
+                school = x.Team.School.Name,
+                players = x.Team.TeamPlayers.Where(p => p.IsActive).OrderBy(p => p.ShirtNumber).ThenBy(p => p.Player.LastName).Select(p => new { p.PlayerId, p.Player.FirstName, p.Player.LastName, p.Player.PreferredPosition, p.ShirtNumber }).ToList(),
+                matches = x.Team.Matches.OrderBy(m => m.ScheduledAt).Where(m => m.ScheduledAt >= DateTimeOffset.UtcNow).Take(5).Select(m => new { m.Id, m.Opponent, m.Competition, m.ScheduledAt, m.Venue }).ToList()
+            }).SingleOrDefaultAsync();
+            return team is null ? Results.Forbid() : Results.Ok(team);
+        });
+
+        coach.MapPut("/teams/{teamId:int}/tactics", async (int teamId, TeamTacticRequest request, ClaimsPrincipal user, AppDbContext db) =>
+        {
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var team = await db.Teams.SingleOrDefaultAsync(x => x.Id == teamId && x.IsActive && x.School.IsActive && x.TeamCoaches.Any(c => c.Coach.UserId == userId));
+            if (team is null) return Results.Forbid();
+            team.TacticFormation = string.IsNullOrWhiteSpace(request.Formation) ? null : request.Formation.Trim();
+            team.TacticNotes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+            team.UpdatedAt = DateTimeOffset.UtcNow;
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "coach_team_tactics_updated", EntityType = nameof(Team), EntityId = teamId.ToString() });
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
 
         coach.MapGet("/players/{playerId:int}", async (int playerId, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>

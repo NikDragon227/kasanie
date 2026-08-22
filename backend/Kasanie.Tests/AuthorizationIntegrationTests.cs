@@ -218,6 +218,57 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task SchoolOwner_CreatesStructuredSquadAndReadsWorkspace()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.SchoolMemberships.Add(new SchoolMembership { SchoolId = 1, UserId = "owner-a", Role = SchoolMembershipRole.Owner });
+        });
+
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "owner-a", Roles.SchoolOwner);
+        using var create = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/school/1/teams", new
+        {
+            name = "Первый состав",
+            ageGroup = "U17",
+            season = "2026/27",
+            trainingCycleStage = "Соревновательный этап",
+            cycleStart = "2026-08-01",
+            cycleEnd = "2026-11-30",
+            isActive = true
+        }, "owner-a", Roles.SchoolOwner, csrf));
+        using var json = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var teamId = json.RootElement.GetProperty("id").GetInt32();
+
+        using var workspace = await client.SendAsync(Get($"/api/school/1/teams/{teamId}/workspace", "owner-a", Roles.SchoolOwner));
+        using var workspaceJson = JsonDocument.Parse(await workspace.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, workspace.StatusCode);
+        Assert.Equal("U17 — Первый состав", workspaceJson.RootElement.GetProperty("team").GetProperty("displayName").GetString());
+        Assert.Equal("Соревновательный этап", workspaceJson.RootElement.GetProperty("team").GetProperty("trainingCycleStage").GetString());
+    }
+
+    [Fact]
+    public async Task SchoolOwner_CannotOpenAnotherSchoolsTeamWorkspace()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Schools.AddRange(new School { Id = 1, Name = "School A", Slug = "school-a" }, new School { Id = 2, Name = "School B", Slug = "school-b" });
+            db.SchoolMemberships.AddRange(new SchoolMembership { SchoolId = 1, UserId = "owner-a", Role = SchoolMembershipRole.Owner }, new SchoolMembership { SchoolId = 2, UserId = "owner-b", Role = SchoolMembershipRole.Owner });
+            db.Teams.Add(new Team { Id = 2, SchoolId = 2, Name = "Первый состав", AgeGroup = "U17" });
+        });
+
+        using var client = factory.CreateClient();
+        using var response = await client.SendAsync(Get("/api/school/2/teams/2/workspace", "owner-a", Roles.SchoolOwner));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CoachList_ContainsOnlyPlayersFromAssignedTeam()
     {
         await using var factory = new TestApplicationFactory();
@@ -242,6 +293,31 @@ public sealed class AuthorizationIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Single(json.RootElement.EnumerateArray());
         Assert.Equal(1, json.RootElement[0].GetProperty("id").GetInt32());
+    }
+
+    [Fact]
+    public async Task Coach_UpdatesTacticsOnlyForAssignedTeam()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.CoachProfiles.AddRange(new CoachProfile { Id = 1, UserId = "coach-a", DisplayName = "Coach A" }, new CoachProfile { Id = 2, UserId = "coach-b", DisplayName = "Coach B" });
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.Teams.AddRange(new Team { Id = 1, SchoolId = 1, Name = "Первый состав", AgeGroup = "U17" }, new Team { Id = 2, SchoolId = 1, Name = "Второй состав", AgeGroup = "U17" });
+            db.TeamCoaches.AddRange(new TeamCoach { TeamId = 1, CoachId = 1 }, new TeamCoach { TeamId = 2, CoachId = 2 });
+        });
+
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "coach-a", Roles.Coach);
+        using var own = await client.SendAsync(JsonRequest(HttpMethod.Put, "/api/coach/teams/1/tactics", new { formation = "4-3-3", notes = "Высокий прессинг" }, "coach-a", Roles.Coach, csrf));
+        using var foreign = await client.SendAsync(JsonRequest(HttpMethod.Put, "/api/coach/teams/2/tactics", new { formation = "4-4-2", notes = "Чужой план" }, "coach-a", Roles.Coach, csrf));
+
+        Assert.Equal(HttpStatusCode.NoContent, own.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal("Высокий прессинг", (await db.Teams.FindAsync(1))!.TacticNotes);
+        Assert.Null((await db.Teams.FindAsync(2))!.TacticNotes);
     }
 
     [Fact]
