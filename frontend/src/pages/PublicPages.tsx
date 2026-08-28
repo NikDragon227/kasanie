@@ -2,10 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
-import { CityInput } from '../CityInput'
 
-const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Admin: '/admin' }
-const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'RegionalAnalyst'].find(x => roles.includes(x)) ?? roles[0]
+const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
+const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer', 'RegionalAnalyst'].find(x => roles.includes(x)) ?? roles[0]
 const demoAccounts = [
   { role: 'Игрок', email: 'player@kasanie.local' },
   { role: 'Тренер', email: 'coach@kasanie.local' },
@@ -15,6 +14,81 @@ const demoAccounts = [
   { role: 'Администратор', email: 'admin@kasanie.local' }
 ]
 const demoPassword = 'Kasanie-Demo-2026!'
+
+export function EntryLandingPage() {
+  return <div className="entry-page">
+    <header className="entry-nav">
+      <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="button ghost" to="/login">Войти</Link>
+    </header>
+    <main className="entry-split">
+      <Link className="entry-choice entry-choice-find" to="/sports" aria-label="Найти команду">
+        <div className="entry-choice-copy"><h1>Найти<br />команду</h1></div>
+        <div className="entry-map-visual" aria-hidden><i /><i /><i /><span>Карта активностей</span></div>
+        <strong className="entry-action">Перейти к поиску <span>↗</span></strong>
+      </Link>
+      <Link className="entry-choice entry-choice-train" to="/join" aria-label="Начать тренироваться">
+        <div className="entry-choice-copy"><h1>Начать<br />тренироваться</h1><p>Создайте кабинет игрока, родителя, тренера или организатора и войдите в систему развития.</p></div>
+        <div className="entry-progress-visual" aria-hidden>
+          <span><b>72</b><small>уровень</small></span>
+          <div className="entry-metric"><small>Скорость</small><i><em /></i></div>
+          <div className="entry-metric"><small>Ловкость</small><i><em /></i></div>
+          <div className="entry-metric"><small>Выносливость</small><i><em /></i></div>
+        </div>
+        <strong className="entry-action">Выбрать свою роль <span>↗</span></strong>
+      </Link>
+    </main>
+  </div>
+}
+
+const joinRoles = [
+  { name: 'Игрок', description: 'Личный профиль, оценка навыков, тренировки и динамика развития.', to: '/register', mark: 'И' },
+  { name: 'Родитель', description: 'Прогресс ребёнка, связь с тренером и семейный кабинет.', to: '/register-parent', mark: 'Р' },
+  { name: 'Тренер', description: 'Команды, составы, журнал тренировок и развитие игроков.', to: '/register-coach', mark: 'Т' },
+  { name: 'Организатор', description: 'Публикация открытых игр, тренировок и турниров.', to: '/register-organizer', mark: 'О' }
+] as const
+
+export function RegistrationChoicePage() {
+  return <div className="join-page">
+    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
+    <main className="join-main">
+      <div className="join-heading"><h1>Кем вы будете<br />в «Касании»?</h1><p>Выберите роль — дальше покажем только нужные поля и возможности.</p></div>
+      <div className="join-role-grid">{joinRoles.map((role, index) => <Link key={role.name} className="join-role-card" to={role.to}><span className="join-role-mark">{role.mark}</span><small>0{index + 1}</small><h2>{role.name}</h2><p>{role.description}</p><strong>Зарегистрироваться <span>→</span></strong></Link>)}</div>
+      <Link className="join-back" to="/">← Вернуться к выбору</Link>
+    </main>
+  </div>
+}
+
+export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  const [show, setShow] = useState(false)
+  const [pending, setPending] = useState(false)
+  const roleName = role === 'Coach' ? 'тренера' : 'родителя'
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const values = new FormData(event.currentTarget)
+    const dateOfBirth = String(values.get('dateOfBirth') ?? '')
+    const birth = new Date(`${dateOfBirth}T00:00:00`)
+    const now = new Date()
+    const adultAt = new Date(birth.getFullYear() + 18, birth.getMonth(), birth.getDate())
+    setError('')
+    if (!dateOfBirth || Number.isNaN(birth.getTime()) || adultAt > now) return setError('Самостоятельная регистрация доступна с 18 лет.')
+    if (String(values.get('password') ?? '').length < 8) return setError('Пароль должен содержать не менее 8 символов.')
+    setPending(true)
+    try {
+      await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role })
+      setDone(true)
+    } catch (e) {
+      const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
+      setError(fieldErrors.join(' ') || (e instanceof Error ? e.message : 'Не удалось создать аккаунт.'))
+    } finally { setPending(false) }
+  }
+
+  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
+  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'}><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
+}
 
 export function LandingPage() {
   const skills = [['Скорость', 76], ['Выносливость', 68], ['Контроль мяча', 81]] as const
@@ -27,7 +101,7 @@ export function LandingPage() {
   return <div className="landing landing-v2">
     <header className="landing-nav landing-nav-v2">
       <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
-      <nav aria-label="Навигация по странице"><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/register">Начать</Link></nav>
+      <nav aria-label="Навигация по странице"><Link to="/sports">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/sports">Найти игру</Link></nav>
     </header>
     <main>
       <section className="landing-hero-v2">
@@ -100,7 +174,7 @@ export function LoginForm() {
     finally { setPending(false) }
   }
   const showDemoAccounts = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.ru" /></label><label>Пароль<span className="password-control"><input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p>Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
+  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.ru" /></label><label>Пароль<span className="password-control"><input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p>Нет аккаунта? <Link to="/register">Игроку</Link> · <Link to="/register-organizer">Организатору</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
 }
 
 export function RegisterPage() {
@@ -110,11 +184,11 @@ export function RegisterPage() {
     if (!birth || age < 14) return setError('Игроку младше 14 лет профиль создаёт родитель из своего кабинета.')
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     setPending(true)
-    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName'), city: data.get('city'), preferredPosition: data.get('preferredPosition'), dominantFoot: data.get('dominantFoot'), experienceLevel: data.get('experienceLevel') }); setDone(true) }
+    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName') }); setDone(true) }
     catch (e) { setError(e instanceof Error ? e.message : 'Регистрация не выполнена.') } finally { setPending(false) }
   }
   if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title="Начни свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" required /></label><label>Фамилия<input name="lastName" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><label>Позиция<select name="preferredPosition"><option>Полузащитник</option><option>Нападающий</option><option>Защитник</option><option>Вратарь</option></select></label><label>Ведущая нога<select name="dominantFoot"><option>Правая</option><option>Левая</option><option>Обе</option></select></label><label>Опыт<select name="experienceLevel"><option>Начинающий</option><option>Любитель</option><option>Опытный</option></select></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
+  return <AuthFrame title="Построй свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" autoComplete="given-name" required /></label><label>Фамилия<input name="lastName" autoComplete="family-name" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label className="full">Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
 }
 
 export function ForgotPasswordPage() {
@@ -157,10 +231,13 @@ export function ConfirmEmailPage() {
 
 function AuthFrame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   const isLogin = title === 'С возвращением'
+  const isPlayerRegistration = title === 'Построй свою траекторию'
   return <div className={`auth-page auth-page-v2${isLogin ? ' auth-page-login' : ''}`}>
     <section className="auth-story">
       <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
-      <div className="auth-story-copy"><span className="signal-pill"><i /> Система развития игрока</span><h2>Твой прогресс.<br /><em>В одном маршруте.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — без разрозненных таблиц и чатов.</p></div>
+      {isPlayerRegistration
+        ? <div className="auth-story-copy auth-story-message"><h2 aria-label="Большой путь начинается с малого шага.">Большой путь<br /><em>начинается с малого шага.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.</p></div>
+        : <div className="auth-story-copy"><span className="signal-pill"><i /> Система развития игрока</span><h2>Твой прогресс.<br /><em>В одном маршруте.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — без разрозненных таблиц и чатов.</p></div>}
       <div className="auth-preview" aria-label="Пример прогресса игрока">
         <header><div><span className="live-dot" /> Форма игрока</div><small>Последние 6 недель</small></header>
         <div className="auth-preview-main"><div className="auth-score"><strong>72</strong><span>общий уровень</span><small>↗ +8</small></div><div className="auth-skills"><div><span>Скорость</span><b>76</b><i><em style={{ width: '76%' }} /></i></div><div><span>Контроль мяча</span><b>81</b><i><em style={{ width: '81%' }} /></i></div><div><span>Выносливость</span><b>68</b><i><em style={{ width: '68%' }} /></i></div></div></div>

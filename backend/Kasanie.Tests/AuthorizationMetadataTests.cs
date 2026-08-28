@@ -8,11 +8,12 @@ public sealed class AuthorizationMetadataTests
     [Fact]
     public void AllProtectedRoleNamesExistAndAreDistinct()
     {
-        Assert.Equal(7, Roles.All.Distinct().Count());
+        Assert.Equal(8, Roles.All.Distinct().Count());
         Assert.Contains(Roles.Admin, Roles.All);
         Assert.Contains(Roles.RegionalAnalyst, Roles.All);
         Assert.Contains(Roles.SchoolOwner, Roles.All);
         Assert.Contains(Roles.SchoolAdmin, Roles.All);
+        Assert.Contains(Roles.Organizer, Roles.All);
     }
 
     [Fact]

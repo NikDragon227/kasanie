@@ -28,6 +28,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ParentProfile> ParentProfiles => Set<ParentProfile>();
     public DbSet<ParentPlayerLink> ParentPlayerLinks => Set<ParentPlayerLink>();
     public DbSet<CoachProfile> CoachProfiles => Set<CoachProfile>();
+    public DbSet<PublicOrganizerProfile> PublicOrganizerProfiles => Set<PublicOrganizerProfile>();
     public DbSet<CoachPlayerLink> CoachPlayerLinks => Set<CoachPlayerLink>();
     public DbSet<AssessmentDefinition> AssessmentDefinitions => Set<AssessmentDefinition>();
     public DbSet<AssessmentNorm> AssessmentNorms => Set<AssessmentNorm>();
@@ -44,6 +45,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrainingExerciseResult> TrainingExerciseResults => Set<TrainingExerciseResult>();
     public DbSet<AchievementDefinition> AchievementDefinitions => Set<AchievementDefinition>();
     public DbSet<PlayerAchievement> PlayerAchievements => Set<PlayerAchievement>();
+    public DbSet<Sport> Sports => Set<Sport>();
+    public DbSet<SportsVenue> SportsVenues => Set<SportsVenue>();
+    public DbSet<PublicActivity> PublicActivities => Set<PublicActivity>();
+    public DbSet<PublicActivityParticipant> PublicActivityParticipants => Set<PublicActivityParticipant>();
     public DbSet<CoachNote> CoachNotes => Set<CoachNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -55,6 +60,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PlayerProfile>().HasIndex(x => x.UserId).IsUnique();
         builder.Entity<ParentProfile>().HasIndex(x => x.UserId).IsUnique();
         builder.Entity<CoachProfile>().HasIndex(x => x.UserId).IsUnique();
+        builder.Entity<PublicOrganizerProfile>().HasIndex(x => x.UserId).IsUnique();
         builder.Entity<School>().HasIndex(x => x.Slug).IsUnique();
         builder.Entity<SchoolMembership>().HasKey(x => new { x.SchoolId, x.UserId });
         builder.Entity<TeamCoach>().HasKey(x => new { x.TeamId, x.CoachId });
@@ -74,6 +80,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TrainingSession>().HasIndex(x => new { x.PlayerId, x.TrainingDayId }).IsUnique();
         builder.Entity<TrainingExerciseResult>().HasIndex(x => new { x.TrainingSessionId, x.TrainingExerciseId }).IsUnique();
         builder.Entity<AchievementDefinition>().HasIndex(x => x.Code).IsUnique();
+        builder.Entity<Sport>().HasIndex(x => x.Slug).IsUnique();
+        builder.Entity<SportsVenue>().HasIndex(x => x.Slug).IsUnique();
+        builder.Entity<SportsVenue>().HasIndex(x => new { x.City, x.District });
+        builder.Entity<PublicActivity>().HasIndex(x => x.Slug).IsUnique();
+        builder.Entity<PublicActivity>().HasIndex(x => new { x.Status, x.Visibility, x.StartAt });
+        builder.Entity<PublicActivity>().HasIndex(x => new { x.SportId, x.SportsVenueId, x.StartAt });
+        builder.Entity<PublicActivity>().Property(x => x.Price).HasPrecision(12, 2);
+        builder.Entity<PublicActivity>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.UserId }).IsUnique();
+        builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.Status, x.JoinedAt });
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);
         builder.Entity<PlayerProfile>().Property(x => x.Weight).HasPrecision(5, 1);

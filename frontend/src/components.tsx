@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 
-const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Admin: '/admin' }
+const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 const navigation: Record<string, { to: string; label: string; icon: string }[]> = {
   Player: [
     { to: '/player', label: 'Главная', icon: '⌂' }, { to: '/player/assessment', label: 'Тестирование', icon: '◎' },
@@ -16,7 +16,7 @@ const navigation: Record<string, { to: string; label: string; icon: string }[]> 
   Admin: [{ to: '/admin', label: 'Обзор', icon: '⌂' }, { to: '/admin/schools', label: 'Школы', icon: '▦' }, { to: '/admin/exercises', label: 'Упражнения', icon: '◆' }, { to: '/admin/assessments', label: 'Тесты', icon: '◎' }, { to: '/admin/programs', label: 'Программы', icon: '▤' }, { to: '/admin/municipalities', label: 'Города', icon: '⌖' }, { to: '/admin/users', label: 'Пользователи', icon: '◉' }],
 }
 
-const rolePriority = ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'RegionalAnalyst']
+const rolePriority = ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer', 'RegionalAnalyst']
 const primaryRole = (roles: string[]) => rolePriority.find(x => roles.includes(x)) ?? roles[0] ?? ''
 
 export function RoleGuard({ role }: { role: string | string[] }) {
@@ -53,7 +53,7 @@ export function AppShell() {
   </div>
 }
 
-function roleLabel(role: string) { return ({ Player: 'Игрок', Coach: 'Тренер', Parent: 'Родитель', RegionalAnalyst: 'Аналитик', SchoolOwner: 'Владелец школы', SchoolAdmin: 'Администратор школы', Admin: 'Администратор' } as Record<string, string>)[role] ?? role }
+function roleLabel(role: string) { return ({ Player: 'Игрок', Coach: 'Тренер', Parent: 'Родитель', RegionalAnalyst: 'Аналитик', SchoolOwner: 'Владелец школы', SchoolAdmin: 'Администратор школы', Organizer: 'Организатор', Admin: 'Администратор' } as Record<string, string>)[role] ?? role }
 export function FullLoader() { return <div className="full-loader" role="status"><span className="ball-loader" />Загружаем поле…</div> }
 export function PageLoader() { return <div className="panel-state" role="status"><span className="ball-loader" />Загрузка данных…</div> }
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) { return <div className="panel-state error-state"><strong>Не удалось загрузить данные</strong><span>{message}</span>{retry && <button onClick={retry}>Повторить</button>}</div> }

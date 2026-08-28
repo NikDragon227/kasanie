@@ -16,6 +16,7 @@ public static partial class EndpointMapping
         app.MapAnalytics();
         app.MapAdmin();
         app.MapSchools();
+        app.MapPublicDiscovery();
         return app;
     }
 
@@ -23,7 +24,8 @@ public static partial class EndpointMapping
     {
         var normalized = NormalizeCity(city);
         if (normalized.Length == 0) return null;
-        return await db.Municipalities.FirstOrDefaultAsync(x => x.IsActive && EF.Functions.ILike(x.Name, normalized));
+        var normalizedLower = normalized.ToLower();
+        return await db.Municipalities.FirstOrDefaultAsync(x => x.IsActive && x.Name.ToLower() == normalizedLower);
     }
 
     private static string NormalizeCity(string? city)

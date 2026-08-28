@@ -17,8 +17,8 @@ public static partial class EndpointMapping
 
             var minimum = Math.Max(2, configuration.GetValue("Analytics:MinimumGroupSize", configuration.GetValue("ANALYTICS_MINIMUM_GROUP_SIZE", 3)));
             var now = DateTimeOffset.UtcNow;
-            var players = await db.Players.AsNoTracking().Where(x => x.Municipality.Region == region)
-                .Select(x => new { x.Id, x.DateOfBirth, x.MunicipalityId, Municipality = x.Municipality.Name }).ToListAsync();
+            var players = await db.Players.AsNoTracking().Where(x => x.Municipality != null && x.Municipality.Region == region)
+                .Select(x => new { x.Id, x.DateOfBirth, x.MunicipalityId, Municipality = x.Municipality!.Name }).ToListAsync();
 
             if (players.Count < minimum)
             {

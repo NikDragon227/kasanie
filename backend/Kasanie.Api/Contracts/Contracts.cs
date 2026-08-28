@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using Kasanie.Api.Domain;
 
 namespace Kasanie.Api.Contracts;
 
-public sealed record RegisterRequest(string Email, string Password, DateOnly DateOfBirth, string FirstName, string LastName, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel);
+public sealed record RegisterRequest(string Email, string Password, DateOnly DateOfBirth, string FirstName, string LastName);
+public sealed record RegisterOrganizerRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string City);
+public sealed record RegisterPortalUserRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string Role);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record EmailRequest(string Email);
 public sealed record ConfirmEmailRequest(string UserId, string Token);
@@ -63,6 +66,28 @@ public static class Validation
         if (string.IsNullOrEmpty(value.Password) || value.Password.Length < 8) errors["password"] = ["Пароль должен содержать не менее 8 символов."];
         if (string.IsNullOrWhiteSpace(value.FirstName)) errors["firstName"] = ["Укажите имя."];
         if (string.IsNullOrWhiteSpace(value.LastName)) errors["lastName"] = ["Укажите фамилию."];
+        return errors;
+    }
+
+    public static Dictionary<string, string[]> RegisterOrganizer(RegisterOrganizerRequest value)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(value.Email) || !new EmailAddressAttribute().IsValid(value.Email)) errors["email"] = ["Укажите корректный email."];
+        if (string.IsNullOrEmpty(value.Password) || value.Password.Length < 8) errors["password"] = ["Пароль должен содержать не менее 8 символов."];
+        if (string.IsNullOrWhiteSpace(value.DisplayName)) errors["displayName"] = ["Укажите имя организатора."];
+        else if (value.DisplayName.Trim().Length > 120) errors["displayName"] = ["Имя организатора не должно превышать 120 символов."];
+        if (string.IsNullOrWhiteSpace(value.City)) errors["city"] = ["Укажите город."];
+        return errors;
+    }
+
+    public static Dictionary<string, string[]> RegisterPortalUser(RegisterPortalUserRequest value)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(value.Email) || !new EmailAddressAttribute().IsValid(value.Email)) errors["email"] = ["Укажите корректный email."];
+        if (string.IsNullOrEmpty(value.Password) || value.Password.Length < 8) errors["password"] = ["Пароль должен содержать не менее 8 символов."];
+        if (string.IsNullOrWhiteSpace(value.DisplayName)) errors["displayName"] = ["Укажите имя и фамилию."];
+        else if (value.DisplayName.Trim().Length > 120) errors["displayName"] = ["Имя не должно превышать 120 символов."];
+        if (value.Role is not (Roles.Parent or Roles.Coach)) errors["role"] = ["Для самостоятельной регистрации доступны роли родителя и тренера."];
         return errors;
     }
 

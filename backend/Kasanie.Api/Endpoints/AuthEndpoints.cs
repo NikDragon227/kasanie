@@ -28,10 +28,6 @@ public static partial class EndpointMapping
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!AgePolicy.CanRegisterIndependently(request.DateOfBirth, DateOnly.FromDateTime(DateTime.UtcNow)))
                 return Results.UnprocessableEntity(new { code = "parent_required", message = "Игроку младше 14 лет профиль создаёт родитель в своём кабинете." });
-            var municipality = await ResolveCityAsync(db, request.City);
-            if (municipality is null)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["city"] = ["Выберите город из подсказок."] });
-
             var user = new ApplicationUser { Email = request.Email.Trim(), UserName = request.Email.Trim(), EmailConfirmed = false };
             var result = await users.CreateAsync(user, request.Password);
             if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
@@ -39,11 +35,73 @@ public static partial class EndpointMapping
             db.Players.Add(new PlayerProfile
             {
                 UserId = user.Id, FirstName = request.FirstName.Trim(), LastName = request.LastName.Trim(), DateOfBirth = request.DateOfBirth,
-                MunicipalityId = municipality.Id, PreferredPosition = request.PreferredPosition, DominantFoot = request.DominantFoot,
-                ExperienceLevel = request.ExperienceLevel
+                PreferredPosition = "", DominantFoot = "", ExperienceLevel = ""
             });
             await db.SaveChangesAsync();
             await audit.WriteAsync(user.Id, "registration", nameof(ApplicationUser), user.Id);
+            await SendConfirmationAsync(user, users, emailSender, configuration);
+            return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
+        }).RequireRateLimiting("login");
+
+        auth.MapPost("/register-organizer", async (RegisterOrganizerRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        {
+            if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+            var errors = Validation.RegisterOrganizer(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (AgePolicy.GetAge(request.DateOfBirth, DateOnly.FromDateTime(DateTime.UtcNow)) < 18)
+                return Results.UnprocessableEntity(new { code = "adult_required", message = "Создавать публичные активности могут только совершеннолетние." });
+            var municipality = await ResolveCityAsync(db, request.City);
+            if (municipality is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["city"] = ["Выберите город из подсказок."] });
+
+            var normalizedEmail = request.Email.Trim();
+            var user = new ApplicationUser { Email = normalizedEmail, UserName = normalizedEmail, EmailConfirmed = false };
+            var result = await users.CreateAsync(user, request.Password);
+            if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
+            var roleResult = await users.AddToRoleAsync(user, Roles.Organizer);
+            if (!roleResult.Succeeded)
+            {
+                await users.DeleteAsync(user);
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = roleResult.Errors.Select(x => x.Description).ToArray() });
+            }
+            db.PublicOrganizerProfiles.Add(new PublicOrganizerProfile
+            {
+                UserId = user.Id,
+                DisplayName = request.DisplayName.Trim(),
+                DateOfBirth = request.DateOfBirth,
+                MunicipalityId = municipality.Id
+            });
+            await db.SaveChangesAsync();
+            await audit.WriteAsync(user.Id, "organizer_registration", nameof(ApplicationUser), user.Id);
+            await SendConfirmationAsync(user, users, emailSender, configuration);
+            return Results.Created("/api/me", new { message = "Аккаунт организатора создан. Подтвердите email по ссылке из письма." });
+        }).RequireRateLimiting("login");
+
+        auth.MapPost("/register-portal-user", async (RegisterPortalUserRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        {
+            var errors = Validation.RegisterPortalUser(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (AgePolicy.GetAge(request.DateOfBirth, DateOnly.FromDateTime(DateTime.UtcNow)) < 18)
+                return Results.UnprocessableEntity(new { code = "adult_required", message = "Самостоятельная регистрация родителя или тренера доступна только с 18 лет." });
+
+            var normalizedEmail = request.Email.Trim();
+            var user = new ApplicationUser { Email = normalizedEmail, UserName = normalizedEmail, EmailConfirmed = false };
+            var result = await users.CreateAsync(user, request.Password);
+            if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
+            var roleResult = await users.AddToRoleAsync(user, request.Role);
+            if (!roleResult.Succeeded)
+            {
+                await users.DeleteAsync(user);
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = roleResult.Errors.Select(x => x.Description).ToArray() });
+            }
+
+            if (request.Role == Roles.Coach)
+                db.CoachProfiles.Add(new CoachProfile { UserId = user.Id, DisplayName = request.DisplayName.Trim() });
+            else
+                db.ParentProfiles.Add(new ParentProfile { UserId = user.Id });
+
+            await db.SaveChangesAsync();
+            await audit.WriteAsync(user.Id, request.Role == Roles.Coach ? "coach_registration" : "parent_registration", nameof(ApplicationUser), user.Id);
             await SendConfirmationAsync(user, users, emailSender, configuration);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");

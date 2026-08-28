@@ -314,7 +314,7 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             return Results.Ok(await db.TeamPlayers.AsNoTracking().Where(x => x.Team.SchoolId == schoolId && x.IsActive).OrderBy(x => x.Player.LastName).Select(x => new
             {
-                x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, city = x.Player.Municipality.Name, x.Player.PreferredPosition,
+                x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, city = x.Player.Municipality == null ? "" : x.Player.Municipality.Name, x.Player.PreferredPosition,
                 x.TeamId, team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, x.ShirtNumber
             }).ToListAsync());
         });

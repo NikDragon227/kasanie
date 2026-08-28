@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using System.Security.Claims;
 using Kasanie.Api.Application;
 using Kasanie.Api.Domain;
 using Kasanie.Api.Endpoints;
@@ -74,6 +75,12 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("public-discovery", http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("public-action", http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
 builder.Services.AddOpenApi();
@@ -100,8 +107,8 @@ app.Use(async (context, next) =>
 });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseForwardedHeaders();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.Use(async (context, next) =>
 {

@@ -7,6 +7,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       CookieSecure: "true"
+      PublicDiscovery__Enabled: ${PUBLIC_DISCOVERY_ENABLED:-false}
     expose: ["8080"]
   web:
     restart: unless-stopped

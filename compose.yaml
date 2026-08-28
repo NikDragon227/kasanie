@@ -46,6 +46,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
     ports:
       - "${HTTP_PORT:-80}:80"
     depends_on:

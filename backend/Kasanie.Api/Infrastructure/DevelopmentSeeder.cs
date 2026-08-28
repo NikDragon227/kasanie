@@ -69,6 +69,7 @@ public sealed class DevelopmentSeeder(
         var ownerUser = await EnsureUser("owner@kasanie.local", Roles.SchoolOwner);
         await EnsureUser("admin@kasanie.local", Roles.Admin);
         await EnsureAnalystRegion(analystUser, "Республика Татарстан");
+        await SeedPublicDiscoveryAsync(coachUser);
 
         if (!await db.AssessmentDefinitions.AnyAsync())
         {
@@ -259,6 +260,60 @@ public sealed class DevelopmentSeeder(
             await db.SaveChangesAsync();
         }
         logger.LogInformation("Development demo data is ready. Demo password: {DemoPasswordMarker}", "configured in README (development only)");
+    }
+
+    private async Task SeedPublicDiscoveryAsync(ApplicationUser organizer)
+    {
+        var football = await db.Sports.SingleOrDefaultAsync(x => x.Slug == "football");
+        if (football is null)
+        {
+            football = new Sport { Slug = "football", Name = "Футбол" };
+            db.Sports.Add(football);
+            await db.SaveChangesAsync();
+        }
+
+        var venue = await db.SportsVenues.SingleOrDefaultAsync(x => x.Slug == "centralny-stadion-kazan");
+        if (venue is null)
+        {
+            venue = new SportsVenue
+            {
+                Slug = "centralny-stadion-kazan", Name = "Центральная футбольная площадка", Region = "Республика Татарстан",
+                City = "Казань", District = "Вахитовский район", Address = "ул. Ташаяк, 2А", Latitude = 55.7963,
+                Longitude = 49.0999, SurfaceType = "Искусственный газон", HasChangingRooms = true, HasLighting = true,
+                HasParking = true, IsVerified = true, Description = "Освещённое поле для игр и групповых тренировок."
+            };
+            db.SportsVenues.Add(venue);
+            await db.SaveChangesAsync();
+        }
+
+        if (await db.PublicActivities.AnyAsync()) return;
+        var tomorrow = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddDays(1);
+        db.PublicActivities.AddRange(
+            new PublicActivity
+            {
+                Slug = "football-6x6-evening-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
+                EventType = PublicActivityType.Game, Title = "Футбол 6×6 вечером", Description = "Собираем две равные команды. Манишки и мячи предоставит организатор.",
+                StartAt = tomorrow.AddHours(16), EndAt = tomorrow.AddHours(17.5), Capacity = 12, WaitlistCapacity = 4, Price = 500,
+                SkillLevel = "Любитель", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
+                RegistrationDeadline = tomorrow.AddHours(14), Rules = "Приходите за 15 минут до начала."
+            },
+            new PublicActivity
+            {
+                Slug = "group-ball-control-training-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
+                EventType = PublicActivityType.GroupTraining, Title = "Совместная тренировка: контроль мяча", Description = "Открытая тренировка для взрослых: техника, первый пас и небольшая игра в конце.",
+                StartAt = tomorrow.AddDays(2).AddHours(15), EndAt = tomorrow.AddDays(2).AddHours(16.5), Capacity = 10, WaitlistCapacity = 3, Price = 0,
+                SkillLevel = "Любой", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
+                EquipmentRequirements = "Бутсы и вода", Rules = "Без опозданий; сообщите об отмене заранее."
+            },
+            new PublicActivity
+            {
+                Slug = "coach-speed-training-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
+                EventType = PublicActivityType.CoachTraining, Title = "Скорость и первый шаг с тренером", Description = "Групповая тренировка с тренером: стартовая скорость, координация и работа с мячом.",
+                StartAt = tomorrow.AddDays(4).AddHours(17), EndAt = tomorrow.AddDays(4).AddHours(18.25), Capacity = 8, WaitlistCapacity = 2, Price = 900,
+                SkillLevel = "Любитель", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
+                EquipmentRequirements = "Форма по погоде и вода"
+            });
+        await db.SaveChangesAsync();
     }
 
     private async Task<ApplicationUser> EnsureUser(string email, string role)

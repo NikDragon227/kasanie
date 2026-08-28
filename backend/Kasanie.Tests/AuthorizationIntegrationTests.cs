@@ -23,6 +23,36 @@ namespace Kasanie.Tests;
 public sealed class AuthorizationIntegrationTests
 {
     [Fact]
+    public async Task Player_CanRegisterBeforeCompletingFootballProfile()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
+        {
+            email = "new-player@example.test",
+            password = "Kasanie-Test-2026!",
+            dateOfBirth = "2008-05-12",
+            firstName = "Новый",
+            lastName = "Игрок"
+        }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await users.FindByEmailAsync("new-player@example.test");
+        Assert.NotNull(user);
+        Assert.True(await users.IsInRoleAsync(user!, Roles.Player));
+        var profile = await db.Players.SingleAsync(x => x.UserId == user!.Id);
+        Assert.Null(profile.MunicipalityId);
+        Assert.Empty(profile.PreferredPosition);
+        Assert.Empty(profile.DominantFoot);
+        Assert.Empty(profile.ExperienceLevel);
+    }
+
+    [Fact]
     public async Task DevelopmentProfile_AggregatesJournalForPlayerCoachAndParent()
     {
         await using var factory = new TestApplicationFactory();
@@ -702,6 +732,225 @@ public sealed class AuthorizationIntegrationTests
         Assert.True(await db.AuditLogs.AnyAsync(x => x.UserId == "admin-a" && x.EventType == "user_password_reset_by_admin" && x.EntityId == userId));
     }
 
+    [Fact]
+    public async Task PublicDiscovery_IsBrowsableWithoutAuthentication()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => SeedPublicActivity(db, "organizer-a"));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/public/activities?sport=football&city=Kazan&district=Centre&availableOnly=true");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal(1, json.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal("Open football", json.RootElement.GetProperty("items")[0].GetProperty("activity").GetProperty("title").GetString());
+        Assert.Equal("Организатор", json.RootElement.GetProperty("items")[0].GetProperty("activity").GetProperty("organizerName").GetString());
+        Assert.DoesNotContain("organizer-a", body);
+        Assert.DoesNotContain("contactPhone", body);
+    }
+
+    [Fact]
+    public async Task PublicActivity_RequiresAuthenticationToJoin()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => SeedPublicActivity(db, "organizer-a"));
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/activities/1/join", new { }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Adult_CanRegisterAsPublicOrganizerWithoutPlayerProfile()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => db.Municipalities.Add(new Municipality { Id = 50, Name = "Казань", Region = "Татарстан" }));
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-organizer", new
+        {
+            email = "organizer@example.test",
+            password = "Organizer-2026!",
+            dateOfBirth = "1990-05-12",
+            displayName = "Футбол на Московской",
+            city = "Казань"
+        }, null, null, csrf));
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created, $"Expected 201, got {(int)response.StatusCode}: {responseBody}");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await users.FindByEmailAsync("organizer@example.test");
+        Assert.NotNull(user);
+        Assert.True(await users.IsInRoleAsync(user!, Roles.Organizer));
+        Assert.True(await db.PublicOrganizerProfiles.AnyAsync(x => x.UserId == user!.Id && x.DisplayName == "Футбол на Московской"));
+        Assert.False(await db.Players.AnyAsync(x => x.UserId == user!.Id));
+    }
+
+    [Fact]
+    public async Task Minor_CannotRegisterAsPublicOrganizer()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-organizer", new
+        {
+            email = "minor-organizer@example.test",
+            password = "Organizer-2026!",
+            dateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-17).ToString("yyyy-MM-dd"),
+            displayName = "Юный организатор",
+            city = "Казань"
+        }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.Null(await users.FindByEmailAsync("minor-organizer@example.test"));
+    }
+
+    [Theory]
+    [InlineData(Roles.Parent, "parent-registration@example.test")]
+    [InlineData(Roles.Coach, "coach-registration@example.test")]
+    public async Task Adult_CanChooseParentOrCoachDuringPublicRegistration(string role, string email)
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-portal-user", new
+        {
+            email,
+            password = "Kasanie-2026!",
+            dateOfBirth = "1990-05-12",
+            displayName = "Алексей Клявин",
+            role
+        }, null, null, csrf));
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created, $"Expected 201, got {(int)response.StatusCode}: {body}");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await users.FindByEmailAsync(email);
+        Assert.NotNull(user);
+        Assert.True(await users.IsInRoleAsync(user!, role));
+        if (role == Roles.Coach)
+            Assert.True(await db.CoachProfiles.AnyAsync(x => x.UserId == user!.Id && x.DisplayName == "Алексей Клявин"));
+        else
+            Assert.True(await db.ParentProfiles.AnyAsync(x => x.UserId == user!.Id));
+    }
+
+    [Fact]
+    public async Task PublicRegistration_DoesNotAllowPrivilegedRoleSelection()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-portal-user", new
+        {
+            email = "fake-admin@example.test",
+            password = "Kasanie-2026!",
+            dateOfBirth = "1990-05-12",
+            displayName = "Fake Admin",
+            role = Roles.Admin
+        }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.Null(await users.FindByEmailAsync("fake-admin@example.test"));
+    }
+
+    [Fact]
+    public async Task AdultOrganizer_CanCreatePublicMeetingPoint()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Coach);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/venues/", new
+        {
+            name = "Поле на Московской",
+            city = "Казань",
+            district = "Вахитовский",
+            address = "ул. Московская, 1",
+            latitude = 55.795,
+            longitude = 49.108,
+            indoor = false,
+            region = "Республика Татарстан"
+        }, "organizer-a", Roles.Coach, csrf));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.SportsVenues.AnyAsync(x => x.Name == "Поле на Московской" && x.City == "Казань" && !x.IsVerified));
+        Assert.True(await db.AuditLogs.AnyAsync(x => x.UserId == "organizer-a" && x.EventType == "public_venue_created"));
+    }
+
+    [Fact]
+    public async Task PublicActivity_PreventsOrganizerIdorAndAllowsAdultJoin()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => SeedPublicActivity(db, "organizer-a"));
+        using var client = factory.CreateClient();
+        var foreignCsrf = await CsrfAsync(client, "organizer-b", Roles.Coach);
+
+        using var foreignCancel = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/cancel", new { }, "organizer-b", Roles.Coach, foreignCsrf));
+        Assert.Equal(HttpStatusCode.Forbidden, foreignCancel.StatusCode);
+
+        using var adultClient = factory.CreateClient();
+        var joinCsrf = await CsrfAsync(adultClient, "adult-a", Roles.Coach);
+        using var join = await adultClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/activities/1/join", new { }, "adult-a", Roles.Coach, joinCsrf));
+        Assert.Equal(HttpStatusCode.OK, join.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(PublicActivityStatus.Published, (await db.PublicActivities.SingleAsync()).Status);
+        Assert.True(await db.PublicActivityParticipants.AnyAsync(x => x.PublicActivityId == 1 && x.UserId == "adult-a" && x.Status == PublicParticipantStatus.Confirmed));
+    }
+
+    private static void SeedPublicActivity(AppDbContext db, string organizerId)
+    {
+        db.Sports.Add(new Sport { Id = 1, Slug = "football", Name = "Football" });
+        db.SportsVenues.Add(new SportsVenue
+        {
+            Id = 1,
+            Slug = "stadium",
+            Name = "Stadium",
+            Region = "Tatarstan",
+            City = "Kazan",
+            District = "Centre",
+            Address = "One Street",
+            Latitude = 55.79,
+            Longitude = 49.12
+        });
+        db.PublicActivities.Add(new PublicActivity
+        {
+            Id = 1,
+            Slug = "open-football",
+            SportId = 1,
+            SportsVenueId = 1,
+            OrganizerId = organizerId,
+            EventType = PublicActivityType.Game,
+            Title = "Open football",
+            Description = "Adults play football",
+            StartAt = DateTimeOffset.UtcNow.AddDays(2),
+            EndAt = DateTimeOffset.UtcNow.AddDays(2).AddHours(2),
+            Capacity = 10,
+            WaitlistCapacity = 2,
+            Status = PublicActivityStatus.Published,
+            PublishedAt = DateTimeOffset.UtcNow
+        });
+    }
+
     private static async Task<string> CsrfAsync(HttpClient client, string? userId = null, string? role = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/csrf");
@@ -771,17 +1020,21 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.UseSetting("Analytics:MinimumGroupSize", "3");
         builder.UseSetting("App:PublicUrl", "https://prokasanie.test");
+        builder.UseSetting("PublicDiscovery:Enabled", "true");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
+            services.RemoveAll<ITransactionalEmailSender>();
             var databaseServices = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
             services.AddDbContext<AppDbContext>(options => options
                 .UseInMemoryDatabase(databaseName)
                 .UseInternalServiceProvider(databaseServices));
+            services.AddSingleton<ITransactionalEmailSender, TestEmailSender>();
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
@@ -798,6 +1051,11 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
         seed(db);
         await db.SaveChangesAsync();
     }
+}
+
+internal sealed class TestEmailSender : ITransactionalEmailSender
+{
+    public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

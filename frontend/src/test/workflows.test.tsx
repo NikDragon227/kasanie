@@ -5,14 +5,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth'
 import { RadarChart, type Skills } from '../components'
 import { CityInput } from '../CityInput'
-import { LoginForm } from '../pages/PublicPages'
+import { EntryLandingPage, LoginForm, RegisterPage, RegistrationChoicePage } from '../pages/PublicPages'
 import { AssessmentForm, PlayerDashboard, WorkoutPage } from '../pages/PlayerPages'
+import { SportsNearbyPage } from '../pages/SportsNearbyPages'
 
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } }))
 
 beforeEach(() => { vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
+  it('splits the title page into public search and registration paths', () => {
+    render(<MemoryRouter><EntryLandingPage /></MemoryRouter>)
+    expect(screen.getByRole('link', { name: /Найти команду/i })).toHaveAttribute('href', '/sports')
+    expect(screen.getByRole('link', { name: /Начать тренироваться/i })).toHaveAttribute('href', '/join')
+  })
+
+  it('offers all four registration roles', () => {
+    render(<MemoryRouter><RegistrationChoicePage /></MemoryRouter>)
+    for (const role of ['Игрок', 'Родитель', 'Тренер', 'Организатор']) expect(screen.getByRole('heading', { name: role })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Тренер/ })).toHaveAttribute('href', '/register-coach')
+  })
+
+  it('shows the player registration trajectory message', () => {
+    render(<MemoryRouter><RegisterPage /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Построй свою траекторию' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Большой путь начинается с малого шага.' })).toBeInTheDocument()
+    expect(screen.queryByText('Лев Яшин')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Дата рождения')).toBeInTheDocument()
+    for (const deferredField of ['Город', 'Позиция', 'Ведущая нога', 'Опыт']) expect(screen.queryByLabelText(deferredField)).not.toBeInTheDocument()
+  })
+
   it('searches a city and submits only its name', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       if (String(input).startsWith('/api/reference/cities?q=%D0%9A%D0%B0%D0%B7')) return json([{ city: 'Казань', region: 'Республика Татарстан' }])
@@ -64,6 +86,29 @@ describe('critical workflows', () => {
     resolve(new Response(JSON.stringify({ profile: { firstName: 'Артём' }, level: 72, weakestSkills: [{ name: 'Контроль', score: 48 }], weeklyCompletion: 50, achievements: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     expect(await screen.findByText('Привет, Артём!')).toBeInTheDocument()
     expect(screen.getByText('72')).toBeInTheDocument()
+  })
+
+  it('shows public nearby activities without authentication', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'futsal', name: 'Мини-футбол' }, { id: 3, slug: 'badminton', name: 'Бадминтон' }])
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 1, items: [{ activity: { id: 1, slug: 'football-evening', sportSlug: 'football', sport: 'Футбол', eventType: 'Game', title: 'Футбол вечером', description: 'Открытая игра для взрослых', organizerName: 'Команда на Московской', startAt: '2026-08-28T18:00:00Z', endAt: '2026-08-28T20:00:00Z', price: 0, currency: 'RUB', skillLevel: 'Любой', minimumAge: 18, capacity: 12, participantsCount: 4, availablePlaces: 8, waitlistAvailablePlaces: 4, status: 'Published', isRecurring: false, venue: { id: 1, slug: 'central', name: 'Центральное поле', city: 'Казань', district: 'Центр', address: 'Тестовая, 1', latitude: 55.79, longitude: 49.12, indoor: false, isVerified: true } } }] })
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+
+    expect(await screen.findByText('Футбол вечером')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Доступные активности' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Город')).toBeInTheDocument()
+    expect(screen.getByLabelText('Район')).toBeInTheDocument()
+    expect(screen.getByLabelText('Время')).toBeInTheDocument()
+    expect(screen.queryByText('Без регистрации для поиска')).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Спорт' })).toBeInTheDocument()
+    expect(screen.getByText('Бадминтон')).toBeInTheDocument()
+    expect(screen.queryByText('Мини-футбол')).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('svg')).toHaveLength(6)
+    expect(screen.getByText('8 мест свободно')).toBeInTheDocument()
   })
 
   it('persists exercise marks and completes a workout', async () => {

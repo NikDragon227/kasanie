@@ -186,6 +186,8 @@ public static partial class EndpointMapping
         {
             if (roleNames.Any(x => !Roles.All.Contains(x))) return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Неизвестная роль."] });
             var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
+            if (roleNames.Contains(Roles.Organizer) && !await db.PublicOrganizerProfiles.AnyAsync(x => x.UserId == id))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Роль организатора создаётся через взрослую регистрацию с подтверждением возраста."] });
             var current = await users.GetRolesAsync(target); await users.RemoveFromRolesAsync(target, current); await users.AddToRolesAsync(target, roleNames.Distinct());
             if (!roleNames.Contains(Roles.RegionalAnalyst))
             {

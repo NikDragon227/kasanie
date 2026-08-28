@@ -10,8 +10,9 @@ public static class Roles
     public const string RegionalAnalyst = "RegionalAnalyst";
     public const string SchoolOwner = "SchoolOwner";
     public const string SchoolAdmin = "SchoolAdmin";
+    public const string Organizer = "Organizer";
     public const string Admin = "Admin";
-    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, SchoolOwner, SchoolAdmin, Admin];
+    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, SchoolOwner, SchoolAdmin, Organizer, Admin];
 }
 
 public static class KasanieClaimTypes
@@ -28,6 +29,10 @@ public enum SchoolMembershipRole { Owner, Administrator, Coach }
 public enum TeamTrainingStatus { Planned, InProgress, Completed }
 public enum AttendanceStatus { Unknown, Present, Late, Absent, Excused }
 public enum TeamMessageChannel { Owner, Team, Parents }
+public enum PublicActivityType { Game, GroupTraining, CoachTraining, OpenTeamTraining, TrainingPartner, PlayerRecruitment, RecurringGroup, Tournament, Trial, OpenPractice }
+public enum PublicActivityStatus { Draft, Published, Full, Cancelled, Completed, Archived }
+public enum PublicActivityVisibility { Public, LinkOnly, CommunityOnly, Private }
+public enum PublicParticipantStatus { Pending, Confirmed, Waitlisted, Cancelled, Attended, NoShow, Rejected }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -285,8 +290,8 @@ public sealed class PlayerProfile
     public required string LastName { get; set; }
     public DateOnly DateOfBirth { get; set; }
     public string? Gender { get; set; }
-    public int MunicipalityId { get; set; }
-    public Municipality Municipality { get; set; } = null!;
+    public int? MunicipalityId { get; set; }
+    public Municipality? Municipality { get; set; }
     public required string PreferredPosition { get; set; }
     public required string DominantFoot { get; set; }
     public required string ExperienceLevel { get; set; }
@@ -322,6 +327,19 @@ public sealed class CoachProfile
     public required string UserId { get; set; }
     public ApplicationUser User { get; set; } = null!;
     public required string DisplayName { get; set; }
+}
+
+public sealed class PublicOrganizerProfile
+{
+    public int Id { get; set; }
+    public required string UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+    public required string DisplayName { get; set; }
+    public DateOnly DateOfBirth { get; set; }
+    public int MunicipalityId { get; set; }
+    public Municipality Municipality { get; set; } = null!;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class CoachPlayerLink
@@ -524,6 +542,93 @@ public sealed class PlayerAchievement
     public int AchievementDefinitionId { get; set; }
     public AchievementDefinition AchievementDefinition { get; set; } = null!;
     public DateTimeOffset AwardedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class Sport
+{
+    public int Id { get; set; }
+    public required string Slug { get; set; }
+    public required string Name { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class SportsVenue
+{
+    public int Id { get; set; }
+    public required string Slug { get; set; }
+    public required string Name { get; set; }
+    public string? Description { get; set; }
+    public string Country { get; set; } = "Россия";
+    public required string Region { get; set; }
+    public required string City { get; set; }
+    public string? District { get; set; }
+    public required string Address { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public bool Indoor { get; set; }
+    public string? SurfaceType { get; set; }
+    public bool HasChangingRooms { get; set; }
+    public bool HasLighting { get; set; }
+    public bool HasParking { get; set; }
+    public string? ContactPhone { get; set; }
+    public string? Website { get; set; }
+    public bool IsVerified { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PublicActivity
+{
+    public int Id { get; set; }
+    public required string Slug { get; set; }
+    public int SportId { get; set; }
+    public Sport Sport { get; set; } = null!;
+    public PublicActivityType EventType { get; set; }
+    public required string Title { get; set; }
+    public required string Description { get; set; }
+    public required string OrganizerId { get; set; }
+    public ApplicationUser Organizer { get; set; } = null!;
+    public int SportsVenueId { get; set; }
+    public SportsVenue Venue { get; set; } = null!;
+    public DateTimeOffset StartAt { get; set; }
+    public DateTimeOffset EndAt { get; set; }
+    public string TimeZone { get; set; } = "Europe/Moscow";
+    public bool IsRecurring { get; set; }
+    public string? RecurrenceRule { get; set; }
+    public int Capacity { get; set; }
+    public int WaitlistCapacity { get; set; }
+    public decimal Price { get; set; }
+    public string Currency { get; set; } = "RUB";
+    public string SkillLevel { get; set; } = "Любой";
+    public int MinimumAge { get; set; } = 18;
+    public int? MaximumAge { get; set; }
+    public string GenderPolicy { get; set; } = "Любой";
+    public string? EquipmentRequirements { get; set; }
+    public string? Rules { get; set; }
+    public string? CancellationPolicy { get; set; }
+    public PublicActivityStatus Status { get; set; } = PublicActivityStatus.Draft;
+    public PublicActivityVisibility Visibility { get; set; } = PublicActivityVisibility.Public;
+    public DateTimeOffset? PublishedAt { get; set; }
+    public DateTimeOffset? RegistrationDeadline { get; set; }
+    public int Version { get; set; } = 1;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<PublicActivityParticipant> Participants { get; set; } = [];
+}
+
+public sealed class PublicActivityParticipant
+{
+    public long Id { get; set; }
+    public int PublicActivityId { get; set; }
+    public PublicActivity Activity { get; set; } = null!;
+    public required string UserId { get; set; }
+    public ApplicationUser User { get; set; } = null!;
+    public PublicParticipantStatus Status { get; set; } = PublicParticipantStatus.Pending;
+    public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ConfirmedAt { get; set; }
+    public DateTimeOffset? CheckedInAt { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public string Source { get; set; } = "web";
 }
 
 public sealed class CoachNote
