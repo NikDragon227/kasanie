@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 
-const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
+const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 const navigation: Record<string, { to: string; label: string; icon: string }[]> = {
   Player: [
     { to: '/player', label: 'Главная', icon: '⌂' }, { to: '/player/assessment', label: 'Тестирование', icon: '◎' },
@@ -10,13 +10,12 @@ const navigation: Record<string, { to: string; label: string; icon: string }[]> 
   ],
   Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/teams', label: 'Команды', icon: '▦' }, { to: '/coach/trainings', label: 'Журнал', icon: '✓' }, { to: '/coach/players', label: 'Игроки', icon: '◉' }],
   Parent: [{ to: '/parent', label: 'Мои дети', icon: '⌂' }],
-  RegionalAnalyst: [{ to: '/analytics', label: 'Регион', icon: '▥' }],
   SchoolOwner: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
   SchoolAdmin: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
-  Admin: [{ to: '/admin', label: 'Обзор', icon: '⌂' }, { to: '/admin/schools', label: 'Школы', icon: '▦' }, { to: '/admin/exercises', label: 'Упражнения', icon: '◆' }, { to: '/admin/assessments', label: 'Тесты', icon: '◎' }, { to: '/admin/programs', label: 'Программы', icon: '▤' }, { to: '/admin/municipalities', label: 'Города', icon: '⌖' }, { to: '/admin/users', label: 'Пользователи', icon: '◉' }],
+  Admin: [{ to: '/admin', label: 'Статистика', icon: '↗' }, { to: '/admin/schools', label: 'Школы', icon: '▦' }, { to: '/admin/exercises', label: 'Упражнения', icon: '◆' }, { to: '/admin/assessments', label: 'Тесты', icon: '◎' }, { to: '/admin/programs', label: 'Программы', icon: '▤' }, { to: '/admin/municipalities', label: 'Города', icon: '⌖' }, { to: '/admin/users', label: 'Пользователи', icon: '◉' }],
 }
 
-const rolePriority = ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer', 'RegionalAnalyst']
+const rolePriority = ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer']
 const primaryRole = (roles: string[]) => rolePriority.find(x => roles.includes(x)) ?? roles[0] ?? ''
 
 export function RoleGuard({ role }: { role: string | string[] }) {
@@ -44,7 +43,7 @@ export function AppShell() {
   const items = Array.from(new Map((user?.roles.flatMap(x => navigation[x] ?? []) ?? []).map(x => [x.to, x])).values())
   return <div className="app-shell">
     <aside className="sidebar">
-      <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></NavLink>
+      <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></NavLink>
       <nav aria-label="Основная навигация">{[...items, { to: '/account/security', label: 'Безопасность', icon: '◇' }].map(item => <NavLink key={item.to} to={item.to} end={item.to === roleHome[role]}><span aria-hidden>{item.icon}</span>{item.label}</NavLink>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>
@@ -53,7 +52,7 @@ export function AppShell() {
   </div>
 }
 
-function roleLabel(role: string) { return ({ Player: 'Игрок', Coach: 'Тренер', Parent: 'Родитель', RegionalAnalyst: 'Аналитик', SchoolOwner: 'Владелец школы', SchoolAdmin: 'Администратор школы', Organizer: 'Организатор', Admin: 'Администратор' } as Record<string, string>)[role] ?? role }
+function roleLabel(role: string) { return ({ Player: 'Игрок', Coach: 'Тренер', Parent: 'Родитель', SchoolOwner: 'Владелец школы', SchoolAdmin: 'Администратор школы', Organizer: 'Организатор', Admin: 'Администратор' } as Record<string, string>)[role] ?? role }
 export function FullLoader() { return <div className="full-loader" role="status"><span className="ball-loader" />Загружаем поле…</div> }
 export function PageLoader() { return <div className="panel-state" role="status"><span className="ball-loader" />Загрузка данных…</div> }
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) { return <div className="panel-state error-state"><strong>Не удалось загрузить данные</strong><span>{message}</span>{retry && <button onClick={retry}>Повторить</button>}</div> }

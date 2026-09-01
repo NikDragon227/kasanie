@@ -3,13 +3,13 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
 
-const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', RegionalAnalyst: '/analytics', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
-const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer', 'RegionalAnalyst'].find(x => roles.includes(x)) ?? roles[0]
+const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
+const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer'].find(x => roles.includes(x)) ?? roles[0]
 const demoAccounts = [
   { role: 'Игрок', email: 'player@kasanie.local' },
   { role: 'Тренер', email: 'coach@kasanie.local' },
   { role: 'Родитель', email: 'parent@kasanie.local' },
-  { role: 'Региональный аналитик', email: 'analyst@kasanie.local' },
+  { role: 'Организатор', email: 'organizer@kasanie.local' },
   { role: 'Владелец школы', email: 'owner@kasanie.local' },
   { role: 'Администратор', email: 'admin@kasanie.local' }
 ]
@@ -18,7 +18,7 @@ const demoPassword = 'Kasanie-Demo-2026!'
 export function EntryLandingPage() {
   return <div className="entry-page">
     <header className="entry-nav">
-      <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
       <Link className="button ghost" to="/login">Войти</Link>
     </header>
     <main className="entry-split">
@@ -50,7 +50,7 @@ const joinRoles = [
 
 export function RegistrationChoicePage() {
   return <div className="join-page">
-    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
+    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
     <main className="join-main">
       <div className="join-heading"><h1>Кем вы будете<br />в «Касании»?</h1><p>Выберите роль — дальше покажем только нужные поля и возможности.</p></div>
       <div className="join-role-grid">{joinRoles.map((role, index) => <Link key={role.name} className="join-role-card" to={role.to}><span className="join-role-mark">{role.mark}</span><small>0{index + 1}</small><h2>{role.name}</h2><p>{role.description}</p><strong>Зарегистрироваться <span>→</span></strong></Link>)}</div>
@@ -86,8 +86,8 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     } finally { setPending(false) }
   }
 
-  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'}><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
+  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите." portalRegistration><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
+  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
 }
 
 export function LandingPage() {
@@ -100,7 +100,7 @@ export function LandingPage() {
   ] as const
   return <div className="landing landing-v2">
     <header className="landing-nav landing-nav-v2">
-      <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
       <nav aria-label="Навигация по странице"><Link to="/sports">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/sports">Найти игру</Link></nav>
     </header>
     <main>
@@ -151,7 +151,7 @@ export function LandingPage() {
 
       <section className="landing-cta"><div><span className="eyebrow">Твоя точка отсчёта</span><h2>Сильная игра начинается<br />с понятного первого шага.</h2></div><div><p>Пройди оценку и получи персональный маршрут развития.</p><Link className="button large" to="/register">Начать бесплатно <span>↗</span></Link></div></section>
     </main>
-    <footer className="landing-footer-v2"><Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><div><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link to="/login">Войти</Link></div><span>© 2026 · DEMO-нормы не являются научно валидированными</span></footer>
+    <footer className="landing-footer-v2"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><div><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link to="/login">Войти</Link></div><span>© 2026 · DEMO-нормы не являются научно валидированными</span></footer>
   </div>
 }
 
@@ -229,15 +229,15 @@ export function ConfirmEmailPage() {
   return <AuthFrame title="Подтверждение email" subtitle={message}>{done && <Link className="button large" to="/login">Войти</Link>}</AuthFrame>
 }
 
-function AuthFrame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function AuthFrame({ title, subtitle, children, portalRegistration = false }: { title: string; subtitle: string; children: React.ReactNode; portalRegistration?: boolean }) {
   const isLogin = title === 'С возвращением'
   const isPlayerRegistration = title === 'Построй свою траекторию'
   return <div className={`auth-page auth-page-v2${isLogin ? ' auth-page-login' : ''}`}>
     <section className="auth-story">
-      <Link className="brand" to="/"><span className="brand-mark">К</span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
       {isPlayerRegistration
         ? <div className="auth-story-copy auth-story-message"><h2 aria-label="Большой путь начинается с малого шага.">Большой путь<br /><em>начинается с малого шага.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.</p></div>
-        : <div className="auth-story-copy"><span className="signal-pill"><i /> Система развития игрока</span><h2>Твой прогресс.<br /><em>В одном маршруте.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — без разрозненных таблиц и чатов.</p></div>}
+        : <div className="auth-story-copy">{!portalRegistration && <span className="signal-pill"><i /> Система развития игрока</span>}<h2>Твой прогресс.<br /><em>В одном маршруте.</em></h2><p>{portalRegistration ? 'Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.' : 'Оценка навыков, персональные тренировки и связь с тренером — без разрозненных таблиц и чатов.'}</p></div>}
       <div className="auth-preview" aria-label="Пример прогресса игрока">
         <header><div><span className="live-dot" /> Форма игрока</div><small>Последние 6 недель</small></header>
         <div className="auth-preview-main"><div className="auth-score"><strong>72</strong><span>общий уровень</span><small>↗ +8</small></div><div className="auth-skills"><div><span>Скорость</span><b>76</b><i><em style={{ width: '76%' }} /></i></div><div><span>Контроль мяча</span><b>81</b><i><em style={{ width: '81%' }} /></i></div><div><span>Выносливость</span><b>68</b><i><em style={{ width: '68%' }} /></i></div></div></div>
