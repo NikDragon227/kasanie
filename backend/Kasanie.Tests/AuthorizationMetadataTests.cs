@@ -8,26 +8,17 @@ public sealed class AuthorizationMetadataTests
     [Fact]
     public void AllProtectedRoleNamesExistAndAreDistinct()
     {
-        Assert.Equal(8, Roles.All.Distinct().Count());
+        Assert.Equal(7, Roles.All.Distinct().Count());
         Assert.Contains(Roles.Admin, Roles.All);
-        Assert.Contains(Roles.RegionalAnalyst, Roles.All);
         Assert.Contains(Roles.SchoolOwner, Roles.All);
         Assert.Contains(Roles.SchoolAdmin, Roles.All);
         Assert.Contains(Roles.Organizer, Roles.All);
     }
 
     [Fact]
-    public void RegionalEndpointIsScopedAndDoesNotSelectDirectIdentifiers()
+    public void RegionalAnalyticsSourceIsNotPartOfTheApi()
     {
-        var source = File.ReadAllText(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs"));
-        Assert.DoesNotContain("FirstName", source, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("LastName", source, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("x.Email", source, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("email =", source, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("KasanieClaimTypes.AnalyticsRegion", source);
-        Assert.Contains("x.Municipality.Region == region", source);
-        Assert.Contains("SuppressSmallCount", source);
-        Assert.Contains("RequireAuthorization(Roles.RegionalAnalyst)", source);
+        Assert.False(File.Exists(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs")));
     }
 
     [Fact]

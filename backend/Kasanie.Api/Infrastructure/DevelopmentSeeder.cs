@@ -65,11 +65,11 @@ public sealed class DevelopmentSeeder(
         var playerUser = await EnsureUser("player@kasanie.local", Roles.Player);
         var coachUser = await EnsureUser("coach@kasanie.local", Roles.Coach);
         var parentUser = await EnsureUser("parent@kasanie.local", Roles.Parent);
-        var analystUser = await EnsureUser("analyst@kasanie.local", Roles.RegionalAnalyst);
+        var organizerUser = await EnsureUser("organizer@kasanie.local", Roles.Organizer);
         var ownerUser = await EnsureUser("owner@kasanie.local", Roles.SchoolOwner);
         await EnsureUser("admin@kasanie.local", Roles.Admin);
-        await EnsureAnalystRegion(analystUser, "Республика Татарстан");
-        await SeedPublicDiscoveryAsync(coachUser);
+        await EnsurePublicOrganizerProfile(organizerUser);
+        await SeedPublicDiscoveryAsync(organizerUser);
 
         if (!await db.AssessmentDefinitions.AnyAsync())
         {
@@ -286,13 +286,24 @@ public sealed class DevelopmentSeeder(
             await db.SaveChangesAsync();
         }
 
-        if (await db.PublicActivities.AnyAsync()) return;
+        var demoSlugs = new[] { "football-6x6-evening-kazan", "group-ball-control-training-kazan", "coach-speed-training-kazan" };
+        var existingDemoActivities = await db.PublicActivities.Where(x => demoSlugs.Contains(x.Slug)).ToListAsync();
+        if (existingDemoActivities.Count > 0)
+        {
+            foreach (var activity in existingDemoActivities)
+            {
+                activity.OrganizerId = organizer.Id;
+                activity.GameFormat ??= "6×6";
+            }
+            await db.SaveChangesAsync();
+            return;
+        }
         var tomorrow = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddDays(1);
         db.PublicActivities.AddRange(
             new PublicActivity
             {
                 Slug = "football-6x6-evening-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
-                EventType = PublicActivityType.Game, Title = "Футбол 6×6 вечером", Description = "Собираем две равные команды. Манишки и мячи предоставит организатор.",
+                EventType = PublicActivityType.Game, GameFormat = "6×6", Title = "Футбол 6×6 вечером", Description = "Собираем две равные команды. Манишки и мячи предоставит организатор.",
                 StartAt = tomorrow.AddHours(16), EndAt = tomorrow.AddHours(17.5), Capacity = 12, WaitlistCapacity = 4, Price = 500,
                 SkillLevel = "Любитель", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
                 RegistrationDeadline = tomorrow.AddHours(14), Rules = "Приходите за 15 минут до начала."
@@ -300,7 +311,7 @@ public sealed class DevelopmentSeeder(
             new PublicActivity
             {
                 Slug = "group-ball-control-training-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
-                EventType = PublicActivityType.GroupTraining, Title = "Совместная тренировка: контроль мяча", Description = "Открытая тренировка для взрослых: техника, первый пас и небольшая игра в конце.",
+                EventType = PublicActivityType.GroupTraining, GameFormat = "6×6", Title = "Совместная тренировка: контроль мяча", Description = "Открытая тренировка для взрослых: техника, первый пас и небольшая игра в конце.",
                 StartAt = tomorrow.AddDays(2).AddHours(15), EndAt = tomorrow.AddDays(2).AddHours(16.5), Capacity = 10, WaitlistCapacity = 3, Price = 0,
                 SkillLevel = "Любой", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
                 EquipmentRequirements = "Бутсы и вода", Rules = "Без опозданий; сообщите об отмене заранее."
@@ -308,11 +319,25 @@ public sealed class DevelopmentSeeder(
             new PublicActivity
             {
                 Slug = "coach-speed-training-kazan", SportId = football.Id, SportsVenueId = venue.Id, OrganizerId = organizer.Id,
-                EventType = PublicActivityType.CoachTraining, Title = "Скорость и первый шаг с тренером", Description = "Групповая тренировка с тренером: стартовая скорость, координация и работа с мячом.",
+                EventType = PublicActivityType.CoachTraining, GameFormat = "6×6", Title = "Скорость и первый шаг с тренером", Description = "Групповая тренировка с тренером: стартовая скорость, координация и работа с мячом.",
                 StartAt = tomorrow.AddDays(4).AddHours(17), EndAt = tomorrow.AddDays(4).AddHours(18.25), Capacity = 8, WaitlistCapacity = 2, Price = 900,
                 SkillLevel = "Любитель", Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow,
                 EquipmentRequirements = "Форма по погоде и вода"
             });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task EnsurePublicOrganizerProfile(ApplicationUser organizer)
+    {
+        if (await db.PublicOrganizerProfiles.AnyAsync(x => x.UserId == organizer.Id)) return;
+        var municipality = await db.Municipalities.SingleAsync(x => x.Name == "Казань");
+        db.PublicOrganizerProfiles.Add(new PublicOrganizerProfile
+        {
+            UserId = organizer.Id,
+            DisplayName = "Организатор Касания",
+            DateOfBirth = new DateOnly(1990, 1, 1),
+            MunicipalityId = municipality.Id
+        });
         await db.SaveChangesAsync();
     }
 
@@ -327,15 +352,6 @@ public sealed class DevelopmentSeeder(
         }
         if (!await users.IsInRoleAsync(user, role)) await users.AddToRoleAsync(user, role);
         return user;
-    }
-
-    private async Task EnsureAnalystRegion(ApplicationUser user, string region)
-    {
-        var claims = await users.GetClaimsAsync(user);
-        var existing = claims.Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
-        if (existing.Count == 1 && existing[0].Value == region) return;
-        if (existing.Count > 0) await users.RemoveClaimsAsync(user, existing);
-        await users.AddClaimAsync(user, new System.Security.Claims.Claim(KasanieClaimTypes.AnalyticsRegion, region));
     }
 
     private void AddAssessment(string name, string description, string instructions, string unit, SkillCategory category, ScoringDirection direction, decimal min, decimal max, decimal low, decimal high, int order)

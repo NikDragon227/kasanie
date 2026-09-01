@@ -14,11 +14,90 @@ public static partial class EndpointMapping
     private static void MapAdmin(this IEndpointRouteBuilder app)
     {
         var admin = app.MapGroup("/api/admin").RequireAuthorization(Roles.Admin).WithTags("Admin");
-        admin.MapGet("/summary", async (AppDbContext db) => Results.Ok(new
+        admin.MapGet("/summary", async (int? days, AppDbContext db) =>
         {
-            users = await db.Users.CountAsync(), players = await db.Players.CountAsync(), exercises = await db.Exercises.CountAsync(),
-            assessments = await db.AssessmentDefinitions.CountAsync(), programs = await db.TrainingPrograms.CountAsync(), auditEvents = await db.AuditLogs.CountAsync()
-        }));
+            var periodDays = days is 7 or 30 or 90 ? days.Value : 30;
+            var now = DateTimeOffset.UtcNow;
+            var periodStart = new DateTimeOffset(now.UtcDateTime.Date.AddDays(-(periodDays - 1)), TimeSpan.Zero);
+
+            var users = await db.Users.CountAsync();
+            var newUsers = await db.Users.CountAsync(x => x.CreatedAt >= periodStart);
+            var activeUsers = await db.Users.CountAsync(x => x.LastActiveAt >= periodStart);
+            var schools = await db.Schools.CountAsync();
+            var activeSchools = await db.Schools.CountAsync(x => x.IsActive);
+            var teams = await db.Teams.CountAsync();
+            var activeTeams = await db.Teams.CountAsync(x => x.IsActive);
+            var publishedActivities = await db.PublicActivities.CountAsync(x => x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full);
+            var newActivities = await db.PublicActivities.CountAsync(x => x.CreatedAt >= periodStart);
+            var upcomingActivities = await db.PublicActivities.CountAsync(x => x.StartAt >= now && (x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full));
+            var registrations = await db.PublicActivityParticipants.CountAsync(x => x.Status != PublicParticipantStatus.Cancelled && x.Status != PublicParticipantStatus.Rejected);
+            var newRegistrations = await db.PublicActivityParticipants.CountAsync(x => x.JoinedAt >= periodStart && x.Status != PublicParticipantStatus.Cancelled && x.Status != PublicParticipantStatus.Rejected);
+            var completedTeamTrainings = await db.TeamTrainings.CountAsync(x => x.CompletedAt >= periodStart);
+            var completedPersonalTrainings = await db.TrainingSessions.CountAsync(x => x.CompletedAt >= periodStart);
+
+            var roleRows = await (from userRole in db.UserRoles.AsNoTracking()
+                                  join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                                  select role.Name).ToListAsync();
+            var roles = roleRows.Where(x => x is not null).GroupBy(x => x!).Select(x => new { role = x.Key, count = x.Count() }).OrderByDescending(x => x.count).ToArray();
+
+            var userDates = await db.Users.AsNoTracking().Where(x => x.CreatedAt >= periodStart).Select(x => x.CreatedAt).ToListAsync();
+            var activityDates = await db.PublicActivities.AsNoTracking().Where(x => x.PublishedAt >= periodStart).Select(x => x.PublishedAt!.Value).ToListAsync();
+            var registrationDates = await db.PublicActivityParticipants.AsNoTracking().Where(x => x.JoinedAt >= periodStart && x.Status != PublicParticipantStatus.Cancelled && x.Status != PublicParticipantStatus.Rejected).Select(x => x.JoinedAt).ToListAsync();
+            var teamTrainingDates = await db.TeamTrainings.AsNoTracking().Where(x => x.CompletedAt >= periodStart).Select(x => x.CompletedAt!.Value).ToListAsync();
+            var personalTrainingDates = await db.TrainingSessions.AsNoTracking().Where(x => x.CompletedAt >= periodStart).Select(x => x.CompletedAt!.Value).ToListAsync();
+            var trend = Enumerable.Range(0, periodDays).Select(offset =>
+            {
+                var date = periodStart.AddDays(offset).Date;
+                return new
+                {
+                    date = date.ToString("yyyy-MM-dd"),
+                    users = userDates.Count(x => x.UtcDateTime.Date == date),
+                    activities = activityDates.Count(x => x.UtcDateTime.Date == date),
+                    registrations = registrationDates.Count(x => x.UtcDateTime.Date == date),
+                    trainings = teamTrainingDates.Count(x => x.UtcDateTime.Date == date) + personalTrainingDates.Count(x => x.UtcDateTime.Date == date)
+                };
+            }).ToArray();
+
+            var activityTypeRows = await db.PublicActivities.AsNoTracking()
+                .Where(x => x.Status != PublicActivityStatus.Draft && x.Status != PublicActivityStatus.Archived)
+                .Select(x => x.EventType).ToListAsync();
+            var activityTypes = activityTypeRows.GroupBy(x => x).Select(x => new { type = x.Key.ToString(), count = x.Count() }).OrderByDescending(x => x.count).ToArray();
+            var cityRows = await db.PublicActivities.AsNoTracking()
+                .Where(x => x.Status != PublicActivityStatus.Draft && x.Status != PublicActivityStatus.Archived)
+                .Select(x => x.Venue.City).ToListAsync();
+            var topCities = cityRows.Where(x => !string.IsNullOrWhiteSpace(x)).GroupBy(x => x).Select(x => new { city = x.Key, count = x.Count() }).OrderByDescending(x => x.count).ThenBy(x => x.city).Take(5).ToArray();
+
+            return Results.Ok(new
+            {
+                periodDays,
+                generatedAt = now,
+                users,
+                newUsers,
+                activeUsers,
+                players = await db.Players.CountAsync(),
+                coaches = await db.CoachProfiles.CountAsync(),
+                parents = await db.ParentProfiles.CountAsync(),
+                organizers = await db.PublicOrganizerProfiles.CountAsync(),
+                schools,
+                activeSchools,
+                teams,
+                activeTeams,
+                publishedActivities,
+                newActivities,
+                upcomingActivities,
+                registrations,
+                newRegistrations,
+                completedTrainings = completedTeamTrainings + completedPersonalTrainings,
+                exercises = await db.Exercises.CountAsync(),
+                assessments = await db.AssessmentDefinitions.CountAsync(),
+                programs = await db.TrainingPrograms.CountAsync(),
+                auditEvents = await db.AuditLogs.CountAsync(),
+                roles,
+                trend,
+                activityTypes,
+                topCities
+            });
+        });
 
         admin.MapGet("/exercises", async (int page, int pageSize, AppDbContext db) =>
         {
@@ -93,16 +172,12 @@ public static partial class EndpointMapping
         admin.MapPost("/users", async (InviteUserRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db, IConfiguration configuration, IOptions<DataProtectionTokenProviderOptions> tokenOptions) =>
         {
             var email = request.Email?.Trim();
-            var allowedRoles = new[] { Roles.Coach, Roles.Parent, Roles.RegionalAnalyst, Roles.Admin };
+            var allowedRoles = new[] { Roles.Coach, Roles.Parent, Roles.Admin };
             if (string.IsNullOrWhiteSpace(email) || !new EmailAddressAttribute().IsValid(email))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["Укажите корректный email."] });
             if (!allowedRoles.Contains(request.Role))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Через приглашение можно создать тренера, родителя, регионального аналитика или администратора. Игрок регистрируется самостоятельно."] });
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Через приглашение можно создать тренера, родителя или администратора. Игрок и организатор регистрируются самостоятельно."] });
             if (await users.FindByEmailAsync(email) is not null) return Results.Conflict(new { message = "Пользователь с таким email уже существует." });
-
-            var region = request.Role == Roles.RegionalAnalyst ? request.Region?.Trim() : null;
-            if (request.Role == Roles.RegionalAnalyst && (string.IsNullOrWhiteSpace(region) || !await db.Municipalities.AnyAsync(x => x.IsActive && x.Region == region)))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["region"] = ["Для аналитика выберите регион из активного справочника городов."] });
 
             await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
             var user = new ApplicationUser { Email = email, UserName = email, EmailConfirmed = true, LockoutEnabled = true };
@@ -120,10 +195,8 @@ public static partial class EndpointMapping
                 db.CoachProfiles.Add(new CoachProfile { UserId = user.Id, DisplayName = email.Split('@')[0] });
             else if (request.Role == Roles.Parent)
                 db.ParentProfiles.Add(new ParentProfile { UserId = user.Id });
-            else if (request.Role == Roles.RegionalAnalyst)
-                await users.AddClaimAsync(user, new Claim(KasanieClaimTypes.AnalyticsRegion, region!));
 
-            await AddAudit(db, principal, "user_invited", nameof(ApplicationUser), user.Id, $"role:{request.Role};region:{region ?? "-"}");
+            await AddAudit(db, principal, "user_invited", nameof(ApplicationUser), user.Id, $"role:{request.Role}");
             if (transaction is not null) await transaction.CommitAsync();
 
             var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(user));
@@ -133,7 +206,6 @@ public static partial class EndpointMapping
                 user.Id,
                 user.Email,
                 role = request.Role,
-                region,
                 inviteUrl,
                 expiresAt = DateTimeOffset.UtcNow.Add(tokenOptions.Value.TokenLifespan)
             });
@@ -164,8 +236,7 @@ public static partial class EndpointMapping
                 isLocked = x.LockoutEnd != null && x.LockoutEnd > now,
                 hasPassword = x.PasswordHash != null,
                 x.CreatedAt,
-                roles = (from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name).ToList(),
-                analyticsRegion = db.UserClaims.Where(c => c.UserId == x.Id && c.ClaimType == KasanieClaimTypes.AnalyticsRegion).Select(c => c.ClaimValue).FirstOrDefault()
+                roles = (from ur in db.UserRoles join role in db.Roles on ur.RoleId equals role.Id where ur.UserId == x.Id select role.Name).ToList()
             }).ToListAsync();
             return Results.Ok(new { total = await query.CountAsync(), page, pageSize, items });
         });
@@ -184,35 +255,15 @@ public static partial class EndpointMapping
         });
         admin.MapPut("/users/{id}/roles", async (string id, string[] roleNames, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
         {
-            if (roleNames.Any(x => !Roles.All.Contains(x))) return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Неизвестная роль."] });
+            var assignableRoles = Roles.All.ToHashSet();
+            if (roleNames.Any(x => !assignableRoles.Contains(x))) return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Неизвестная или отключённая роль."] });
             var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
             if (roleNames.Contains(Roles.Organizer) && !await db.PublicOrganizerProfiles.AnyAsync(x => x.UserId == id))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["roles"] = ["Роль организатора создаётся через взрослую регистрацию с подтверждением возраста."] });
             var current = await users.GetRolesAsync(target); await users.RemoveFromRolesAsync(target, current); await users.AddToRolesAsync(target, roleNames.Distinct());
-            if (!roleNames.Contains(Roles.RegionalAnalyst))
-            {
-                var regionClaims = (await users.GetClaimsAsync(target)).Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
-                if (regionClaims.Count > 0) await users.RemoveClaimsAsync(target, regionClaims);
-            }
             await users.UpdateSecurityStampAsync(target);
             await AddAudit(db, principal, "role_changed", nameof(ApplicationUser), id, string.Join(',', roleNames)); return Results.NoContent();
         });
-        admin.MapPut("/users/{id}/analytics-region", async (string id, AnalystRegionRequest request, ClaimsPrincipal principal, UserManager<ApplicationUser> users, AppDbContext db) =>
-        {
-            var region = request.Region?.Trim();
-            if (string.IsNullOrWhiteSpace(region) || !await db.Municipalities.AnyAsync(x => x.IsActive && x.Region == region))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["region"] = ["Выберите регион из активного справочника городов."] });
-            var target = await users.FindByIdAsync(id); if (target is null) return Results.NotFound();
-            if (!await users.IsInRoleAsync(target, Roles.RegionalAnalyst))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Сначала назначьте пользователю роль регионального аналитика."] });
-            var currentClaims = (await users.GetClaimsAsync(target)).Where(x => x.Type == KasanieClaimTypes.AnalyticsRegion).ToList();
-            if (currentClaims.Count > 0) await users.RemoveClaimsAsync(target, currentClaims);
-            await users.AddClaimAsync(target, new Claim(KasanieClaimTypes.AnalyticsRegion, region));
-            await users.UpdateSecurityStampAsync(target);
-            await AddAudit(db, principal, "analyst_region_changed", nameof(ApplicationUser), id, region);
-            return Results.NoContent();
-        });
-
         admin.MapGet("/coach-links", async (AppDbContext db) => Results.Ok(await db.CoachPlayerLinks.AsNoTracking().Select(x => new { x.CoachId, coach = x.Coach.DisplayName, x.PlayerId, player = x.Player.FirstName + " " + x.Player.LastName, status = x.Status.ToString(), x.CreatedAt }).ToListAsync()));
         admin.MapPost("/coach-links", async (int coachId, int playerId, ClaimsPrincipal user, AppDbContext db) =>
         {

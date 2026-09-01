@@ -85,6 +85,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+builder.Services.AddHttpClient("yandex-geocoder", client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddScoped<IAssessmentScorer, AssessmentScorer>();
 builder.Services.AddScoped<ITrainingPlanGenerator, TrainingPlanGenerator>();
 builder.Services.AddScoped<IAccessService, AccessService>();
@@ -151,7 +152,8 @@ await using (var scope = app.Services.CreateAsyncScope())
     else await db.Database.EnsureCreatedAsync();
     await scope.ServiceProvider.GetRequiredService<IdentityInitializer>().InitializeAsync();
     if (app.Environment.IsDevelopment()) await scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>().SeedAsync();
-    await scope.ServiceProvider.GetRequiredService<PlatformCatalogSeeder>().SeedAsync();
+    if (!app.Environment.IsEnvironment("Testing"))
+        await scope.ServiceProvider.GetRequiredService<PlatformCatalogSeeder>().SeedAsync();
 }
 
 app.Run();

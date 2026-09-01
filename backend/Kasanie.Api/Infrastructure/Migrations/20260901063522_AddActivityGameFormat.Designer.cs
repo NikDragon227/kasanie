@@ -3,6 +3,7 @@ using System;
 using Kasanie.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kasanie.Api.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901063522_AddActivityGameFormat")]
+    partial class AddActivityGameFormat
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -732,10 +735,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("GuestCancellationTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<string>("GuestContact")
                         .HasColumnType("text");
 
@@ -762,10 +761,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("GuestCancellationTokenHash")
-                        .IsUnique()
-                        .HasFilter("\"GuestCancellationTokenHash\" IS NOT NULL");
 
                     b.HasIndex("UserId");
 

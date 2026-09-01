@@ -1,5 +1,9 @@
 using System.Data;
+using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kasanie.Api.Application;
 using Kasanie.Api.Domain;
@@ -10,6 +14,16 @@ namespace Kasanie.Api.Endpoints;
 
 public static partial class EndpointMapping
 {
+    private static readonly IReadOnlyDictionary<string, string[]> GameFormatsBySport = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["football"] = ["5×5", "6×6", "7×7", "8×8", "9×9", "10×10", "11×11"],
+        ["basketball"] = ["3×3", "5×5"],
+        ["volleyball"] = ["2×2", "6×6"],
+        ["hockey"] = ["3+1", "5+1"],
+        ["tennis"] = ["1×1", "2×2"],
+        ["badminton"] = ["1×1", "2×2"]
+    };
+
     private static void MapPublicDiscovery(this IEndpointRouteBuilder app)
     {
         var publicApi = app.MapGroup("/api/public").RequireRateLimiting("public-discovery").WithTags("Sports Nearby — public catalog");
@@ -17,13 +31,17 @@ public static partial class EndpointMapping
         publicApi.MapGet("/sports", async (AppDbContext db, IConfiguration configuration) =>
         {
             if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
-            return Results.Ok(await db.Sports.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
+            return Results.Ok(await db.Sports.AsNoTracking().Where(x => x.IsActive && x.Slug != "futsal" && x.Slug != "mini-football" && x.Name != "Мини-футбол").OrderBy(x => x.Name)
                 .Select(x => new { x.Id, x.Slug, x.Name }).ToListAsync());
         });
 
         publicApi.MapGet("/activities", SearchPublicActivitiesAsync);
+        publicApi.MapGet("/geocode", GeocodePublicLocationAsync);
+        publicApi.MapPost("/activities/{id:int}/guest-join", JoinGuestPublicActivityAsync);
+        publicApi.MapGet("/guest-participations/{token}", GetGuestPublicParticipationAsync);
+        publicApi.MapPost("/guest-participations/{token}/cancel", CancelGuestPublicParticipationAsync);
 
-        publicApi.MapGet("/activities/{slug}", async (string slug, AppDbContext db, IConfiguration configuration) =>
+        publicApi.MapGet("/activities/{slug}", async (string slug, ClaimsPrincipal principal, AppDbContext db, IConfiguration configuration) =>
         {
             if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
             var activity = await db.PublicActivities.AsNoTracking()
@@ -32,7 +50,7 @@ public static partial class EndpointMapping
                     (x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full));
             if (activity is null) return Results.NotFound();
             var organizerName = await db.PublicOrganizerProfiles.AsNoTracking().Where(x => x.UserId == activity.OrganizerId).Select(x => x.DisplayName).SingleOrDefaultAsync();
-            return Results.Ok(ToPublicActivity(activity, organizerName));
+            return Results.Ok(ToPublicActivity(activity, organizerName, principal.FindFirstValue(ClaimTypes.NameIdentifier)));
         });
 
         publicApi.MapGet("/venues", async (string? location, AppDbContext db, IConfiguration configuration) =>
@@ -57,6 +75,8 @@ public static partial class EndpointMapping
         });
 
         var participantApi = app.MapGroup("/api/activities").RequireAuthorization().RequireRateLimiting("public-action").WithTags("Sports Nearby — participation");
+        participantApi.MapGet("/mine", GetMyPublicActivitiesAsync);
+        participantApi.MapGet("/{id:int}/participation", GetPublicActivityParticipationAsync);
         participantApi.MapPost("/{id:int}/join", JoinPublicActivityAsync);
         participantApi.MapPost("/{id:int}/leave", LeavePublicActivityAsync);
 
@@ -66,7 +86,7 @@ public static partial class EndpointMapping
             if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var items = await db.PublicActivities.AsNoTracking().Include(x => x.Sport).Include(x => x.Venue).Include(x => x.Participants)
-                .Where(x => x.OrganizerId == userId).OrderByDescending(x => x.StartAt).ToListAsync();
+                .Where(x => x.OrganizerId == userId && x.Status != PublicActivityStatus.Archived).OrderByDescending(x => x.StartAt).ToListAsync();
             var organizerName = await db.PublicOrganizerProfiles.AsNoTracking().Where(x => x.UserId == userId).Select(x => x.DisplayName).SingleOrDefaultAsync();
             return Results.Ok(items.Select(x => ToPublicActivity(x, organizerName)));
         });
@@ -74,14 +94,17 @@ public static partial class EndpointMapping
         organizerApi.MapPut("/{id:int}", UpdatePublicActivityAsync);
         organizerApi.MapPost("/{id:int}/publish", PublishPublicActivityAsync);
         organizerApi.MapPost("/{id:int}/cancel", CancelPublicActivityAsync);
+        organizerApi.MapDelete("/{id:int}", DeletePublicActivityAsync);
+        organizerApi.MapGet("/{id:int}/participants", GetOrganizerParticipantsAsync);
+        organizerApi.MapDelete("/{id:int}/participants/{participantId:long}", RemoveOrganizerParticipantAsync);
 
         var organizerVenueApi = app.MapGroup("/api/organizer/venues").RequireAuthorization().RequireRateLimiting("public-action").WithTags("Sports Nearby — organizer venues");
         organizerVenueApi.MapPost("/", CreatePublicVenueAsync);
     }
 
     private static async Task<IResult> SearchPublicActivitiesAsync(
-        string? sport, string? city, string? district, string? location, DateOnly? date, TimeOnly? time, PublicActivityType? type, bool? freeOnly,
-        bool? availableOnly, double? latitude, double? longitude, double? radiusKm,
+        string? sport, string? gameFormat, string? city, string? district, string? location, DateOnly? date, TimeOnly? time, PublicActivityType? type, bool? freeOnly,
+        bool? availableOnly, double? latitude, double? longitude, double? radiusKm, string? sort,
         AppDbContext db, IConfiguration configuration)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
@@ -90,6 +113,7 @@ public static partial class EndpointMapping
                 (x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full) && x.EndAt > DateTimeOffset.UtcNow);
 
         if (!string.IsNullOrWhiteSpace(sport)) query = query.Where(x => x.Sport.Slug == sport.Trim().ToLower());
+        if (!string.IsNullOrWhiteSpace(gameFormat)) query = query.Where(x => x.GameFormat == gameFormat.Trim());
         if (!string.IsNullOrWhiteSpace(city))
         {
             var normalizedCity = city.Trim().ToLower();
@@ -144,8 +168,66 @@ public static partial class EndpointMapping
                 : (double?)null
         }).Where(x => !x.distanceKm.HasValue || x.distanceKm <= effectiveRadius);
         if (availableOnly == true) result = result.Where(x => x.activity.AvailablePlaces > 0);
-        result = latitude.HasValue && longitude.HasValue ? result.OrderBy(x => x.distanceKm) : result.OrderBy(x => x.activity.StartAt);
+        result = sort?.Trim().ToLowerInvariant() switch
+        {
+            "distance" when latitude.HasValue && longitude.HasValue => result.OrderBy(x => x.distanceKm).ThenBy(x => x.activity.StartAt),
+            "availability" => result.OrderByDescending(x => x.activity.AvailablePlaces).ThenBy(x => x.activity.StartAt),
+            "price" => result.OrderBy(x => x.activity.Price).ThenBy(x => x.activity.StartAt),
+            "date" => result.OrderBy(x => x.activity.StartAt),
+            _ when latitude.HasValue && longitude.HasValue => result.OrderBy(x => x.distanceKm).ThenBy(x => x.activity.StartAt),
+            _ => result.OrderBy(x => x.activity.StartAt)
+        };
         return Results.Ok(new { total = result.Count(), items = result });
+    }
+
+    private static async Task<IResult> GeocodePublicLocationAsync(
+        string? query, double? latitude, double? longitude, IHttpClientFactory httpClientFactory,
+        IConfiguration configuration, CancellationToken cancellationToken)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var apiKey = configuration["YandexMaps:GeocoderApiKey"]?.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return Results.Problem("Ключ API Геокодера Яндекса не настроен.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        if (string.IsNullOrWhiteSpace(query) && (!latitude.HasValue || !longitude.HasValue))
+            return Results.ValidationProblem(Error("query", "Укажите адрес или координаты."));
+        if (!string.IsNullOrWhiteSpace(query) && query.Trim().Length > 240)
+            return Results.ValidationProblem(Error("query", "Адрес не должен превышать 240 символов."));
+        if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            return Results.ValidationProblem(Error("coordinates", "Координаты находятся вне допустимого диапазона."));
+
+        var request = !string.IsNullOrWhiteSpace(query)
+            ? query.Trim()
+            : $"{longitude!.Value.ToString(CultureInfo.InvariantCulture)},{latitude!.Value.ToString(CultureInfo.InvariantCulture)}";
+        var uri = $"https://geocode-maps.yandex.ru/v1/?apikey={Uri.EscapeDataString(apiKey)}&geocode={Uri.EscapeDataString(request)}&format=json&lang=ru_RU&results=1";
+        using var response = await httpClientFactory.CreateClient("yandex-geocoder").GetAsync(uri, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return Results.Problem("Геокодер Яндекса временно недоступен или ключ не имеет доступа к API Геокодера.", statusCode: StatusCodes.Status502BadGateway);
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var json = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
+        var featureMembers = json.RootElement.GetProperty("response").GetProperty("GeoObjectCollection").GetProperty("featureMember");
+        if (featureMembers.GetArrayLength() == 0) return Results.NotFound(new { message = "Адрес не найден." });
+        var geoObject = featureMembers[0].GetProperty("GeoObject");
+        var position = geoObject.GetProperty("Point").GetProperty("pos").GetString()?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (position is not { Length: 2 } ||
+            !double.TryParse(position[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var resultLongitude) ||
+            !double.TryParse(position[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var resultLatitude))
+            return Results.Problem("Геокодер вернул координаты в неизвестном формате.", statusCode: StatusCodes.Status502BadGateway);
+
+        var metadata = geoObject.GetProperty("metaDataProperty").GetProperty("GeocoderMetaData");
+        var addressNode = metadata.GetProperty("Address");
+        var components = addressNode.GetProperty("Components").EnumerateArray()
+            .Select(component => new { Kind = component.GetProperty("kind").GetString(), Name = component.GetProperty("name").GetString() ?? "" }).ToArray();
+        string Component(string kind) => components.FirstOrDefault(component => component.Kind == kind)?.Name ?? "";
+        var provinces = components.Where(component => component.Kind == "province").Select(component => component.Name).ToArray();
+        return Results.Ok(new
+        {
+            coordinates = new[] { resultLatitude, resultLongitude },
+            address = addressNode.GetProperty("formatted").GetString() ?? "",
+            city = Component("locality") is { Length: > 0 } city ? city : provinces.LastOrDefault() ?? "",
+            district = Component("district"),
+            region = provinces.LastOrDefault() ?? ""
+        });
     }
 
     private static async Task<IResult> CreatePublicVenueAsync(
@@ -171,7 +253,95 @@ public static partial class EndpointMapping
         db.SportsVenues.Add(venue);
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_venue_created", nameof(SportsVenue), venue.Id.ToString());
-        return Results.Created($"/api/public/venues/{venue.Slug}", ToPublicVenue(venue));
+        return Results.Created($"/api/public/venues/{Uri.EscapeDataString(venue.Slug)}", ToPublicVenue(venue));
+    }
+
+    private static async Task<IResult> GetMyPublicActivitiesAsync(
+        ClaimsPrincipal principal, AppDbContext db, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var participations = await db.PublicActivityParticipants.AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.Activity.StartAt)
+            .ToListAsync();
+        var activityIds = participations.Select(x => x.PublicActivityId).ToArray();
+        var activities = await db.PublicActivities.AsNoTracking()
+            .Include(x => x.Sport).Include(x => x.Venue).Include(x => x.Participants)
+            .Where(x => activityIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id);
+        var organizerIds = activities.Values.Select(x => x.OrganizerId).Distinct().ToArray();
+        var organizerNames = await db.PublicOrganizerProfiles.AsNoTracking()
+            .Where(x => organizerIds.Contains(x.UserId))
+            .ToDictionaryAsync(x => x.UserId, x => x.DisplayName);
+
+        return Results.Ok(participations.Where(x => activities.ContainsKey(x.PublicActivityId)).Select(x =>
+        {
+            var activity = activities[x.PublicActivityId];
+            return new ParticipantActivityDto(
+                ToPublicActivity(activity, organizerNames.GetValueOrDefault(activity.OrganizerId), userId),
+                ToParticipationDto(x));
+        }));
+    }
+
+    private static async Task<IResult> GetPublicActivityParticipationAsync(
+        int id, ClaimsPrincipal principal, AppDbContext db, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var participation = await db.PublicActivityParticipants.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.PublicActivityId == id && x.UserId == userId);
+        return participation is null ? Results.NotFound() : Results.Ok(ToParticipationDto(participation));
+    }
+
+    private static async Task<IResult> GetOrganizerParticipantsAsync(
+        int id, ClaimsPrincipal principal, AppDbContext db, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var activity = await db.PublicActivities.AsNoTracking().Include(x => x.Participants)
+            .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (activity is null) return Results.Forbid();
+        var names = await ResolveParticipantNamesAsync(activity.Participants.Select(x => x.UserId), db);
+        var items = activity.Participants.OrderBy(x => ParticipantStatusOrder(x.Status)).ThenBy(x => x.JoinedAt)
+            .Select(x => new OrganizerParticipantDto(x.Id, x.UserId is not null ? names.GetValueOrDefault(x.UserId, "Участник") : x.GuestName ?? "Гость", x.GuestContact, x.Status.ToString(), x.JoinedAt, x.ConfirmedAt, x.CancelledAt));
+        return Results.Ok(new OrganizerParticipantsDto(
+            activity.Id,
+            activity.Capacity,
+            activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended),
+            activity.Participants.Count(x => x.Status == PublicParticipantStatus.Waitlisted),
+            activity.Participants.Count(x => x.Status is PublicParticipantStatus.Cancelled or PublicParticipantStatus.Rejected),
+            items));
+    }
+
+    private static async Task<IResult> RemoveOrganizerParticipantAsync(
+        int id, long participantId, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
+        var activity = await db.PublicActivities.Include(x => x.Participants)
+            .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (activity is null) return Results.Forbid();
+        var participant = activity.Participants.SingleOrDefault(x => x.Id == participantId);
+        if (participant is null) return Results.NotFound();
+        if (participant.Status is PublicParticipantStatus.Cancelled or PublicParticipantStatus.Rejected)
+            return Results.Conflict(new { message = "Участие уже отменено." });
+
+        var releasedConfirmedPlace = participant.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended;
+        participant.Status = PublicParticipantStatus.Rejected;
+        participant.CancelledAt = DateTimeOffset.UtcNow;
+        participant.ConfirmedAt = null;
+        var promoted = releasedConfirmedPlace ? PromoteFirstWaitlisted(activity) : null;
+        RefreshPublicActivityOccupancy(activity);
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(userId, "public_activity_participant_removed", nameof(PublicActivity), id.ToString(), $"participant:{participant.Id}");
+        if (promoted is not null)
+            await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), id.ToString());
+        if (transaction is not null) await transaction.CommitAsync();
+        return Results.NoContent();
     }
 
     private static async Task<IResult> JoinPublicActivityAsync(
@@ -187,7 +357,7 @@ public static partial class EndpointMapping
             : null;
         var activity = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id);
         if (activity is null || activity.Visibility != PublicActivityVisibility.Public) return Results.NotFound();
-        if (activity.OrganizerId == userId) return Results.Conflict(new { message = "Организатор уже входит в событие и не занимает место участника." });
+        if (activity.OrganizerId == userId) return Results.Conflict(new { message = "Вы организатор этого события. Своё участие можно включить или выключить при редактировании события." });
         if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || activity.StartAt <= DateTimeOffset.UtcNow)
             return Results.Conflict(new { message = "Запись на это событие недоступна." });
         if (activity.RegistrationDeadline.HasValue && activity.RegistrationDeadline < DateTimeOffset.UtcNow)
@@ -222,6 +392,120 @@ public static partial class EndpointMapping
         return Results.Ok(new { activityId = id, status = status.ToString() });
     }
 
+    private static async Task<IResult> JoinGuestPublicActivityAsync(
+        int id, GuestJoinRequest request, AppDbContext db, IAuditService audit, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var name = request.Name?.Trim() ?? string.Empty;
+        var contact = request.Contact?.Trim() ?? string.Empty;
+        var errors = new Dictionary<string, string[]>();
+        if (name.Length is < 2 or > 80) errors["name"] = ["Укажите имя от 2 до 80 символов."];
+        if (contact.Length is < 3 or > 120) errors["contact"] = ["Укажите телефон, email или Telegram для связи."];
+        if (!request.AdultConfirmed) errors["adultConfirmed"] = ["Подтвердите, что вам исполнилось 18 лет."];
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
+        var activity = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id);
+        if (activity is null || activity.Visibility != PublicActivityVisibility.Public) return Results.NotFound();
+        if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || activity.StartAt <= DateTimeOffset.UtcNow)
+            return Results.Conflict(new { message = "Запись на это событие недоступна." });
+        if (activity.RegistrationDeadline.HasValue && activity.RegistrationDeadline < DateTimeOffset.UtcNow)
+            return Results.Conflict(new { message = "Срок регистрации завершён." });
+
+        var contactKey = Regex.Replace(contact.ToLowerInvariant(), "\\s+", string.Empty);
+        var contactHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contactKey)));
+        var existing = activity.Participants.SingleOrDefault(x => x.GuestContactHash == contactHash);
+        if (existing is not null && existing.Status != PublicParticipantStatus.Cancelled)
+            return Results.Conflict(new { message = "С этим контактом уже отметились на событии." });
+
+        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
+        if (confirmed >= activity.Capacity)
+            return Results.Conflict(new { message = "Свободных мест больше нет." });
+
+        var cancellationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        var participant = existing ?? new PublicActivityParticipant { GuestContactHash = contactHash };
+        participant.GuestName = name;
+        participant.GuestContact = contact;
+        participant.GuestCancellationTokenHash = HashGuestCancellationToken(cancellationToken);
+        participant.Status = PublicParticipantStatus.Confirmed;
+        participant.JoinedAt = DateTimeOffset.UtcNow;
+        participant.ConfirmedAt = DateTimeOffset.UtcNow;
+        participant.CancelledAt = null;
+        participant.Source = "guest-web";
+        if (existing is null) activity.Participants.Add(participant);
+        if (confirmed + 1 >= activity.Capacity) activity.Status = PublicActivityStatus.Full;
+        activity.Version++;
+        activity.UpdatedAt = DateTimeOffset.UtcNow;
+        try { await db.SaveChangesAsync(); }
+        catch (DbUpdateException) { return Results.Conflict(new { message = "Состояние записи изменилось. Обновите страницу и попробуйте снова." }); }
+        await audit.WriteAsync(null, "public_activity_guest_joined", nameof(PublicActivity), id.ToString(), "source:guest-web");
+        if (transaction is not null) await transaction.CommitAsync();
+        return Results.Ok(new
+        {
+            activityId = id,
+            status = PublicParticipantStatus.Confirmed.ToString(),
+            name,
+            cancellationToken,
+            managePath = $"/guest/participations/{cancellationToken}"
+        });
+    }
+
+    private static async Task<IResult> GetGuestPublicParticipationAsync(
+        string token, AppDbContext db, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var tokenHash = TryHashGuestCancellationToken(token);
+        if (tokenHash is null) return Results.NotFound();
+        var participant = await db.PublicActivityParticipants.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.GuestCancellationTokenHash == tokenHash);
+        if (participant is null) return Results.NotFound();
+        var activity = await db.PublicActivities.AsNoTracking()
+            .Include(x => x.Sport)
+            .Include(x => x.Venue)
+            .Include(x => x.Participants)
+            .SingleAsync(x => x.Id == participant.PublicActivityId);
+        var organizerName = await db.PublicOrganizerProfiles.AsNoTracking()
+            .Where(x => x.UserId == activity.OrganizerId).Select(x => x.DisplayName).SingleOrDefaultAsync();
+        return Results.Ok(new GuestParticipationDto(
+            participant.GuestName ?? "Участник",
+            participant.Status.ToString(),
+            participant.JoinedAt,
+            participant.CancelledAt,
+            ToPublicActivity(activity, organizerName)));
+    }
+
+    private static async Task<IResult> CancelGuestPublicParticipationAsync(
+        string token, AppDbContext db, IAuditService audit, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var tokenHash = TryHashGuestCancellationToken(token);
+        if (tokenHash is null) return Results.NotFound();
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
+        var participant = await db.PublicActivityParticipants
+            .Include(x => x.Activity).ThenInclude(x => x.Participants)
+            .SingleOrDefaultAsync(x => x.GuestCancellationTokenHash == tokenHash);
+        if (participant is null) return Results.NotFound();
+        if (participant.Status == PublicParticipantStatus.Cancelled) return Results.NoContent();
+        if (participant.Status is PublicParticipantStatus.Attended or PublicParticipantStatus.NoShow or PublicParticipantStatus.Rejected)
+            return Results.Conflict(new { message = "Эту запись уже нельзя отменить." });
+        var releasedConfirmedPlace = participant.Status == PublicParticipantStatus.Confirmed;
+        participant.Status = PublicParticipantStatus.Cancelled;
+        participant.CancelledAt = DateTimeOffset.UtcNow;
+        participant.ConfirmedAt = null;
+        var promoted = releasedConfirmedPlace ? PromoteFirstWaitlisted(participant.Activity) : null;
+        RefreshPublicActivityOccupancy(participant.Activity);
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(null, "public_activity_guest_left", nameof(PublicActivity), participant.PublicActivityId.ToString(), "source:guest-manage-link");
+        if (promoted is not null)
+            await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), participant.PublicActivityId.ToString());
+        if (transaction is not null) await transaction.CommitAsync();
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> LeavePublicActivityAsync(
         int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
     {
@@ -238,20 +522,8 @@ public static partial class EndpointMapping
         participant.Status = PublicParticipantStatus.Cancelled;
         participant.CancelledAt = DateTimeOffset.UtcNow;
         participant.ConfirmedAt = null;
-        var promoted = releasedConfirmedPlace
-            ? activity.Participants.Where(x => x.Status == PublicParticipantStatus.Waitlisted)
-                .OrderBy(x => x.JoinedAt).FirstOrDefault()
-            : null;
-        if (promoted is not null)
-        {
-            promoted.Status = PublicParticipantStatus.Confirmed;
-            promoted.ConfirmedAt = DateTimeOffset.UtcNow;
-        }
-        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
-        if (activity.Status is PublicActivityStatus.Published or PublicActivityStatus.Full)
-            activity.Status = confirmed >= activity.Capacity ? PublicActivityStatus.Full : PublicActivityStatus.Published;
-        activity.Version++;
-        activity.UpdatedAt = DateTimeOffset.UtcNow;
+        var promoted = releasedConfirmedPlace ? PromoteFirstWaitlisted(activity) : null;
+        RefreshPublicActivityOccupancy(activity);
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_left", nameof(PublicActivity), id.ToString());
         if (promoted is not null)
@@ -268,11 +540,14 @@ public static partial class EndpointMapping
         if (!await IsAdultAsync(principal, userId, db)) return Results.Forbid();
         var validation = ValidatePublicActivity(request);
         if (validation.Count > 0) return Results.ValidationProblem(validation);
-        if (!await db.Sports.AnyAsync(x => x.Id == request.SportId && x.IsActive)) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
+        var sport = await db.Sports.SingleOrDefaultAsync(x => x.Id == request.SportId && x.IsActive && x.Slug != "futsal" && x.Slug != "mini-football");
+        if (sport is null) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
+        var gameFormatError = ValidateGameFormat(sport.Slug, request.GameFormat);
+        if (gameFormatError is not null) return Results.ValidationProblem(Error("gameFormat", gameFormatError));
         if (!await db.SportsVenues.AnyAsync(x => x.Id == request.VenueId && x.IsActive)) return Results.ValidationProblem(Error("venueId", "Площадка недоступна."));
         var item = new PublicActivity
         {
-            Slug = await UniqueActivitySlugAsync(db, request.Title), SportId = request.SportId, EventType = request.EventType,
+            Slug = await UniqueActivitySlugAsync(db, request.Title), SportId = request.SportId, EventType = request.EventType, GameFormat = CleanPublicField(request.GameFormat),
             Title = request.Title.Trim(), Description = request.Description.Trim(), OrganizerId = userId, SportsVenueId = request.VenueId,
             StartAt = request.StartAt, EndAt = request.EndAt, Capacity = request.Capacity, WaitlistCapacity = request.WaitlistCapacity,
             Price = request.Price, SkillLevel = request.SkillLevel.Trim(), MinimumAge = Math.Max(18, request.MinimumAge),
@@ -280,10 +555,21 @@ public static partial class EndpointMapping
             CancellationPolicy = CleanPublicField(request.CancellationPolicy), RegistrationDeadline = request.RegistrationDeadline,
             IsRecurring = request.IsRecurring, RecurrenceRule = CleanPublicField(request.RecurrenceRule)
         };
+        if (request.OrganizerParticipates)
+        {
+            item.Participants.Add(new PublicActivityParticipant
+            {
+                UserId = userId,
+                Status = PublicParticipantStatus.Confirmed,
+                JoinedAt = DateTimeOffset.UtcNow,
+                ConfirmedAt = DateTimeOffset.UtcNow,
+                Source = "organizer"
+            });
+        }
         db.PublicActivities.Add(item);
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_created", nameof(PublicActivity), item.Id.ToString());
-        return Results.Created($"/api/public/activities/{item.Slug}", new { item.Id, item.Slug });
+        return Results.Created($"/api/public/activities/{Uri.EscapeDataString(item.Slug)}", new { item.Id, item.Slug });
     }
 
     private static async Task<IResult> UpdatePublicActivityAsync(
@@ -291,24 +577,60 @@ public static partial class EndpointMapping
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        var item = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (item is null) return Results.Forbid();
         if (item.Status is PublicActivityStatus.Completed or PublicActivityStatus.Archived) return Results.Conflict(new { message = "Завершённое событие нельзя редактировать." });
         var validation = ValidatePublicActivity(request);
         if (validation.Count > 0) return Results.ValidationProblem(validation);
-        if (!await db.Sports.AnyAsync(x => x.Id == request.SportId && x.IsActive)) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
+        var sport = await db.Sports.SingleOrDefaultAsync(x => x.Id == request.SportId && x.IsActive && x.Slug != "futsal" && x.Slug != "mini-football");
+        if (sport is null) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
+        var gameFormatError = ValidateGameFormat(sport.Slug, request.GameFormat);
+        if (gameFormatError is not null) return Results.ValidationProblem(Error("gameFormat", gameFormatError));
         if (!await db.SportsVenues.AnyAsync(x => x.Id == request.VenueId && x.IsActive)) return Results.ValidationProblem(Error("venueId", "Площадка недоступна."));
-        var confirmed = await db.PublicActivityParticipants.CountAsync(x => x.PublicActivityId == id &&
-            (x.Status == PublicParticipantStatus.Confirmed || x.Status == PublicParticipantStatus.Attended));
-        if (request.Capacity < confirmed) return Results.ValidationProblem(Error("capacity", "Вместимость не может быть меньше числа уже подтверждённых участников."));
-        item.SportId = request.SportId; item.SportsVenueId = request.VenueId; item.EventType = request.EventType;
+        var organizerParticipation = item.Participants.SingleOrDefault(x => x.UserId == userId);
+        var confirmedWithoutOrganizer = item.Participants.Count(x => x.UserId != userId &&
+            x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
+        var requestedConfirmed = confirmedWithoutOrganizer + (request.OrganizerParticipates ? 1 : 0);
+        if (request.Capacity < requestedConfirmed) return Results.ValidationProblem(Error("capacity", "Вместимость не может быть меньше числа уже подтверждённых участников."));
+        if (request.OrganizerParticipates)
+        {
+            if (organizerParticipation is null)
+            {
+                item.Participants.Add(new PublicActivityParticipant
+                {
+                    UserId = userId,
+                    Status = PublicParticipantStatus.Confirmed,
+                    JoinedAt = DateTimeOffset.UtcNow,
+                    ConfirmedAt = DateTimeOffset.UtcNow,
+                    Source = "organizer"
+                });
+            }
+            else if (organizerParticipation.Status is PublicParticipantStatus.Cancelled or PublicParticipantStatus.Rejected)
+            {
+                organizerParticipation.Status = PublicParticipantStatus.Confirmed;
+                organizerParticipation.JoinedAt = DateTimeOffset.UtcNow;
+                organizerParticipation.ConfirmedAt = DateTimeOffset.UtcNow;
+                organizerParticipation.CancelledAt = null;
+            }
+        }
+        else if (organizerParticipation?.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended)
+        {
+            organizerParticipation.Status = PublicParticipantStatus.Cancelled;
+            organizerParticipation.CancelledAt = DateTimeOffset.UtcNow;
+            organizerParticipation.ConfirmedAt = null;
+            PromoteFirstWaitlisted(item);
+        }
+        item.SportId = request.SportId; item.SportsVenueId = request.VenueId; item.EventType = request.EventType; item.GameFormat = CleanPublicField(request.GameFormat);
         item.Title = request.Title.Trim(); item.Description = request.Description.Trim(); item.StartAt = request.StartAt; item.EndAt = request.EndAt;
         item.Capacity = request.Capacity; item.WaitlistCapacity = request.WaitlistCapacity; item.Price = request.Price;
         item.SkillLevel = request.SkillLevel.Trim(); item.MinimumAge = Math.Max(18, request.MinimumAge); item.MaximumAge = request.MaximumAge;
         item.EquipmentRequirements = CleanPublicField(request.EquipmentRequirements); item.Rules = CleanPublicField(request.Rules); item.CancellationPolicy = CleanPublicField(request.CancellationPolicy);
         item.RegistrationDeadline = request.RegistrationDeadline; item.IsRecurring = request.IsRecurring; item.RecurrenceRule = CleanPublicField(request.RecurrenceRule);
         if (item.Status is PublicActivityStatus.Published or PublicActivityStatus.Full)
+        {
+            var confirmed = item.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
             item.Status = confirmed >= request.Capacity ? PublicActivityStatus.Full : PublicActivityStatus.Published;
+        }
         item.Version++; item.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_updated", nameof(PublicActivity), id.ToString());
@@ -343,15 +665,36 @@ public static partial class EndpointMapping
         return Results.NoContent();
     }
 
-    private static PublicActivityDto ToPublicActivity(PublicActivity activity, string? organizerName = null)
+    private static async Task<IResult> DeletePublicActivityAsync(
+        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (item is null) return Results.Forbid();
+        if (item.Status is PublicActivityStatus.Published or PublicActivityStatus.Full)
+            return Results.Conflict(new { message = "Сначала отмените опубликованную активность, затем удалите её." });
+        if (item.Status == PublicActivityStatus.Completed)
+            return Results.Conflict(new { message = "Завершённая активность хранится в истории и не может быть удалена." });
+        if (item.Status == PublicActivityStatus.Archived) return Results.NoContent();
+
+        item.Status = PublicActivityStatus.Archived;
+        item.Version++;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        await audit.WriteAsync(userId, "public_activity_deleted", nameof(PublicActivity), id.ToString());
+        return Results.NoContent();
+    }
+
+    private static PublicActivityDto ToPublicActivity(PublicActivity activity, string? organizerName = null, string? currentUserId = null)
     {
         var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
         var waitlisted = activity.Participants.Count(x => x.Status == PublicParticipantStatus.Waitlisted);
-        return new PublicActivityDto(activity.Id, activity.Slug, activity.Sport.Slug, activity.Sport.Name, activity.EventType.ToString(),
+        return new PublicActivityDto(activity.Id, activity.Slug, activity.Sport.Slug, activity.Sport.Name, activity.EventType.ToString(), activity.GameFormat,
             activity.Title, activity.Description, organizerName ?? "Организатор", activity.StartAt, activity.EndAt, activity.Price, activity.Currency, activity.SkillLevel,
-            activity.MinimumAge, activity.MaximumAge, activity.Capacity, confirmed, Math.Max(0, activity.Capacity - confirmed),
+            activity.MinimumAge, activity.MaximumAge, activity.Capacity, activity.WaitlistCapacity, confirmed, Math.Max(0, activity.Capacity - confirmed),
             Math.Max(0, activity.WaitlistCapacity - waitlisted),
-            activity.Status.ToString(), activity.IsRecurring, activity.EquipmentRequirements, activity.Rules, activity.CancellationPolicy,
+            activity.Status.ToString(), activity.IsRecurring, activity.Participants.Any(x => x.UserId == activity.OrganizerId && x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended), activity.OrganizerId == currentUserId, activity.EquipmentRequirements, activity.Rules, activity.CancellationPolicy,
             new PublicVenueDto(activity.Venue.Id, activity.Venue.Slug, activity.Venue.Name, activity.Venue.City, activity.Venue.District,
                 activity.Venue.Address, activity.Venue.Latitude, activity.Venue.Longitude, activity.Venue.Indoor, activity.Venue.IsVerified));
     }
@@ -380,6 +723,14 @@ public static partial class EndpointMapping
         return errors;
     }
 
+    private static string? ValidateGameFormat(string sportSlug, string? gameFormat)
+    {
+        if (!GameFormatsBySport.TryGetValue(sportSlug, out var allowedFormats))
+            return string.IsNullOrWhiteSpace(gameFormat) ? null : "Для этого вида спорта формат игры не используется.";
+        if (string.IsNullOrWhiteSpace(gameFormat)) return "Выберите формат игры.";
+        return allowedFormats.Contains(gameFormat.Trim(), StringComparer.Ordinal) ? null : "Выбран недоступный формат игры.";
+    }
+
     private static async Task<bool> IsAdultAsync(ClaimsPrincipal principal, string userId, AppDbContext db)
     {
         var birthDate = await db.Players.Where(x => x.UserId == userId).Select(x => (DateOnly?)x.DateOfBirth).SingleOrDefaultAsync();
@@ -387,7 +738,50 @@ public static partial class EndpointMapping
         birthDate = await db.PublicOrganizerProfiles.Where(x => x.UserId == userId).Select(x => (DateOnly?)x.DateOfBirth).SingleOrDefaultAsync();
         if (birthDate.HasValue) return birthDate.Value.AddYears(18) <= DateOnly.FromDateTime(DateTime.UtcNow);
         return principal.IsInRole(Roles.Coach) || principal.IsInRole(Roles.Parent) || principal.IsInRole(Roles.SchoolOwner) ||
-            principal.IsInRole(Roles.SchoolAdmin) || principal.IsInRole(Roles.RegionalAnalyst) || principal.IsInRole(Roles.Admin);
+            principal.IsInRole(Roles.SchoolAdmin) || principal.IsInRole(Roles.Admin);
+    }
+
+    private static PublicActivityParticipant? PromoteFirstWaitlisted(PublicActivity activity)
+    {
+        var promoted = activity.Participants.Where(x => x.Status == PublicParticipantStatus.Waitlisted)
+            .OrderBy(x => x.JoinedAt).FirstOrDefault();
+        if (promoted is null) return null;
+        promoted.Status = PublicParticipantStatus.Confirmed;
+        promoted.ConfirmedAt = DateTimeOffset.UtcNow;
+        return promoted;
+    }
+
+    private static void RefreshPublicActivityOccupancy(PublicActivity activity)
+    {
+        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
+        if (activity.Status is PublicActivityStatus.Published or PublicActivityStatus.Full)
+            activity.Status = confirmed >= activity.Capacity ? PublicActivityStatus.Full : PublicActivityStatus.Published;
+        activity.Version++;
+        activity.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    private static ParticipationDto ToParticipationDto(PublicActivityParticipant participant) =>
+        new(participant.PublicActivityId, participant.Status.ToString(), participant.JoinedAt, participant.ConfirmedAt, participant.CancelledAt);
+
+    private static int ParticipantStatusOrder(PublicParticipantStatus status) => status switch
+    {
+        PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended => 0,
+        PublicParticipantStatus.Waitlisted => 1,
+        _ => 2
+    };
+
+    private static async Task<Dictionary<string, string>> ResolveParticipantNamesAsync(IEnumerable<string?> userIds, AppDbContext db)
+    {
+        var ids = userIds.Where(x => x is not null).Select(x => x!).Distinct().ToArray();
+        var names = await db.Players.AsNoTracking().Where(x => x.UserId != null && ids.Contains(x.UserId))
+            .ToDictionaryAsync(x => x.UserId!, x => (x.FirstName + " " + x.LastName).Trim());
+        var coachNames = await db.CoachProfiles.AsNoTracking().Where(x => ids.Contains(x.UserId))
+            .ToDictionaryAsync(x => x.UserId, x => x.DisplayName);
+        var organizerNames = await db.PublicOrganizerProfiles.AsNoTracking().Where(x => ids.Contains(x.UserId))
+            .ToDictionaryAsync(x => x.UserId, x => x.DisplayName);
+        foreach (var pair in coachNames) names.TryAdd(pair.Key, pair.Value);
+        foreach (var pair in organizerNames) names.TryAdd(pair.Key, pair.Value);
+        return names;
     }
 
     private static async Task<string> UniqueActivitySlugAsync(AppDbContext db, string title)
@@ -420,17 +814,32 @@ public static partial class EndpointMapping
     }
 
     private static bool PublicDiscoveryEnabled(IConfiguration configuration) => configuration.GetValue("PublicDiscovery:Enabled", false);
+    private static string HashGuestCancellationToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
+    private static string? TryHashGuestCancellationToken(string token)
+    {
+        var normalized = token.Trim().ToLowerInvariant();
+        return normalized.Length == 64 && Regex.IsMatch(normalized, "^[a-f0-9]{64}$")
+            ? HashGuestCancellationToken(normalized)
+            : null;
+    }
     private static string? CleanPublicField(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static Dictionary<string, string[]> Error(string field, string message) => new() { [field] = [message] };
 
     public sealed record PublicVenueDto(int Id, string Slug, string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, bool IsVerified);
     public sealed record PublicVenueRequest(string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, string? Region);
-    public sealed record PublicActivityDto(int Id, string Slug, string SportSlug, string Sport, string EventType, string Title, string Description, string OrganizerName,
+    public sealed record PublicActivityDto(int Id, string Slug, string SportSlug, string Sport, string EventType, string? GameFormat, string Title, string Description, string OrganizerName,
         DateTimeOffset StartAt, DateTimeOffset EndAt, decimal Price, string Currency, string SkillLevel, int MinimumAge, int? MaximumAge,
-        int Capacity, int ParticipantsCount, int AvailablePlaces, int WaitlistAvailablePlaces, string Status, bool IsRecurring, string? EquipmentRequirements,
+        int Capacity, int WaitlistCapacity, int ParticipantsCount, int AvailablePlaces, int WaitlistAvailablePlaces, string Status, bool IsRecurring, bool OrganizerParticipates, bool IsCurrentUserOrganizer, string? EquipmentRequirements,
         string? Rules, string? CancellationPolicy, PublicVenueDto Venue);
-    public sealed record PublicActivityRequest(int SportId, int VenueId, PublicActivityType EventType, string Title, string Description,
+    public sealed record PublicActivityRequest(int SportId, int VenueId, PublicActivityType EventType, string? GameFormat, string Title, string Description,
         DateTimeOffset StartAt, DateTimeOffset EndAt, int Capacity, int WaitlistCapacity, decimal Price, string SkillLevel,
         int MinimumAge, int? MaximumAge, string? EquipmentRequirements, string? Rules, string? CancellationPolicy,
-        DateTimeOffset? RegistrationDeadline, bool IsRecurring, string? RecurrenceRule);
+        DateTimeOffset? RegistrationDeadline, bool IsRecurring, string? RecurrenceRule, bool OrganizerParticipates);
+    public sealed record GuestJoinRequest(string? Name, string? Contact, bool AdultConfirmed);
+    public sealed record GuestParticipationDto(string GuestName, string Status, DateTimeOffset JoinedAt, DateTimeOffset? CancelledAt, PublicActivityDto Activity);
+    public sealed record ParticipationDto(int ActivityId, string Status, DateTimeOffset JoinedAt, DateTimeOffset? ConfirmedAt, DateTimeOffset? CancelledAt);
+    public sealed record ParticipantActivityDto(PublicActivityDto Activity, ParticipationDto Participation);
+    public sealed record OrganizerParticipantDto(long Id, string DisplayName, string? Contact, string Status, DateTimeOffset JoinedAt, DateTimeOffset? ConfirmedAt, DateTimeOffset? CancelledAt);
+    public sealed record OrganizerParticipantsDto(int ActivityId, int Capacity, int ConfirmedCount, int WaitlistedCount, int CancelledCount, IEnumerable<OrganizerParticipantDto> Items);
 }

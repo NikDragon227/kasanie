@@ -7,17 +7,11 @@ public static class Roles
     public const string Player = "Player";
     public const string Coach = "Coach";
     public const string Parent = "Parent";
-    public const string RegionalAnalyst = "RegionalAnalyst";
     public const string SchoolOwner = "SchoolOwner";
     public const string SchoolAdmin = "SchoolAdmin";
     public const string Organizer = "Organizer";
     public const string Admin = "Admin";
-    public static readonly string[] All = [Player, Coach, Parent, RegionalAnalyst, SchoolOwner, SchoolAdmin, Organizer, Admin];
-}
-
-public static class KasanieClaimTypes
-{
-    public const string AnalyticsRegion = "kasanie:analytics-region";
+    public static readonly string[] All = [Player, Coach, Parent, SchoolOwner, SchoolAdmin, Organizer, Admin];
 }
 
 public enum SkillCategory { Speed, Endurance, BallControl, Passing, Shooting, Agility }
@@ -584,6 +578,7 @@ public sealed class PublicActivity
     public int SportId { get; set; }
     public Sport Sport { get; set; } = null!;
     public PublicActivityType EventType { get; set; }
+    public string? GameFormat { get; set; }
     public required string Title { get; set; }
     public required string Description { get; set; }
     public required string OrganizerId { get; set; }
@@ -621,8 +616,12 @@ public sealed class PublicActivityParticipant
     public long Id { get; set; }
     public int PublicActivityId { get; set; }
     public PublicActivity Activity { get; set; } = null!;
-    public required string UserId { get; set; }
-    public ApplicationUser User { get; set; } = null!;
+    public string? UserId { get; set; }
+    public ApplicationUser? User { get; set; }
+    public string? GuestName { get; set; }
+    public string? GuestContact { get; set; }
+    public string? GuestContactHash { get; set; }
+    public string? GuestCancellationTokenHash { get; set; }
     public PublicParticipantStatus Status { get; set; } = PublicParticipantStatus.Pending;
     public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ConfirmedAt { get; set; }

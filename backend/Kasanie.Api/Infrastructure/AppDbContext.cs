@@ -86,9 +86,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PublicActivity>().HasIndex(x => x.Slug).IsUnique();
         builder.Entity<PublicActivity>().HasIndex(x => new { x.Status, x.Visibility, x.StartAt });
         builder.Entity<PublicActivity>().HasIndex(x => new { x.SportId, x.SportsVenueId, x.StartAt });
+        builder.Entity<PublicActivity>().Property(x => x.GameFormat).HasMaxLength(40);
         builder.Entity<PublicActivity>().Property(x => x.Price).HasPrecision(12, 2);
         builder.Entity<PublicActivity>().Property(x => x.Version).IsConcurrencyToken();
         builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.UserId }).IsUnique();
+        builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.GuestContactHash }).IsUnique().HasFilter("\"GuestContactHash\" IS NOT NULL");
+        builder.Entity<PublicActivityParticipant>().HasIndex(x => x.GuestCancellationTokenHash).IsUnique().HasFilter("\"GuestCancellationTokenHash\" IS NOT NULL");
+        builder.Entity<PublicActivityParticipant>().Property(x => x.GuestCancellationTokenHash).HasMaxLength(64);
         builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.Status, x.JoinedAt });
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);

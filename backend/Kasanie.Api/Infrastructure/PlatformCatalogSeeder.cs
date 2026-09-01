@@ -87,6 +87,15 @@ public sealed class PlatformCatalogSeeder(AppDbContext db)
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        var deprecatedFootballVariants = await db.Sports
+            .Where(x => x.Slug == "futsal" || x.Slug == "mini-football" || x.Name == "Мини-футбол")
+            .ToListAsync(cancellationToken);
+        if (deprecatedFootballVariants.Any(x => x.IsActive))
+        {
+            foreach (var sport in deprecatedFootballVariants) sport.IsActive = false;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         var existingNames = await db.Exercises.AsNoTracking()
             .Select(x => x.Name)
             .ToHashSetAsync(cancellationToken);
