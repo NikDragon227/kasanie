@@ -32,6 +32,7 @@ services:
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-no-reply@kasanie.local}
       Smtp__UseSsl: ${SMTP_USE_SSL:-true}
+      YandexMaps__GeocoderApiKey: ${YANDEX_GEOCODER_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

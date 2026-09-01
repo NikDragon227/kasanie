@@ -39,7 +39,7 @@ docker compose up --build
 | Игрок | `player@kasanie.local` |
 | Тренер | `coach@kasanie.local` |
 | Родитель | `parent@kasanie.local` |
-| Региональный аналитик | `analyst@kasanie.local` |
+| Организатор | `organizer@kasanie.local` |
 | Владелец школы | `owner@kasanie.local` |
 | Администратор | `admin@kasanie.local` |
 
@@ -135,6 +135,7 @@ PostgreSQL не публикует порт наружу. Named volumes `kasanie
 - `ANALYTICS_MINIMUM_GROUP_SIZE` — порог подавления малых групп;
 - `PUBLIC_DISCOVERY_ENABLED` — включает взрослый публичный модуль «Спорт рядом» в Production; по умолчанию выключен;
 - `VITE_YANDEX_MAPS_API_KEY` — ключ JavaScript API Яндекс Карт, встраивается во frontend во время Docker-сборки;
+- `YANDEX_GEOCODER_API_KEY` — отдельный ключ пакета «API Геокодера»; используется сервером для поиска адреса и обратного определения города/района по метке;
 - `APP_BASE_URL`, `SMTP_*` — подтверждение email и восстановление пароля; без SMTP в Development ссылки пишутся в логи API.
 - `BootstrapAdmin__Email`, `BootstrapAdmin__Password` — одноразовое production-создание первого Admin; оставить пустыми после bootstrap.
 
