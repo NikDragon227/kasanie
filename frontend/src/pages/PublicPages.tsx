@@ -15,32 +15,6 @@ const demoAccounts = [
 ]
 const demoPassword = 'Kasanie-Demo-2026!'
 
-export function EntryLandingPage() {
-  return <div className="entry-page">
-    <header className="entry-nav">
-      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
-      <Link className="button ghost" to="/login">Войти</Link>
-    </header>
-    <main className="entry-split">
-      <Link className="entry-choice entry-choice-find" to="/sports" aria-label="Найти команду">
-        <div className="entry-choice-copy"><h1>Найти<br />команду</h1></div>
-        <div className="entry-map-visual" aria-hidden><i /><i /><i /><span>Карта активностей</span></div>
-        <strong className="entry-action">Перейти к поиску <span>↗</span></strong>
-      </Link>
-      <Link className="entry-choice entry-choice-train" to="/join" aria-label="Начать тренироваться">
-        <div className="entry-choice-copy"><h1>Начать<br />тренироваться</h1><p>Создайте кабинет игрока, родителя, тренера или организатора и войдите в систему развития.</p></div>
-        <div className="entry-progress-visual" aria-hidden>
-          <span><b>72</b><small>уровень</small></span>
-          <div className="entry-metric"><small>Скорость</small><i><em /></i></div>
-          <div className="entry-metric"><small>Ловкость</small><i><em /></i></div>
-          <div className="entry-metric"><small>Выносливость</small><i><em /></i></div>
-        </div>
-        <strong className="entry-action">Выбрать свою роль <span>↗</span></strong>
-      </Link>
-    </main>
-  </div>
-}
-
 const joinRoles = [
   { name: 'Игрок', description: 'Личный профиль, оценка навыков, тренировки и динамика развития.', to: '/register', mark: 'И' },
   { name: 'Родитель', description: 'Прогресс ребёнка, связь с тренером и семейный кабинет.', to: '/register-parent', mark: 'Р' },

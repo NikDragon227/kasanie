@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth'
 import { RadarChart, type Skills } from '../components'
 import { CityInput } from '../CityInput'
-import { EntryLandingPage, LoginForm, PortalUserRegisterPage, RegisterPage, RegistrationChoicePage } from '../pages/PublicPages'
+import { LoginForm, PortalUserRegisterPage, RegisterPage, RegistrationChoicePage } from '../pages/PublicPages'
+import { HomePage } from '../pages/HomePage'
 import { AssessmentForm, PlayerDashboard, WorkoutPage } from '../pages/PlayerPages'
 import { AdminDashboard } from '../pages/RolePages'
 import { GuestParticipationPage, MyActivitiesPage, OrganizerActivitiesPage, PublicActivityPage, SportsNearbyPage } from '../pages/SportsNearbyPages'
@@ -22,10 +23,14 @@ const publicActivity = {
 beforeEach(() => { vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
-  it('splits the title page into public search and registration paths', () => {
-    render(<MemoryRouter><EntryLandingPage /></MemoryRouter>)
-    expect(screen.getByRole('link', { name: /Найти команду/i })).toHaveAttribute('href', '/sports')
-    expect(screen.getByRole('link', { name: /Начать тренироваться/i })).toHaveAttribute('href', '/join')
+  it('presents the product and keeps the primary public paths', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ total: 0, items: [] }))
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: /Спорт начинается.*первого касания/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Найти активность/i })).toHaveAttribute('href', '/sports')
+    expect(screen.getByRole('link', { name: /Выбрать свою роль/i })).toHaveAttribute('href', '/join')
+    expect(screen.getByRole('tab', { name: /Игрок/ })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('Новых событий пока нет')).toBeInTheDocument()
   })
 
   it('offers all four registration roles', () => {
