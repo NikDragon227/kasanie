@@ -147,7 +147,6 @@ function ProductStrip() {
     <div className="home-qr-panel">
       <div className="home-qr-placeholder" role="img" aria-label="Место для QR-кода"><i /><i /><i /><span>QR</span></div>
       <div><strong>Сканируйте QR-код</strong><span>и установите приложение</span><small>QR-код будет добавлен перед запуском</small></div>
-      <svg className="home-qr-arrow" viewBox="0 0 92 34" aria-hidden="true"><path d="M88 4C69 5 71 28 39 28H8m0 0 9-8M8 28l10 5" /></svg>
     </div>
   </section>
 }
