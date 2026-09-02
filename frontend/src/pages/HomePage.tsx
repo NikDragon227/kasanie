@@ -124,9 +124,29 @@ function FactStrip() {
 
 function ProductStrip() {
   return <section className="home-product-strip" aria-labelledby="product-title">
-    <div className="home-product-copy"><small>Всегда с вами</small><h2 id="product-title">Вся платформа<br />в одном кабинете</h2><p>Находите активности, следите за прогрессом и оставайтесь на связи со спортивным процессом.</p><div><Link to="/login">Войти</Link><Link to="/join">Выбрать роль →</Link></div></div>
-    <div className="home-product-visual" aria-hidden="true"><img className="home-product-child" src={asset('kids')} alt="" loading="lazy" /><div className="home-mini-dashboard"><span>Мой прогресс</span><strong>72</strong><small>следующий шаг уже определён</small><img src={asset('chart')} alt="" /></div></div>
-    <div className="home-product-action"><i><HomeIcon name="ball" /></i><strong>Найдите игру рядом</strong><span>Фильтры по городу, времени, спорту и формату.</span><Link className="home-button" to="/sports">Открыть поиск <b>↗</b></Link></div>
+    <div className="home-product-copy">
+      <small>Всегда с вами</small>
+      <h2 id="product-title">Приложение Касание</h2>
+      <p>Управляйте тренировками, следите за прогрессом, общайтесь с командой и получайте уведомления в реальном времени.</p>
+      <div className="home-store-badges" aria-label="Магазины приложений — скоро">
+        <span><i>●</i><b><small>Загрузите в</small>App Store</b></span>
+        <span><i>▶</i><b><small>Доступно в</small>Google Play</b></span>
+      </div>
+    </div>
+    <div className="home-product-visual" role="img" aria-label="Макет мобильного приложения">
+      <div className="home-phone" aria-hidden="true">
+        <i className="home-phone-notch" />
+        <div className="home-phone-head"><img src="/brand/kasanie-mark.webp" alt="" /><span>Привет, Артём!</span><b>•••</b></div>
+        <small>У тебя 2 тренировки на сегодня</small>
+        <div className="home-phone-session"><span>Ближайшая тренировка</span><strong>Сегодня, 18:00 – 19:30</strong><small>Стадион «Динамо»</small></div>
+        <div className="home-phone-progress"><span>Мой прогресс</span><strong>845 <i>+62</i></strong><img src={asset('chart')} alt="" /></div>
+      </div>
+      <div className="home-progress-card" aria-hidden="true"><span>Мой прогресс</span><strong>845 <i>+62</i></strong><img src={asset('chart')} alt="" /></div>
+    </div>
+    <div className="home-qr-panel">
+      <div className="home-qr-placeholder" role="img" aria-label="Место для QR-кода"><i /><i /><i /><span>QR</span></div>
+      <div><strong>Сканируйте QR-код</strong><span>и установите приложение</span><small>QR-код будет добавлен перед запуском</small></div>
+    </div>
   </section>
 }
 
