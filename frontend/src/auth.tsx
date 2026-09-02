@@ -8,7 +8,7 @@ const AuthContext = createContext<AuthValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const refresh = async () => { try { setUser(await api<User>('/api/me')) } catch { setUser(null) } finally { setLoading(false) } }
+  const refresh = async () => { try { const me = await api<User | null>('/api/me'); setUser(me && typeof me === 'object' && 'id' in me ? me : null) } catch { setUser(null) } finally { setLoading(false) } }
   useEffect(() => { void refresh() }, [])
   const value = useMemo<AuthValue>(() => ({ user, loading, refresh, login: async (email, password) => { const next = await post<User>('/api/auth/login', { email, password }); resetCsrf(); setUser(next); return next }, logout: async () => { await post('/api/auth/logout'); resetCsrf(); setUser(null) } }), [user, loading])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

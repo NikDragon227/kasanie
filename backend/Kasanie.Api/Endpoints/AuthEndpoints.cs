@@ -198,11 +198,12 @@ public static partial class EndpointMapping
 
         app.MapGet("/api/me", async (ClaimsPrincipal principal, UserManager<ApplicationUser> users) =>
         {
+            // Гость — это не ошибка: возвращаем 200 с телом null, чтобы фронт не сыпал 401 в консоль.
             var user = await users.GetUserAsync(principal);
-            if (user is null) return Results.Unauthorized();
+            if (user is null) return Results.Content("null", "application/json");
             var roleList = await users.GetRolesAsync(user);
             return Results.Ok(new UserDto(user.Id, user.Email!, roleList.ToArray()));
-        }).RequireAuthorization().WithTags("Authentication");
+        }).AllowAnonymous().WithTags("Authentication");
 
         app.MapGet("/api/reference/cities", async (string? q, AppDbContext db) =>
         {
