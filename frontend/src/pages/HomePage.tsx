@@ -32,7 +32,7 @@ function HomeIcon({ name }: { name: string }) {
 
 function Brand() {
   return <Link className="home-brand" to="/" aria-label="Касание — главная">
-    <span className="home-brand-mark"><img src="/brand/kasanie-logo.png" alt="" /></span>
+    <span className="home-brand-mark"><img src="/brand/kasanie-mark.webp" alt="" /></span>
     <strong>КАСАНИЕ</strong>
   </Link>
 }
@@ -108,7 +108,7 @@ function ProductStrip() {
 }
 
 function Footer() {
-  return <footer className="home-footer"><Brand /><p>Касание — твой путь в <strong>спорте</strong></p><div><Link to="/login">Войти</Link><Link to="/register-organizer">Организаторам</Link></div></footer>
+  return <footer className="home-footer"><p>Касание — твой путь в <strong>спорте</strong></p></footer>
 }
 
 export function HomePage() {
