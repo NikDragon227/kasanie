@@ -43,7 +43,7 @@ export function AppShell() {
   const items = Array.from(new Map((user?.roles.flatMap(x => navigation[x] ?? []) ?? []).map(x => [x.to, x])).values())
   return <div className="app-shell">
     <aside className="sidebar">
-      <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></NavLink>
+      <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></NavLink>
       <nav aria-label="Основная навигация">{[...items, { to: '/account/security', label: 'Безопасность', icon: '◇' }].map(item => <NavLink key={item.to} to={item.to} end={item.to === roleHome[role]}><span aria-hidden>{item.icon}</span>{item.label}</NavLink>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>

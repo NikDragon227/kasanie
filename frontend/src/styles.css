@@ -1120,3 +1120,115 @@ small { color: var(--muted); }
   .nearby-results { padding-inline: 14px; }
   .activity-list { grid-template-columns: 1fr; }
 }
+
+/* Shared dark brand treatment for entry, authentication and role workspaces */
+.join-page, .auth-page-v2, .app-shell {
+  --lime: #0877ff;
+  --mint: #4b97ff;
+  --coral: #ff7067;
+  --muted: #9aa5b4;
+  --line: rgba(159, 180, 208, .18);
+}
+.join-page .brand-emblem, .auth-page-v2 .brand-emblem, .app-shell .brand-emblem, .landing-v2 .brand-emblem {
+  width: 34px;
+  height: 44px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.join-page .brand-emblem img, .auth-page-v2 .brand-emblem img, .app-shell .brand-emblem img, .landing-v2 .brand-emblem img {
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.join-page .brand strong, .auth-page-v2 .brand strong, .app-shell .brand strong, .landing-v2 .brand strong {
+  font-family: Manrope, system-ui, sans-serif;
+  font-weight: 850;
+  letter-spacing: .3em;
+}
+
+.join-page { background: radial-gradient(circle at 72% 12%, rgba(8, 119, 255, .18), transparent 30rem), #02060b; color: #f7f9fc; }
+.join-page .entry-nav { border-bottom: 1px solid rgba(159, 180, 208, .14); background: rgba(2, 6, 11, .76); backdrop-filter: blur(18px); }
+.join-page .entry-nav .brand { color: #fff; }
+.join-page .entry-nav .button.ghost { border-color: #0877ff; border-radius: 10px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; }
+.join-page .join-heading p { color: #9aa5b4; }
+.join-page .join-role-card { border-color: rgba(159, 180, 208, .18); border-radius: 16px; background: linear-gradient(145deg, #101721, #090e15); }
+.join-page .join-role-card:hover { border-color: rgba(75, 151, 255, .62); background: #101925; }
+.join-page .join-role-mark { border-radius: 10px; background: #0877ff; color: #fff; }
+.join-page .join-role-card p, .join-page .join-back { color: #9aa5b4; }
+.join-page .join-role-card strong { border-top-color: rgba(159, 180, 208, .16); }
+
+.auth-page-v2 { background: #02060b; color: #f7f9fc; }
+.auth-page-v2 .auth-story { background: radial-gradient(circle at 24% 78%, rgba(8, 119, 255, .2), transparent 32rem), #050a11; }
+.auth-page-v2 .auth-story::before { background: radial-gradient(circle, rgba(8, 119, 255, .24), transparent 68%); }
+.auth-page-v2 .auth-story-copy h2 em, .auth-page-v2 .auth-score small, .auth-page-v2 .auth-route b { color: #4b97ff; }
+.auth-page-v2 .auth-preview { border-color: rgba(159, 180, 208, .18); background: linear-gradient(145deg, rgba(16, 27, 42, .96), rgba(7, 14, 23, .96)); }
+.auth-page-v2 .auth-score { border-top-color: #0877ff; border-right-color: #0877ff; }
+.auth-page-v2 .auth-skills em { background: linear-gradient(90deg, #075fdf, #5aa3ff); }
+.auth-page-v2 .auth-panel-v2 { background: radial-gradient(circle at 84% 8%, rgba(8, 119, 255, .12), transparent 28rem), #070b11; color: #f7f9fc; }
+.auth-page-v2 .auth-panel-v2::before { display: none; }
+.auth-page-v2 .auth-home-link { color: #9aa5b4; }
+.auth-page-v2 .auth-home-link:hover, .auth-page-v2 .auth-form a { color: #69a8ff; }
+.auth-page-v2 .auth-panel-v2 .auth-inner > .eyebrow { color: #69a8ff; }
+.auth-page-v2 .auth-panel-v2 .auth-inner > p { color: #9aa5b4; }
+.auth-page-v2 .auth-panel-v2 .auth-form label { color: #dfe5ed; }
+.auth-page-v2 .auth-panel-v2 .auth-form input, .auth-page-v2 .auth-panel-v2 .auth-form select {
+  border-color: rgba(159, 180, 208, .22);
+  background: #0b1119;
+  color: #f4f7fb;
+  color-scheme: dark;
+}
+.auth-page-v2 .auth-panel-v2 .auth-form input:focus, .auth-page-v2 .auth-panel-v2 .auth-form select:focus { border-color: #0877ff; background: #0d151f; box-shadow: 0 0 0 4px rgba(8, 119, 255, .12); }
+.auth-page-v2 .auth-panel-v2 .auth-form > .button { border-radius: 10px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; }
+.auth-page-v2 .auth-panel-v2 .demo-credentials { background: #0b1119; }
+.auth-page-v2 .auth-legal { color: #75808f; }
+
+.app-shell {
+  --ink: #f7f9fc;
+  --surface: #0d141d;
+  --paper: #02060b;
+  --white: #0b1119;
+  min-height: 100vh;
+  background: radial-gradient(circle at 74% 4%, rgba(8, 119, 255, .1), transparent 28rem), #02060b;
+  color: #f7f9fc;
+}
+.app-shell .sidebar { border-right: 1px solid rgba(159, 180, 208, .16); background: rgba(5, 10, 17, .96); }
+.app-shell .sidebar .brand { color: #fff; }
+.app-shell .sidebar nav a { color: #929dab; }
+.app-shell .sidebar nav a:hover, .app-shell .sidebar nav a.active { background: rgba(8, 119, 255, .12); color: #fff; }
+.app-shell .sidebar nav a.active span, .app-shell .sidebar-user small { color: #69a8ff; }
+.app-shell .sidebar-user { border-top-color: rgba(159, 180, 208, .16); }
+.app-shell .avatar { background: rgba(8, 119, 255, .16); color: #8bc0ff; }
+.app-shell .app-main { background: transparent; }
+.app-shell .eyebrow, .app-shell .card-heading > a { color: #69a8ff; }
+.app-shell .button { border: 1px solid #0877ff; border-radius: 10px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; }
+.app-shell .button.ghost { border-color: rgba(255, 255, 255, .22); background: transparent; color: #fff; }
+.app-shell .card, .app-shell .stat-card, .app-shell .panel-state, .app-shell .data-table { border-color: rgba(159, 180, 208, .18); background: linear-gradient(145deg, #101721, #090e15); color: #f7f9fc; }
+.app-shell .stat-card.accent { border-color: #0877ff; background: linear-gradient(145deg, #075fdf, #0877ff); color: #fff; }
+.app-shell .stat-card.coral { border-color: rgba(255, 112, 103, .42); background: rgba(255, 112, 103, .12); }
+.app-shell .dashboard-hero { background: radial-gradient(circle at 78% 24%, rgba(53, 143, 255, .42), transparent 14rem), linear-gradient(120deg, #0c203b, #07111f); }
+.app-shell .dashboard-hero p { color: #aab5c3; }
+.app-shell .completion-ring { background: conic-gradient(#0877ff var(--value), rgba(255, 255, 255, .12) 0); }
+.app-shell .completion-ring::before { background: #0b1521; }
+.app-shell .profile-form input, .app-shell .profile-form select, .app-shell .profile-form textarea,
+.app-shell .stack-label textarea, .app-shell .mini-form select, .app-shell .toolbar input, .app-shell .toolbar select {
+  border-color: rgba(159, 180, 208, .22);
+  background: #0b1119;
+  color: #f4f7fb;
+  color-scheme: dark;
+}
+.app-shell .day-row, .app-shell .activity-row, .app-shell .activity-detail-meta, .app-shell .data-table > div { border-color: rgba(159, 180, 208, .15); }
+.app-shell .day-number, .app-shell .achievements article { background: #111a24; }
+.app-shell .day-number.complete { background: #0877ff; color: #fff; }
+.app-shell small, .app-shell .readonly-note { color: #929dab; }
+.app-shell .progress-track { background: rgba(255, 255, 255, .1); }
+.app-shell .progress-track > span { background: linear-gradient(90deg, #075fdf, #5aa3ff); }
+
+@media (max-width: 760px) {
+  .auth-page-v2 { grid-template-columns: 1fr; }
+  .auth-page-v2 .auth-story { display: none; }
+  .auth-page-v2 .auth-panel-v2 { min-height: 100vh; padding-inline: 20px; }
+}

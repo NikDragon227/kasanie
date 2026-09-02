@@ -24,7 +24,7 @@ const joinRoles = [
 
 export function RegistrationChoicePage() {
   return <div className="join-page">
-    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
+    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
     <main className="join-main">
       <div className="join-heading"><h1>Кем вы будете<br />в «Касании»?</h1><p>Выберите роль — дальше покажем только нужные поля и возможности.</p></div>
       <div className="join-role-grid">{joinRoles.map((role, index) => <Link key={role.name} className="join-role-card" to={role.to}><span className="join-role-mark">{role.mark}</span><small>0{index + 1}</small><h2>{role.name}</h2><p>{role.description}</p><strong>Зарегистрироваться <span>→</span></strong></Link>)}</div>
@@ -74,7 +74,7 @@ export function LandingPage() {
   ] as const
   return <div className="landing landing-v2">
     <header className="landing-nav landing-nav-v2">
-      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>
       <nav aria-label="Навигация по странице"><Link to="/sports">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/sports">Найти игру</Link></nav>
     </header>
     <main>
@@ -125,7 +125,7 @@ export function LandingPage() {
 
       <section className="landing-cta"><div><span className="eyebrow">Твоя точка отсчёта</span><h2>Сильная игра начинается<br />с понятного первого шага.</h2></div><div><p>Пройди оценку и получи персональный маршрут развития.</p><Link className="button large" to="/register">Начать бесплатно <span>↗</span></Link></div></section>
     </main>
-    <footer className="landing-footer-v2"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link><div><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link to="/login">Войти</Link></div><span>© 2026 · DEMO-нормы не являются научно валидированными</span></footer>
+    <footer className="landing-footer-v2"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><div><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link to="/login">Войти</Link></div><span>© 2026 · DEMO-нормы не являются научно валидированными</span></footer>
   </div>
 }
 
@@ -208,7 +208,7 @@ function AuthFrame({ title, subtitle, children, portalRegistration = false }: { 
   const isPlayerRegistration = title === 'Построй свою траекторию'
   return <div className={`auth-page auth-page-v2${isLogin ? ' auth-page-login' : ''}`}>
     <section className="auth-story">
-      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-logo.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>футбольное развитие</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>
       {isPlayerRegistration
         ? <div className="auth-story-copy auth-story-message"><h2 aria-label="Большой путь начинается с малого шага.">Большой путь<br /><em>начинается с малого шага.</em></h2><p>Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.</p></div>
         : <div className="auth-story-copy">{!portalRegistration && <span className="signal-pill"><i /> Система развития игрока</span>}<h2>Твой прогресс.<br /><em>В одном маршруте.</em></h2><p>{portalRegistration ? 'Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.' : 'Оценка навыков, персональные тренировки и связь с тренером — без разрозненных таблиц и чатов.'}</p></div>}
