@@ -23,14 +23,13 @@ const publicActivity = {
 beforeEach(() => { vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
-  it('presents the product and keeps the primary public paths', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ total: 0, items: [] }))
+  it('presents the product and keeps the primary public paths', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: /Спорт начинается.*первого касания/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Найти активность/i })).toHaveAttribute('href', '/sports')
-    expect(screen.getByRole('link', { name: /Выбрать свою роль/i })).toHaveAttribute('href', '/join')
-    expect(screen.getByRole('tab', { name: /Игрок/ })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByText('Новых событий пока нет')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Найти игру/i })).toHaveAttribute('href', '/sports')
+    expect(screen.getByRole('link', { name: /Стать участником/i })).toHaveAttribute('href', '/join')
+    expect(screen.getByRole('link', { name: /Дети и родители:/i })).toHaveAttribute('href', '/register-parent')
+    expect(screen.getByRole('link', { name: /Тренеры:/i })).toHaveAttribute('href', '/register-coach')
   })
 
   it('offers all four registration roles', () => {
