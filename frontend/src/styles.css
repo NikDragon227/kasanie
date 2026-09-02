@@ -979,3 +979,144 @@ small { color: var(--muted); }
 .join-back { display: inline-block; margin-top: 2.5rem; color: #9fb2b0; }
 @media (max-width: 980px) { .entry-split { grid-template-columns: 1fr; }.entry-choice { min-height: 700px; }.entry-nav { position: fixed; background: #071a1fe6; backdrop-filter: blur(14px); }.entry-nav .brand { color: #fff; }.join-page .entry-nav { position: sticky; top: 0; }.join-role-grid { grid-template-columns: 1fr 1fr; }.nearby-results-actions { align-items: flex-end; flex-direction: column; } }
 @media (max-width: 640px) { .entry-nav { height: 74px; padding-inline: 1rem; }.entry-choice { min-height: 620px; padding: 104px 1.2rem 2rem; }.entry-choice h1 { font-size: clamp(3.2rem, 17vw, 5rem); }.entry-map-visual, .entry-progress-visual { width: 75vw; opacity: .42; }.entry-progress-visual { right: -25%; }.join-main { padding-top: 3rem; }.join-role-grid { grid-template-columns: 1fr; }.join-role-card { min-height: 260px; }.nearby-results-actions { align-items: stretch; } }
+
+/* Kasanie dark system — sports discovery and connected activity pages */
+.nearby-page {
+  --nearby-blue: #0877ff;
+  --nearby-blue-soft: #69a8ff;
+  --nearby-bg: #02060b;
+  --nearby-panel: #0b1119;
+  --nearby-panel-raised: #101721;
+  --nearby-text: #f7f9fc;
+  --nearby-muted: #9aa5b4;
+  --nearby-line: rgba(159, 180, 208, .18);
+  min-height: 100vh;
+  background: radial-gradient(circle at 72% 8%, rgba(0, 91, 218, .13), transparent 27rem), var(--nearby-bg);
+  color: var(--nearby-text);
+}
+.nearby-page .eyebrow { color: var(--nearby-blue-soft); }
+.nearby-page .button { border: 1px solid #0877ff; border-radius: 10px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; box-shadow: 0 12px 28px rgba(0, 99, 240, .2); }
+.nearby-page .button.ghost { border-color: rgba(255, 255, 255, .22); background: rgba(6, 10, 15, .58); color: #fff; box-shadow: none; }
+.nearby-header, .search-discovery .nearby-header {
+  min-height: 76px;
+  padding: 0 clamp(24px, 4.4vw, 112px);
+  border-bottom: 1px solid var(--nearby-line);
+  background: rgba(2, 6, 11, .9);
+  color: #fff;
+  backdrop-filter: blur(18px);
+}
+.nearby-header .brand { gap: 14px; }
+.nearby-header .brand-emblem { width: 34px; height: 44px; overflow: visible; border-radius: 0; background: transparent; box-shadow: none; }
+.nearby-header .brand-emblem img { position: static; width: 100%; height: 100%; max-width: 100%; object-fit: contain; }
+.nearby-header .brand strong { font-family: Manrope, system-ui, sans-serif; font-size: 13px; font-weight: 850; letter-spacing: .38em; }
+.nearby-header .brand small { margin-top: 4px; color: #6f7b8b; font-size: 8px; letter-spacing: .05em; }
+.nearby-header nav, .search-discovery .nearby-header nav { gap: clamp(18px, 2vw, 34px); color: #aeb5c0; font-size: 13px; font-weight: 650; }
+.nearby-header nav > a:not(.button) { position: relative; padding: 29px 0; transition: color .2s; }
+.nearby-header nav > a:not(.button)::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: 20px; height: 2px; border-radius: 2px; background: var(--nearby-blue); transform: scaleX(0); transform-origin: center; transition: transform .24s ease; }
+.nearby-header nav > a:not(.button):hover, .search-discovery .nearby-header nav > a:not(.button):hover { color: #fff; }
+.nearby-header nav > a:not(.button):hover::after, .nearby-header nav > a:not(.button):focus-visible::after { transform: scaleX(1); }
+.nearby-header .button.ghost, .search-discovery .nearby-header .button.ghost { min-height: 42px; padding: .65rem 1.2rem; border-color: #0877ff; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; }
+.nearby-logout, .search-discovery .nearby-logout { color: #aeb5c0; }
+
+.nearby-hero {
+  padding: clamp(3rem, 5vw, 6rem) clamp(24px, 4.4vw, 112px) clamp(2rem, 3vw, 3.6rem);
+  border-bottom: 1px solid var(--nearby-line);
+  background: radial-gradient(circle at 50% -10%, rgba(8, 119, 255, .19), transparent 34rem), transparent;
+}
+.nearby-hero-title { margin-bottom: clamp(2rem, 3vw, 3.5rem); }
+.nearby-hero h1 { color: #fff; font-size: clamp(2.9rem, 4.6vw, 6.6rem); font-weight: 850; letter-spacing: -.065em; }
+.nearby-search {
+  max-width: none;
+  padding: .7rem;
+  border: 1px solid var(--nearby-line);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(17, 24, 34, .98), rgba(8, 13, 20, .98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+}
+.nearby-search > label { min-height: 58px; padding: .45rem 1rem; border-left-color: var(--nearby-line); }
+.nearby-search > label b { color: #dfe5ed; font-size: clamp(.72rem, .62vw, .86rem); }
+.nearby-search input, .nearby-search select { height: 28px; color: #aab4c1; font-size: clamp(.76rem, .62vw, .9rem); color-scheme: dark; }
+.nearby-search select option { background: #0b1119; color: #fff; }
+.nearby-search > label:focus-within { background: rgba(8, 119, 255, .1); }
+.nearby-search-button { height: 56px; margin-left: .35rem; border-radius: 12px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; box-shadow: 0 12px 28px rgba(0, 99, 240, .24); }
+.nearby-search-button b { font-size: .82rem; }
+.nearby-search .nearby-checks { padding-top: .85rem; border-top-color: var(--nearby-line); }
+.nearby-search .nearby-checks label { color: #a6b0bd; font-size: .8rem; }
+.nearby-search .nearby-checks input { accent-color: var(--nearby-blue); }
+.nearby-search .nearby-checks .radius-control select { border-color: var(--nearby-line); background: #0b1119; color: #e7ecf2; }
+.nearby-location-button { color: #69a8ff; font-size: .8rem; }
+.nearby-location-status { background: rgba(8, 119, 255, .12); color: #9ac5ff; }
+
+.nearby-categories { max-width: 1180px; gap: .7rem; margin-top: 2rem; }
+.nearby-categories a, .nearby-categories a.format-evening, .nearby-categories a.format-group, .nearby-categories a.format-coach, .nearby-categories a.format-team, .nearby-categories a.format-tournament { --format-accent: #4b97ff; min-height: 104px; padding: 1rem .6rem; border: 1px solid transparent; border-radius: 14px; color: #8f9baa; font-size: .75rem; }
+.nearby-categories .format-icon { width: 42px; height: 42px; }
+.nearby-categories a:hover, .nearby-categories a.active { border-color: rgba(75, 151, 255, .45); background: rgba(8, 119, 255, .08); color: #fff; transform: translateY(-2px); }
+.popular-sports > b { color: #8f9baa; }
+.popular-sports a { border-color: var(--nearby-line); background: #0b1119; color: #9ea9b7; }
+.popular-sports a:hover, .popular-sports a.active { border-color: #0877ff; background: rgba(8, 119, 255, .12); color: #fff; }
+
+.nearby-results { padding: clamp(3rem, 4.5vw, 5.5rem) clamp(24px, 4.4vw, 112px) clamp(4rem, 6vw, 8rem); }
+.nearby-results-head h2 { color: #fff; font-size: clamp(2rem, 3.2vw, 4rem); }
+.nearby-results-head p, .nearby-sort { color: var(--nearby-muted); font-size: .82rem; }
+.nearby-sort select { height: 46px; border-color: var(--nearby-line); border-radius: 10px; background: #0b1119; color: #f1f4f8; color-scheme: dark; }
+.nearby-results-grid { grid-template-columns: minmax(580px, 1.12fr) minmax(410px, .88fr); gap: clamp(1rem, 1.5vw, 2rem); }
+.activity-card { border-color: var(--nearby-line); border-radius: 16px; background: linear-gradient(145deg, #101721, #090e15); color: #f6f8fb; }
+.activity-card:hover { border-color: rgba(75, 151, 255, .6); box-shadow: 0 20px 50px rgba(0, 0, 0, .32); }
+.activity-card.selected { border-color: #0877ff; box-shadow: 0 0 0 3px rgba(8, 119, 255, .12), 0 20px 50px rgba(0, 0, 0, .32); }
+.activity-card-cover, .activity-card-cover.activity-coachtraining, .activity-card-cover.activity-tournament, .activity-card-cover.activity-playerrecruitment, .activity-card-cover.activity-grouptraining { background: radial-gradient(circle at 78% 18%, rgba(35, 129, 255, .68), transparent 26%), linear-gradient(145deg, #0d2442, #06101d); }
+.activity-card-badge { background: rgba(4, 10, 18, .8); color: #d8e8ff; }
+.activity-card-top { color: #929dab; }.activity-card-top b { color: #fff; }
+.activity-type { background: rgba(8, 119, 255, .12); color: #7db5ff; }
+.activity-card-body > p, .activity-meta { color: var(--nearby-muted); font-size: .78rem; }
+.activity-card-footer { border-top-color: var(--nearby-line); }
+.places-ok { color: #4fdda7; }
+.nearby-map { border-color: var(--nearby-line); border-radius: 16px; background: #08111b; }
+.map-setup { background: radial-gradient(circle at 70% 20%, rgba(8, 119, 255, .2), transparent 35%), linear-gradient(145deg, #0f1925, #081019); color: #dce5f0; }
+.map-setup span { color: #929ead; }
+.map-fallback-grid { opacity: .5; filter: saturate(.35) hue-rotate(155deg); }
+.map-setup > b, .map-setup > span { background: rgba(8, 14, 22, .72); }
+.map-area-search { border-color: var(--nearby-line); background: #0b1119; color: #eaf1fa; }
+.nearby-empty { border-color: rgba(159, 180, 208, .3); color: #e8edf3; }
+.nearby-empty p { color: var(--nearby-muted); }
+.nearby-footer { border-top: 1px solid var(--nearby-line); background: #02060b; color: #788493; }
+
+.nearby-page .activity-detail-hero > div, .nearby-page .activity-detail-hero > aside, .nearby-page .activity-detail-grid > article,
+.nearby-page .guest-manage-page > section, .nearby-page .participants-manager, .nearby-page .my-activities-list > article,
+.nearby-page .organizer-signup-form { border-color: var(--nearby-line); background: linear-gradient(145deg, #101721, #090e15); color: #f5f7fa; box-shadow: 0 24px 70px rgba(0, 0, 0, .24); }
+.nearby-page .activity-detail-hero > div > p, .nearby-page .organizer-page > header p, .nearby-page .organizer-signup p,
+.nearby-page .guest-manage-page p, .nearby-page .my-activities-page > header p, .nearby-page .my-activity-main p { color: var(--nearby-muted); }
+.nearby-page .activity-detail-meta, .nearby-page .activity-detail-grid dl > div, .nearby-page .my-activities-tabs { border-color: var(--nearby-line); }
+.nearby-page .venue-preview, .nearby-page .participant-counts span { background: #0b151f; }
+.nearby-page .organizer-form, .nearby-page .organizer-list { border-color: var(--nearby-line); background: #0b1119; }
+.nearby-page .organizer-list article, .nearby-page .participant-list article { border-color: var(--nearby-line); background: #0e151f; }
+.nearby-page .my-activities-tabs button.active, .nearby-page .my-activity-date { background: #0877ff; }
+
+@media (min-width: 1800px) {
+  .nearby-header, .search-discovery .nearby-header { min-height: 88px; }
+  .nearby-header nav, .search-discovery .nearby-header nav { font-size: 15px; }
+  .nearby-header nav > a:not(.button) { padding-block: 35px; }
+  .nearby-header nav > a:not(.button)::after { bottom: 25px; }
+  .nearby-header .brand-emblem { width: 40px; height: 52px; }
+  .nearby-header .brand strong { font-size: 15px; }
+}
+@media (max-width: 1180px) {
+  .nearby-results-grid { grid-template-columns: minmax(440px, 1fr) minmax(360px, .9fr); }
+}
+@media (max-width: 960px) {
+  .nearby-results-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .nearby-header, .search-discovery .nearby-header { min-height: 68px; padding-inline: 14px; }
+  .nearby-header .brand small { display: none; }
+  .nearby-header .brand strong { font-size: 11px; }
+  .nearby-header nav { gap: 8px; }
+  .nearby-header nav > a:not(.button) { display: none; }
+  .nearby-header .button.ghost { min-height: 38px; padding-inline: 13px; }
+  .nearby-hero { padding-inline: 14px; }
+  .nearby-hero h1 { font-size: clamp(2.55rem, 13vw, 4rem); }
+  .nearby-search { border-radius: 16px; }
+  .nearby-search > label, .nearby-search > label:nth-child(4) { border-top-color: var(--nearby-line); }
+  .nearby-search-button { margin-left: 0; border-radius: 10px; }
+  .nearby-results { padding-inline: 14px; }
+  .activity-list { grid-template-columns: 1fr; }
+}
