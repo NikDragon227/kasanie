@@ -84,7 +84,7 @@
 .home-audience-card img { position: absolute; right: -5%; bottom: -26%; width: 58%; height: 125%; object-fit: contain; object-position: bottom right; filter: drop-shadow(0 8px 17px rgba(0,0,0,.45)); }
 .home-audience-card.audience-school img { width: 63%; right: -9%; bottom: -21%; }
 
-.home-facts { min-height: 76px; display: grid; grid-template-columns: repeat(4, 1fr); margin: 14px var(--page-pad) 0; padding: 12px 8px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, #0d131b, #080d13); }
+.home-facts { min-height: 76px; display: grid; grid-template-columns: repeat(5, 1fr); margin: 14px var(--page-pad) 0; padding: 12px 8px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, #0d131b, #080d13); }
 .home-facts > div { display: flex; align-items: center; justify-content: center; gap: 14px; }
 .home-facts > div + div { border-left: 1px solid var(--line); }
 .home-facts i { color: var(--blue); }
@@ -169,9 +169,10 @@
   .home-hero-visual img { object-position: 58% center; }
   .home-feature-grid { grid-template-columns: 1fr 1fr; margin: 0 24px; }
   .home-audiences { grid-template-columns: 1fr 1fr; margin-inline: 24px; }
-  .home-facts { grid-template-columns: 1fr 1fr; margin-inline: 24px; }
-  .home-facts > div:nth-child(3) { border-left: 0; }
+  .home-facts { grid-template-columns: repeat(2, 1fr); margin-inline: 24px; }
+  .home-facts > div:nth-child(odd) { border-left: 0; }
   .home-facts > div:nth-child(n+3) { padding-top: 12px; border-top: 1px solid var(--line); }
+  .home-facts > div:last-child { grid-column: 1 / -1; }
   .home-product-strip { grid-template-columns: 1fr 1fr; margin-inline: 24px; }
   .home-product-action { grid-column: 1 / -1; border-top: 1px solid var(--line); }
   .home-footer { padding-inline: 24px; }

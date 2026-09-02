@@ -28,6 +28,28 @@ public static partial class EndpointMapping
     {
         var publicApi = app.MapGroup("/api/public").RequireRateLimiting("public-discovery").WithTags("Sports Nearby — public catalog");
 
+        publicApi.MapGet("/platform-stats", async (AppDbContext db) =>
+        {
+            var users = await db.Users.AsNoTracking().CountAsync();
+            var teams = await db.Teams.AsNoTracking().CountAsync(x => x.IsActive);
+            var teamTournaments = await db.TeamTournaments.AsNoTracking().CountAsync();
+            var publicTournaments = await db.PublicActivities.AsNoTracking().CountAsync(x =>
+                x.EventType == PublicActivityType.Tournament &&
+                x.Status != PublicActivityStatus.Draft &&
+                x.Status != PublicActivityStatus.Cancelled &&
+                x.Status != PublicActivityStatus.Archived);
+            var coaches = await db.CoachProfiles.AsNoTracking().CountAsync();
+
+            return Results.Ok(new
+            {
+                users,
+                teams,
+                tournaments = teamTournaments + publicTournaments,
+                coaches,
+                trustPercent = (int?)null
+            });
+        });
+
         publicApi.MapGet("/sports", async (AppDbContext db, IConfiguration configuration) =>
         {
             if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();

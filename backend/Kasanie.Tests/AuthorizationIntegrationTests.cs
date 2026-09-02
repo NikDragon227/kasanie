@@ -743,6 +743,30 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task PublicPlatformStats_AreBrowsableWithoutAuthenticationAndUseStoredCounts()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Users.AddRange(
+                new ApplicationUser { Id = "user-a", UserName = "a@example.test", Email = "a@example.test" },
+                new ApplicationUser { Id = "coach-a", UserName = "coach@example.test", Email = "coach@example.test" });
+            db.CoachProfiles.Add(new CoachProfile { UserId = "coach-a", DisplayName = "Тренер" });
+        });
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/public/platform-stats");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, json.RootElement.GetProperty("users").GetInt32());
+        Assert.Equal(1, json.RootElement.GetProperty("coaches").GetInt32());
+        Assert.Equal(0, json.RootElement.GetProperty("teams").GetInt32());
+        Assert.Equal(0, json.RootElement.GetProperty("tournaments").GetInt32());
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("trustPercent").ValueKind);
+    }
+
+    [Fact]
     public async Task PublicDiscovery_FiltersAndSortsBySearchRadius()
     {
         await using var factory = new TestApplicationFactory();

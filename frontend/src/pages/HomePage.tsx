@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { api } from '../api'
 import '../home.css'
 
 const asset = (name: string) => `/brand/home-reference/${name}.webp`
@@ -18,6 +19,16 @@ const audienceCards = [
   { image: 'school', title: 'Школы и секции', copy: 'Тренеры, составы и единый процесс', link: '/login' }
 ] as const
 
+type PlatformStats = {
+  users: number
+  teams: number
+  tournaments: number
+  coaches: number
+  trustPercent: number | null
+}
+
+const numberFormatter = new Intl.NumberFormat('ru-RU')
+
 function HomeIcon({ name }: { name: string }) {
   const common = { viewBox: '0 0 24 24', 'aria-hidden': true, focusable: false } as const
   if (name === 'ball') return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m12 8 3 2-1 4h-4l-1-4 3-2ZM9 10 5 9m10 1 4-1m-9 5-2 4m6-4 2 4M8 6l4 2 4-2" /></svg>
@@ -26,6 +37,7 @@ function HomeIcon({ name }: { name: string }) {
   if (name === 'trend') return <svg {...common}><path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7" /></svg>
   if (name === 'shield') return <svg {...common}><path d="M12 3 20 6v5c0 5-3 8-8 10-5-2-8-5-8-10V6Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>
   if (name === 'people') return <svg {...common}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M2.5 20c.4-5 2.2-7.5 5.5-7.5s5.1 2.5 5.5 7.5M14 14c3.8-.5 6 1.5 6.5 5" /></svg>
+  if (name === 'coach') return <svg {...common}><circle cx="12" cy="7" r="3" /><path d="M6 21v-3c0-4 2-7 6-7s6 3 6 7v3M9 15h6M9 18h6" /></svg>
   if (name === 'chart') return <svg {...common}><path d="M4 19V8m5 11V4m5 15v-7m5 7V6" /></svg>
   return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></svg>
 }
@@ -90,13 +102,24 @@ function Audiences() {
 }
 
 function FactStrip() {
+  const [stats, setStats] = useState<PlatformStats | null>(null)
+
+  useEffect(() => {
+    let active = true
+    api<PlatformStats>('/api/public/platform-stats')
+      .then(value => { if (active) setStats(value) })
+      .catch(() => { /* Keep neutral placeholders when statistics are unavailable. */ })
+    return () => { active = false }
+  }, [])
+
   const facts = [
-    { icon: 'ball', value: '8', label: 'видов спорта' },
-    { icon: 'people', value: '5', label: 'ролей платформы' },
-    { icon: 'trophy', value: '6', label: 'рабочих сценариев' },
-    { icon: 'shield', value: '24/7', label: 'поиск активностей' }
+    { icon: 'people', value: stats ? numberFormatter.format(stats.users) : '—', label: 'пользователей' },
+    { icon: 'ball', value: stats ? numberFormatter.format(stats.teams) : '—', label: 'команд' },
+    { icon: 'trophy', value: stats ? numberFormatter.format(stats.tournaments) : '—', label: 'турниров организовано' },
+    { icon: 'coach', value: stats ? numberFormatter.format(stats.coaches) : '—', label: 'тренеров' },
+    { icon: 'shield', value: stats?.trustPercent == null ? '—' : `${numberFormatter.format(stats.trustPercent)}%`, label: 'доверие пользователей' }
   ]
-  return <section className="home-facts" aria-label="Возможности Касания">{facts.map(fact => <div key={fact.label}><i><HomeIcon name={fact.icon} /></i><span><strong>{fact.value}</strong><small>{fact.label}</small></span></div>)}</section>
+  return <section className="home-facts" aria-label="Касание в цифрах">{facts.map(fact => <div key={fact.label}><i><HomeIcon name={fact.icon} /></i><span><strong>{fact.value}</strong><small>{fact.label}</small></span></div>)}</section>
 }
 
 function ProductStrip() {

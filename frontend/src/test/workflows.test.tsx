@@ -23,13 +23,20 @@ const publicActivity = {
 beforeEach(() => { vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
-  it('presents the product and keeps the primary public paths', () => {
+  it('presents the product, live platform statistics and primary public paths', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(input => {
+      if (String(input) === '/api/public/platform-stats') return json({ users: 250000, teams: 18500, tournaments: 3200, coaches: 6800, trustPercent: null })
+      return json({}, 404)
+    })
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: /Спорт начинается.*первого касания/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Найти игру/i })).toHaveAttribute('href', '/sports')
     expect(screen.getByRole('link', { name: /Стать участником/i })).toHaveAttribute('href', '/join')
     expect(screen.getByRole('link', { name: /Дети и родители:/i })).toHaveAttribute('href', '/register-parent')
     expect(screen.getByRole('link', { name: /Тренеры:/i })).toHaveAttribute('href', '/register-coach')
+    expect(await screen.findByText(/250\s000/)).toBeInTheDocument()
+    expect(screen.getByText(/18\s500/)).toBeInTheDocument()
+    expect(screen.getByText('доверие пользователей')).toBeInTheDocument()
   })
 
   it('offers all four registration roles', () => {
