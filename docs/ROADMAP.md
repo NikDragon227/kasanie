@@ -24,7 +24,9 @@
 
 ### 1A. Фундамент (нужен публичному продукту в любом случае)
 
-- [ ] SMTP через VK WorkSpace: ящик на `prokasanie.ru`, DNS (MX `emx.mail.ru`, SPF, DKIM, DMARC), проверить подтверждение почты и восстановление пароля на проде end-to-end
+- [~] SMTP — **временно**: обычный ящик `prokasanie@yandex.ru` (`smtp.yandex.ru:587`, пароль приложения). Хватает для тестов и раннего soft launch (лимит ~сотни писем/день).
+  Не сделано: VK WorkSpace и Unisender Go отпали (платный тариф / free только «на свои домены»); reg.ru тормозит с публикацией DNS-зоны (SOA serial застывал).
+- [ ] **Перед публичным запуском** переделать почту: доменный отправитель `@prokasanie.ru` + свои SPF/DKIM/DMARC (Яндекс 360 / транзакционный сервис Unisender Go «Стартовый 6К» ~800 ₽/мес после 2 мес / Mailopost). Вероятно вместе с переносом DNS-зоны на Cloudflare.
 - [ ] `scripts/deploy.sh`: `docker compose up -d --force-recreate` + `docker image prune -f`
 - [ ] GitHub Actions: lint + Vitest + xUnit + build на каждый PR
 - [ ] Отдельный staging-контур (или хотя бы прогон на локальном compose перед деплоем)
