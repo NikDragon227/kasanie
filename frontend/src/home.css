@@ -156,7 +156,7 @@
   .home-brand strong { font-size: 10px; letter-spacing: .3em; }
   .home-hero { min-height: 760px; }
   .home-hero-visual { height: 300px; }
-  .home-hero-visual img { object-position: 60% center; }
+  .home-hero-visual img { object-position: 72% center; }
   .home-hero-copy { padding: 300px 14px 28px; }
   .home-hero h1 { font-size: clamp(42px, 12vw, 56px); }
   .home-spotlight-grid { grid-template-columns: 1fr; gap: 12px; margin-top: 25px; }
