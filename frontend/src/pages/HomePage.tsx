@@ -7,8 +7,8 @@ const asset = (name: string) => `/brand/home-reference/${name}-v2.png`
 const icon = (name: string) => `/brand/icons/${name}.webp`
 
 const spotlightCards = [
-  { image: 'nearby', icon: 'activity-location', kicker: 'Найти', title: 'Найдите активность рядом', copy: 'Игры, тренировки, секции и события поблизости.', action: 'Найти игру рядом', link: '/sports', accent: 'blue' },
-  { image: 'route', icon: 'sports-route', kicker: 'Развиваться', title: 'Создайте свой спортивный маршрут', copy: 'Постройте свой путь: от события к прогрессу. Планируйте, развивайтесь и достигайте новых целей вместе.', action: 'Выбрать роль', link: '/join', accent: 'violet' }
+  { image: 'nearby', icon: 'activity-location', kicker: 'Найти', title: 'Найдите активность рядом', copy: 'Игры, тренировки, секции и события поблизости.', action: 'Найти игру рядом', chips: ['Игры', 'Тренировки', 'Секции'], link: '/sports', accent: 'blue' },
+  { image: 'route', icon: 'sports-route', kicker: 'Развиваться', title: 'Создайте свой спортивный маршрут', copy: 'Постройте свой путь: от события к прогрессу. Планируйте, развивайтесь и достигайте новых целей вместе.', action: 'Выбрать роль', chips: ['Игрок', 'Родитель', 'Тренер'], link: '/join', accent: 'violet' }
 ] as const
 
 const audienceCards = [
@@ -40,7 +40,7 @@ function Header() {
 }
 
 function Hero() {
-  return <section id="top" className="home-hero" aria-labelledby="home-title"><div className="home-hero-copy"><h1 id="home-title">Спорт начинается<br />с первого <em>касания</em></h1><div id="capabilities" className="home-spotlight-grid" aria-label="Основные сценарии">{spotlightCards.map(card => <Link className={`home-spotlight-card accent-${card.accent}`} to={card.link} key={card.title} aria-label={card.accent === 'blue' ? 'Найти игру рядом' : 'Стать участником — выбрать роль'}><i className="home-spotlight-icon"><img src={icon(card.icon)} alt="" width={46} height={46} /></i><div className="home-spotlight-copy"><span className="home-spotlight-kicker">{card.kicker}</span><h2>{card.title}</h2><p>{card.copy}</p><span className="home-spotlight-cta">{card.action} <b>→</b></span></div><img src={asset(card.image)} alt="" loading="eager" />{card.accent === 'violet' && <div className="home-role-pills"><span><img src={icon('role-player')} alt="" width={18} height={18} />Игрок</span><span><img src={icon('role-parent')} alt="" width={18} height={18} />Родитель</span><span><img src={icon('role-coach')} alt="" width={18} height={18} />Тренер</span></div>}</Link>)}</div></div><div className="home-hero-visual" aria-hidden="true"><img src={asset('hero')} alt="" fetchPriority="high" /></div></section>
+  return <section id="top" className="home-hero" aria-labelledby="home-title"><div className="home-hero-copy"><h1 id="home-title">Спорт начинается<br />с первого <em>касания</em></h1><div id="capabilities" className="home-spotlight-grid" aria-label="Основные сценарии">{spotlightCards.map(card => <Link className={`home-spotlight-card accent-${card.accent}`} to={card.link} key={card.title} aria-label={card.accent === 'blue' ? 'Найти игру рядом' : 'Стать участником — выбрать роль'}><i className="home-spotlight-icon"><img src={icon(card.icon)} alt="" width={46} height={46} /></i><div className="home-spotlight-copy"><span className="home-spotlight-kicker">{card.kicker}</span><h2>{card.title}</h2><p>{card.copy}</p></div><img src={asset(card.image)} alt="" loading="eager" /><div className="home-spotlight-foot"><span className="home-spotlight-cta">{card.action} <b>→</b></span><div className="home-spotlight-chips">{card.chips.map(chip => <span key={chip}>{chip}</span>)}</div></div></Link>)}</div></div><div className="home-hero-visual" aria-hidden="true"><img src={asset('hero')} alt="" fetchPriority="high" /></div></section>
 }
 
 function Audiences() {
