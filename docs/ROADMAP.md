@@ -24,11 +24,12 @@
 
 ### 1A. Фундамент (нужен публичному продукту в любом случае)
 
-- [~] SMTP — **временно**: обычный ящик `prokasanie@yandex.ru` (`smtp.yandex.ru:587`, пароль приложения). Хватает для тестов и раннего soft launch (лимит ~сотни писем/день).
-  Не сделано: VK WorkSpace и Unisender Go отпали (платный тариф / free только «на свои домены»); reg.ru тормозит с публикацией DNS-зоны (SOA serial застывал).
-- [ ] **Перед публичным запуском** переделать почту: доменный отправитель `@prokasanie.ru` + свои SPF/DKIM/DMARC (Яндекс 360 / транзакционный сервис Unisender Go «Стартовый 6К» ~800 ₽/мес после 2 мес / Mailopost). Вероятно вместе с переносом DNS-зоны на Cloudflare.
-- [ ] `scripts/deploy.sh`: `docker compose up -d --force-recreate` + `docker image prune -f`
-- [ ] GitHub Actions: lint + Vitest + xUnit + build на каждый PR
+- [~] SMTP — выбран **Unisender Go, тариф «Стартовый 6К»** (6000 писем/мес; бесплатно 2 месяца, далее 800 ₽/мес). Тариф активирован, API-ключ создан.
+  **Заблокировано:** домен в Unisender Go не подтверждён — reg.ru не публикует зону. DKIM и `_dmarc` CNAME доехали, а новый SPF (`include:spf.unisender.ru`), `unisender-go-validate-hash` TXT и `NS email` — нет; SOA serial завис на несколько часов, `MX emx.mail.ru`/`mailru-domain` не удалились.
+  Дальше: тикет в поддержку reg.ru («зона не публикуется, serial не меняется») либо перенос зоны на Cloudflare. После верификации → SMTP-данные (host `smtp.go1.unisender.ru:587`, логин = email аккаунта, пароль = API-ключ) в прод `.env`, `SMTP_FROM=noreply@prokasanie.ru`, тест на Gmail.
+  (VK WorkSpace и обычный ящик Яндекса рассматривались и отпали: платный тариф / нежелание светить `@yandex.ru`.)
+- [x] `scripts/deploy.sh`: `up -d --force-recreate api web` + `docker image prune -f` + проверка `/health/ready` — сделано.
+- [x] GitHub Actions (`.github/workflows/ci.yml`): frontend lint + Vitest + build, backend xUnit на push в main и на PR — сделано.
 - [ ] Отдельный staging-контур (или хотя бы прогон на локальном compose перед деплоем)
 - [ ] Sentry (или GlitchTip) на фронт и бэк + базовые алерты 5xx / latency / диск / БД
 - [ ] Ежедневный шифрованный off-site бэкап БД + одно учебное восстановление, retention
