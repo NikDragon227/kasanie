@@ -313,6 +313,7 @@ describe('critical workflows', () => {
 
     render(<MemoryRouter><AuthProvider><OrganizerActivitiesPage /></AuthProvider></MemoryRouter>)
 
+    await userEvent.click(await screen.findByRole('button', { name: '+ Новое событие' }))
     const participates = await screen.findByRole('checkbox', { name: /Я тоже участвую в активности/i })
     expect(screen.getByRole('combobox', { name: 'Формат игры' })).toHaveValue('5×5')
     expect(screen.queryByRole('option', { name: 'Мини-футбол' })).not.toBeInTheDocument()
