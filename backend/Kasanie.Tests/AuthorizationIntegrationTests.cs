@@ -1107,6 +1107,40 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task CancelActivity_EmailsConfirmedAndWaitlistedParticipantsButNotTheOrganizer()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var customFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ITransactionalEmailSender>();
+            services.AddSingleton<RecordingEmailSender>();
+            services.AddSingleton<ITransactionalEmailSender>(sp => sp.GetRequiredService<RecordingEmailSender>());
+        }));
+        await using (var seedScope = customFactory.Services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            SeedPublicActivity(db, "organizer-a");
+            db.Users.Add(new ApplicationUser { Id = "confirmed-a", UserName = "confirmed-a@example.test", Email = "confirmed-a@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, UserId = "confirmed-a", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, GuestName = "Guest", GuestContact = "guest@example.test", GuestContactHash = "guest-hash", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, GuestName = "PhoneGuest", GuestContact = "89207633710", GuestContactHash = "phone-hash", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, UserId = "organizer-a", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        using var client = customFactory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+
+        using var cancel = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/cancel", new { }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, cancel.StatusCode);
+
+        var sender = customFactory.Services.GetRequiredService<RecordingEmailSender>();
+        Assert.Equal(2, sender.Sent.Count);
+        Assert.Contains(sender.Sent, x => x.Recipient == "confirmed-a@example.test");
+        Assert.Contains(sender.Sent, x => x.Recipient == "guest@example.test");
+        Assert.All(sender.Sent, x => Assert.Contains("отменена", x.Subject));
+    }
+
+    [Fact]
     public async Task PublicActivity_PreventsOrganizerIdorAndAllowsAdultJoin()
     {
         await using var factory = new TestApplicationFactory();
@@ -1443,6 +1477,16 @@ internal sealed class ThrowingEmailSender : ITransactionalEmailSender
 {
     public Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default)
         => throw new InvalidOperationException("SMTP provider rejected the recipient (5.1.10).");
+}
+
+internal sealed class RecordingEmailSender : ITransactionalEmailSender
+{
+    public List<(string Recipient, string Subject)> Sent { get; } = [];
+    public Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default)
+    {
+        Sent.Add((recipient, subject));
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

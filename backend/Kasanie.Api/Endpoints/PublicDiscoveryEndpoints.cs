@@ -9,6 +9,7 @@ using Kasanie.Api.Application;
 using Kasanie.Api.Domain;
 using Kasanie.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Kasanie.Api.Endpoints;
 
@@ -674,16 +675,29 @@ public static partial class EndpointMapping
     }
 
     private static async Task<IResult> CancelPublicActivityAsync(
-        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        var item = await db.PublicActivities.Include(x => x.Participants).ThenInclude(x => x.User)
+            .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (item is null) return Results.Forbid();
         if (item.Status == PublicActivityStatus.Completed) return Results.Conflict(new { message = "Завершённое событие нельзя отменить." });
+        var recipients = item.Participants
+            .Where(x => x.UserId != userId && x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Waitlisted)
+            .Select(x => x.User?.Email ?? (x.GuestContact?.Contains('@') == true ? x.GuestContact : null))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToArray();
         item.Status = PublicActivityStatus.Cancelled; item.Version++; item.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_cancelled", nameof(PublicActivity), id.ToString());
+
+        var whenText = item.StartAt.ToString("d MMMM, HH:mm", new CultureInfo("ru-RU"));
+        var (subject, html, text) = EmailTemplates.PublicActivityCancelled(item.Title, whenText, BuildUrl(configuration, "/sports"));
+        foreach (var recipient in recipients) await TrySendAsync(emailSender, loggerFactory, recipient!, subject, html, text);
+
         return Results.NoContent();
     }
 

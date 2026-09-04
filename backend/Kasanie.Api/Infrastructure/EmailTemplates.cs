@@ -73,4 +73,15 @@ public static class EmailTemplates
             "Если вы не создавали аккаунт, просто проигнорируйте это письмо.");
         return ("Подтвердите email — Касание", html, text);
     }
+
+    public static (string Subject, string Html, string Text) PublicActivityCancelled(string activityTitle, string whenText, string url)
+    {
+        var (html, text) = Action(
+            $"«{activityTitle}» отменена организатором",
+            "Активность отменена",
+            $"Организатор отменил «{activityTitle}» ({whenText}). Ваше место больше не понадобится — приносим извинения за неудобство.",
+            "Найти другое событие", url,
+            "Если вы не ожидали этого письма, просто проигнорируйте его.");
+        return ("Активность отменена — Касание", html, text);
+    }
 }
