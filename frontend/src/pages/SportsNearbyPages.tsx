@@ -224,12 +224,14 @@ function PublicHeader() {
     : <Link className="button ghost" to="/login">Войти</Link>}</nav></header>
 }
 
-function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSelect, onSearchArea }: {
+function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSelect, onSearchArea, fallbackLatitude, fallbackLongitude }: {
   items: SearchItem[]
   compact?: boolean
   selectedActivityId?: number | null
   onSelect?: (activityId: number) => void
   onSearchArea?: (viewport: MapViewport) => void
+  fallbackLatitude?: number
+  fallbackLongitude?: number
 }) {
   const mapId = `yandex-map-${useId().replace(/:/g, '')}`
   const [loadFailed, setLoadFailed] = useState(false)
@@ -239,14 +241,15 @@ function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSel
   useEffect(() => { selectRef.current = onSelect }, [onSelect])
 
   useEffect(() => {
-    if (!yandexMapsApiKey || items.length === 0) return
+    if (!yandexMapsApiKey) return
     let disposed = false
     let map: YandexMap | null = null
     const markerStore = placemarks.current
     void loadYandexMaps().then(ymaps => {
       if (disposed) return
-      const first = items[0].activity.venue
-      map = new ymaps.Map(mapId, { center: [first.latitude, first.longitude], zoom: 12, controls: ['zoomControl', 'geolocationControl'] })
+      const first = items[0]?.activity.venue
+      const center: Coordinates = first ? [first.latitude, first.longitude] : [fallbackLatitude ?? 55.751244, fallbackLongitude ?? 37.618423]
+      map = new ymaps.Map(mapId, { center, zoom: items.length > 0 ? 12 : 10, controls: ['zoomControl', 'geolocationControl'] })
       markerStore.clear()
       items.forEach(({ activity }, index) => {
         const venue = activity.venue
@@ -280,7 +283,7 @@ function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSel
       }
     }).catch(() => setLoadFailed(true))
     return () => { disposed = true; markerStore.clear(); map?.destroy() }
-  }, [items, mapId, onSearchArea])
+  }, [items, mapId, onSearchArea, fallbackLatitude, fallbackLongitude])
 
   useEffect(() => {
     placemarks.current.forEach((placemark, activityId) => placemark.options.set('preset', activityId === selectedActivityId ? 'islands#redStretchyIcon' : 'islands#darkGreenStretchyIcon'))
@@ -290,7 +293,6 @@ function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSel
   return <div className={`nearby-map${compact ? ' compact' : ''}`} aria-label="Карта найденных занятий">
     <div id={mapId} className="yandex-map-canvas" />
     {showSetup && <div className="map-setup"><div className="map-fallback-grid" aria-hidden="true"><i /><i /><i /></div><b>Яндекс Карта</b><span>Здесь будут показаны места игр и тренировок.</span></div>}
-    {!showSetup && items.length === 0 && <div className="map-setup"><b>Яндекс Карта</b><span>Здесь появятся найденные события.</span></div>}
     {!compact && onSearchArea && viewport && <button type="button" className="map-area-search" onClick={() => onSearchArea(viewport)}>Искать в этой области</button>}
   </div>
 }
@@ -549,7 +551,7 @@ export function SportsNearbyPage() {
     </section>
     <section className="nearby-results"><div className="nearby-results-head"><div><span className="eyebrow">{params.get('sport') ? `${selectedSportName} рядом` : 'Активности рядом'}</span><h2>Доступные активности</h2><p>{result ? `${result.total} ${pluralRu(result.total, ['вариант', 'варианта', 'вариантов'])} по выбранным фильтрам` : 'Подбираем варианты рядом'}</p></div><div className="nearby-results-actions"><label className="nearby-sort">Сначала<select aria-label="Сортировка результатов" value={params.get('sort') ?? 'recommended'} onChange={event => changeSort(event.target.value)}><option value="recommended">Рекомендованные</option><option value="distance" disabled={!params.has('latitude')}>Ближайшие</option><option value="date">По дате</option><option value="availability">Больше свободных мест</option><option value="price">Сначала дешевле</option></select></label><Link className="button" to="/register-organizer">+ Стать организатором</Link></div></div>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="nearby-results-grid"><div className="activity-list">{result?.items.map(({ activity, distanceKm }) => <ActivityCard key={activity.id} activity={activity} distanceKm={distanceKm} selected={selectedActivityId === activity.id} onSelect={setSelectedActivityId} />)}{result && result.total === 0 && <div className="nearby-empty"><b>Пока ничего не найдено</b><p>Попробуйте выбрать другой день, район или формат.</p></div>}</div><YandexActivitiesMap items={mapItems} selectedActivityId={selectedActivityId} onSelect={selectFromMap} onSearchArea={searchMapArea} /></div>
+      <div className="nearby-results-grid"><div className="activity-list">{result?.items.map(({ activity, distanceKm }) => <ActivityCard key={activity.id} activity={activity} distanceKm={distanceKm} selected={selectedActivityId === activity.id} onSelect={setSelectedActivityId} />)}{result && result.total === 0 && <div className="nearby-empty"><b>Пока ничего не найдено</b><p>Попробуйте выбрать другой день, район или формат.</p></div>}</div><YandexActivitiesMap items={mapItems} selectedActivityId={selectedActivityId} onSelect={selectFromMap} onSearchArea={searchMapArea} fallbackLatitude={params.has('latitude') ? Number(params.get('latitude')) : undefined} fallbackLongitude={params.has('longitude') ? Number(params.get('longitude')) : undefined} /></div>
     </section>
   </main><footer className="nearby-footer"><span>Касание · Спорт рядом</span></footer></div>
 }
