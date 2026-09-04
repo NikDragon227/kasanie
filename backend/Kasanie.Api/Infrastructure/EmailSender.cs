@@ -1,6 +1,7 @@
-using System.Net;
-using System.Net.Mail;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace Kasanie.Api.Infrastructure;
 
@@ -33,9 +34,23 @@ public sealed class TransactionalEmailSender(IOptions<EmailOptions> options, IWe
         if (string.IsNullOrWhiteSpace(settings.Host))
             throw new InvalidOperationException("SMTP_HOST must be configured outside Development.");
 
-        using var client = new SmtpClient(settings.Host, settings.Port) { EnableSsl = settings.UseSsl };
-        if (!string.IsNullOrWhiteSpace(settings.Username)) client.Credentials = new NetworkCredential(settings.Username, settings.Password);
-        using var message = new MailMessage(settings.From, recipient, subject, body) { IsBodyHtml = false };
-        await client.SendMailAsync(message, cancellationToken);
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse(settings.From));
+        message.To.Add(MailboxAddress.Parse(recipient));
+        message.Subject = subject;
+        message.Body = new TextPart("plain") { Text = body };
+
+        // 465 — implicit TLS; 587/иные — STARTTLS (обязателен, если UseSsl). System.Net.Mail.SmtpClient
+        // договаривался о STARTTLS ненадёжно и мог уйти в отправку без AUTH — MailKit делает это корректно.
+        var security = settings.Port == 465
+            ? SecureSocketOptions.SslOnConnect
+            : settings.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.StartTlsWhenAvailable;
+
+        using var client = new SmtpClient();
+        await client.ConnectAsync(settings.Host, settings.Port, security, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(settings.Username))
+            await client.AuthenticateAsync(settings.Username, settings.Password, cancellationToken);
+        await client.SendAsync(message, cancellationToken);
+        await client.DisconnectAsync(true, cancellationToken);
     }
 }
