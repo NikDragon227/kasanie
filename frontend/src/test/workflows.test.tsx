@@ -146,13 +146,16 @@ describe('critical workflows', () => {
     expect(await screen.findByText('Футбол вечером')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Доступные активности' })).toBeInTheDocument()
     expect(screen.getByLabelText('Город')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Район')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Время')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
     expect(screen.getByLabelText('Район')).toBeInTheDocument()
     expect(screen.getByLabelText('Время')).toBeInTheDocument()
     expect(screen.queryByText('Без регистрации для поиска')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Спорт' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Бадминтон' })).toBeInTheDocument()
     expect(screen.queryByText('Мини-футбол')).not.toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('svg')).toHaveLength(6)
+    expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('img')).toHaveLength(6)
     expect(screen.getByText('8 мест свободно')).toBeInTheDocument()
   })
 
@@ -172,7 +175,7 @@ describe('critical workflows', () => {
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
     await screen.findByRole('heading', { name: 'Доступные активности' })
-    await userEvent.click(screen.getByRole('button', { name: '⌖ Рядом со мной' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Рядом со мной' }))
 
     await waitFor(() => expect(requested.some(url => url.includes('latitude=55.796300') && url.includes('longitude=49.106400') && url.includes('radiusKm=10'))).toBe(true))
     expect(screen.getByText('Показываем активности в радиусе 10 км от выбранной точки.')).toBeInTheDocument()
@@ -218,6 +221,7 @@ describe('critical workflows', () => {
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
     await screen.findByRole('heading', { name: 'Доступные активности' })
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
+    await userEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
     expect(screen.getByRole('option', { name: '5+1 — 5 полевых и вратарь' })).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Формат игры' }), '5+1')
     await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
@@ -244,7 +248,7 @@ describe('critical workflows', () => {
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
     await screen.findByRole('heading', { name: 'Доступные активности' })
-    await userEvent.click(screen.getByRole('button', { name: '⌖ Рядом со мной' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Рядом со мной' }))
     const permissionLink = await screen.findByRole('button', { name: 'Разрешить доступ к геопозиции' })
     await userEvent.click(permissionLink)
 

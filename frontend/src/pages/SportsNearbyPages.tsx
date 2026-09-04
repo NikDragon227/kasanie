@@ -126,14 +126,11 @@ const calendarDataUrl = (activity: Activity) => {
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(content)}`
 }
 
+const formatIconFiles: Record<string, string> = {
+  all: 'all-events', evening: 'evening-game', group: 'joint-training', coach: 'with-coach', team: 'find-team', tournament: 'tournaments'
+}
 function FormatIcon({ type }: { type: string }) {
-  const shared = { viewBox: '0 0 48 48', 'aria-hidden': true, focusable: false } as const
-  if (type === 'all') return <svg {...shared}><rect x="7" y="7" width="14" height="14" rx="4" /><rect x="27" y="7" width="14" height="14" rx="4" /><rect x="7" y="27" width="14" height="14" rx="4" /><path d="M34 26v16M26 34h16" /></svg>
-  if (type === 'evening') return <svg {...shared}><path d="M31.5 8.5a16.5 16.5 0 1 0 8 27.8A17.5 17.5 0 0 1 31.5 8.5Z" /><circle cx="30" cy="31" r="6.5" /><path d="m26 29 4-2.4 4 2.4-1.5 4.5h-5Z" /></svg>
-  if (type === 'group') return <svg {...shared}><circle cx="15" cy="16" r="5" /><circle cx="33" cy="16" r="5" /><path d="M7 37c.7-7.2 3.4-11 8-11s7.3 3.8 8 11M25 37c.7-7.2 3.4-11 8-11s7.3 3.8 8 11" /><path d="M20 21.5h8M25 18.5l3 3-3 3" /></svg>
-  if (type === 'coach') return <svg {...shared}><rect x="6" y="8" width="27" height="31" rx="6" /><path d="M13 30c4-7 8-10 14-13M13 17h7M20 32h7" /><circle cx="38" cy="16" r="4" /><path d="M38 20v9M33 38c.5-6 2.2-9 5-9s4.5 3 5 9" /></svg>
-  if (type === 'team') return <svg {...shared}><circle cx="24" cy="13" r="5" /><circle cx="11" cy="22" r="4" /><circle cx="37" cy="22" r="4" /><path d="M15 40c.6-8.7 3.6-13 9-13s8.4 4.3 9 13M4.5 40c.4-6.8 2.6-10.5 6.5-10.5 2.2 0 4 1.1 5.1 3.3M43.5 40c-.4-6.8-2.6-10.5-6.5-10.5-2.2 0-4 1.1-5.1 3.3" /></svg>
-  return <svg {...shared}><path d="M15 8h18v8c0 7-3.6 11-9 11s-9-4-9-11Z" /><path d="M15 12H8v3c0 5 3 8 8 8M33 12h7v3c0 5-3 8-8 8M24 27v7M17 40h14M19 34h10" /><circle cx="24" cy="15" r="3" /></svg>
+  return <img src={`/brand/icons/${formatIconFiles[type] ?? 'all-events'}.webp`} alt="" width={46} height={46} loading="lazy" />
 }
 
 const formatDate = (value: string) => new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -406,6 +403,7 @@ export function SportsNearbyPage() {
   const [showLocationHelp, setShowLocationHelp] = useState(false)
   const [locating, setLocating] = useState(false)
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null)
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
   const cityParam = params.get('city') ?? ''
   const [selectedCity, setSelectedCity] = useState(cityParam)
   const sportParam = params.get('sport') ?? ''
@@ -423,15 +421,20 @@ export function SportsNearbyPage() {
   }, [query])
   useEffect(() => setSelectedCity(cityParam), [cityParam])
   useEffect(() => setSelectedSearchSport(sportParam), [sportParam])
+  useEffect(() => {
+    if (params.has('latitude') || params.get('district') || params.get('time') || params.get('gameFormat') || params.get('availableOnly') === 'true' || params.get('freeOnly') === 'true') setShowMoreFilters(true)
+  }, [query, params])
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const next = new URLSearchParams()
-    for (const key of ['city', 'district', 'date', 'time', 'sport', 'gameFormat', 'type']) {
+    for (const key of ['city', 'district', 'date', 'time', 'sport', 'gameFormat']) {
       const value = String(form.get(key) ?? '').trim()
       if (value) next.set(key, value)
     }
+    const currentType = params.get('type')
+    if (currentType) next.set('type', currentType)
     if (form.get('freeOnly')) next.set('freeOnly', 'true')
     if (form.get('availableOnly')) next.set('availableOnly', 'true')
     const latitude = params.get('latitude'); const longitude = params.get('longitude')
@@ -521,15 +524,20 @@ export function SportsNearbyPage() {
     <section className="nearby-hero">
       <div className="nearby-hero-title"><h1>Спорт рядом с вами</h1></div>
       <form key={`${query}-${sports.length}`} className="nearby-search" onSubmit={submit}>
-        <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
-        <label><b>Район</b><input name="district" list="nearby-districts" defaultValue={params.get('district') ?? ''} placeholder={districtOptions.length ? 'Выберите район' : 'Любой район'} /><datalist id="nearby-districts">{districtOptions.map(district => <option key={district} value={district} />)}</datalist></label>
-        <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? ''} /></label>
-        <label><b>Время</b><input name="time" type="time" defaultValue={params.get('time') ?? ''} /></label>
-        <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
-        <label><b>Формат игры</b><select key={selectedSearchSport} name="gameFormat" defaultValue={availableSearchGameFormats.some(option => option.value === params.get('gameFormat')) ? params.get('gameFormat') ?? '' : ''}><option value="">Любой формат</option>{availableSearchGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>
-        <label className="nearby-format"><b>Тип активности</b><select name="type" defaultValue={params.get('type') ?? ''}><option value="">Все типы</option><option value="Game">Поиграть вечером</option><option value="GroupTraining">Совместная тренировка</option><option value="CoachTraining">Тренировка с тренером</option><option value="PlayerRecruitment">Ищу команду</option><option value="Tournament">Участие в турнире</option></select></label>
-        <button className="nearby-search-button" aria-label="Найти события"><span>⌕</span><b>Найти</b></button>
-        <div className="nearby-checks"><label><input name="availableOnly" type="checkbox" defaultChecked={params.get('availableOnly') === 'true'} /> Есть места</label><label><input name="freeOnly" type="checkbox" defaultChecked={params.get('freeOnly') === 'true'} /> Бесплатно</label><label className="radius-control">Радиус<select name="radiusKm" defaultValue={params.get('radiusKm') ?? '10'}><option value="1">1 км</option><option value="3">3 км</option><option value="5">5 км</option><option value="10">10 км</option><option value="25">25 км</option></select></label><button type="button" className="nearby-location-button" disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}>{locating ? 'Определяем…' : params.has('latitude') ? 'Сбросить геопозицию' : '⌖ Рядом со мной'}</button></div>
+        <div className="nearby-search-primary">
+          <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
+          <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
+          <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? ''} /></label>
+          <button type="button" className={`nearby-geo-button${params.has('latitude') ? ' active' : ''}`} disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}><span aria-hidden>⌖</span>{locating ? 'Определяем…' : params.has('latitude') ? 'Рядом (сбросить)' : 'Рядом со мной'}</button>
+          <button className="nearby-search-button" aria-label="Найти события"><span>⌕</span><b>Найти</b></button>
+        </div>
+        <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}>{showMoreFilters ? 'Скрыть фильтры' : 'Ещё фильтры'} <span aria-hidden>{showMoreFilters ? '▴' : '▾'}</span></button>
+        {showMoreFilters && <div className="nearby-search-more">
+          <label><b>Район</b><input name="district" list="nearby-districts" defaultValue={params.get('district') ?? ''} placeholder={districtOptions.length ? 'Выберите район' : 'Любой район'} /><datalist id="nearby-districts">{districtOptions.map(district => <option key={district} value={district} />)}</datalist></label>
+          <label><b>Время</b><input name="time" type="time" defaultValue={params.get('time') ?? ''} /></label>
+          <label><b>Формат игры</b><select key={selectedSearchSport} name="gameFormat" defaultValue={availableSearchGameFormats.some(option => option.value === params.get('gameFormat')) ? params.get('gameFormat') ?? '' : ''}><option value="">Любой формат</option>{availableSearchGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>
+          <div className="nearby-checks"><label><input name="availableOnly" type="checkbox" defaultChecked={params.get('availableOnly') === 'true'} /> Есть места</label><label><input name="freeOnly" type="checkbox" defaultChecked={params.get('freeOnly') === 'true'} /> Бесплатно</label><label className="radius-control">Радиус<select name="radiusKm" defaultValue={params.get('radiusKm') ?? '10'}><option value="1">1 км</option><option value="3">3 км</option><option value="5">5 км</option><option value="10">10 км</option><option value="25">25 км</option></select></label></div>
+        </div>}
       </form>
       {params.has('latitude') && <p className="nearby-location-status">Показываем активности в радиусе {params.get('radiusKm') ?? '10'} км от выбранной точки.</p>}
       {geoError && <div className="form-error nearby-geo-error" role="alert">

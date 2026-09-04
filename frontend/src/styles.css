@@ -85,10 +85,10 @@ small { color: var(--muted); }
 .nearby-categories a { --format-accent: #416f67; min-width: 0; display: grid; justify-items: center; gap: .48rem; padding: .65rem .35rem .8rem; border-bottom: 2px solid transparent; color: #71807e; text-align: center; font-size: .66rem; transition: color .18s, border-color .18s, transform .18s; }
 .nearby-categories a.format-evening { --format-accent: #e18a3e; }.nearby-categories a.format-group { --format-accent: #3c8f82; }.nearby-categories a.format-coach { --format-accent: #4072a9; }.nearby-categories a.format-team { --format-accent: #b75d4b; }.nearby-categories a.format-tournament { --format-accent: #916d34; }
 .nearby-categories .format-icon { width: 46px; height: 46px; display: grid; place-items: center; color: var(--format-accent); }
-.nearby-categories .format-icon svg { width: 100%; height: 100%; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s; }
+.nearby-categories .format-icon img { width: 100%; height: 100%; object-fit: contain; transition: transform .18s; }
 .nearby-categories a b { white-space: nowrap; }
 .nearby-categories a:hover, .nearby-categories a.active { border-bottom-color: var(--ink); color: var(--ink); transform: translateY(-1px); }
-.nearby-categories a:hover .format-icon svg, .nearby-categories a.active .format-icon svg { transform: translateY(-2px) scale(1.04); }
+.nearby-categories a:hover .format-icon img, .nearby-categories a.active .format-icon img { transform: translateY(-2px) scale(1.04); }
 .popular-sports { max-width: 1180px; display: flex; align-items: center; justify-content: center; gap: .9rem; margin: 1.1rem auto 0; }
 .popular-sports > b { flex: none; color: #60716f; font-size: .68rem; }
 .popular-sports > div { display: flex; flex-wrap: wrap; justify-content: center; gap: .42rem; }
@@ -1058,6 +1058,29 @@ small { color: var(--muted); }
 .nearby-search > label:focus-within { background: rgba(8, 119, 255, .1); }
 .nearby-search-button { height: 56px; margin-left: .35rem; border-radius: 12px; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; box-shadow: 0 12px 28px rgba(0, 99, 240, .24); }
 .nearby-search-button b { font-size: .82rem; }
+
+/* Search form: primary row (город / спорт / дата / рядом со мной / найти) + collapsible "ещё фильтры" */
+.nearby-search { display: block; }
+.nearby-search-primary { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto auto; align-items: stretch; gap: .5rem; }
+.nearby-search-primary label { display: grid; gap: .3rem; min-width: 0; padding: .5rem .9rem; border: 1px solid var(--nearby-line); border-radius: 14px; background: rgba(255, 255, 255, .03); }
+.nearby-search-primary label b { color: #dfe5ed; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.nearby-search-primary label:focus-within { border-color: var(--nearby-blue); background: rgba(8, 119, 255, .08); }
+.nearby-search-primary input, .nearby-search-primary select { width: 100%; min-width: 0; height: 24px; padding: 0; border: 0; outline: 0; background: transparent; color: #aab4c1; font: inherit; font-size: .82rem; color-scheme: dark; }
+.nearby-search-primary select option { background: #0b1119; color: #fff; }
+.nearby-geo-button { display: flex; align-items: center; justify-content: center; gap: .4rem; padding: 0 1.1rem; border: 1px solid var(--nearby-line); border-radius: 14px; background: rgba(8, 119, 255, .08); color: #cfe0ff; font: inherit; font-size: .78rem; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color .18s, background .18s; }
+.nearby-geo-button:hover { border-color: var(--nearby-blue-soft); }
+.nearby-geo-button.active { border-color: var(--nearby-blue); background: rgba(8, 119, 255, .2); color: #fff; }
+.nearby-geo-button:disabled { opacity: .55; cursor: wait; }
+.nearby-more-toggle { display: flex; align-items: center; gap: .35rem; margin: .7rem auto 0; padding: .3rem; border: 0; background: transparent; color: var(--nearby-blue-soft); font-size: .78rem; font-weight: 700; cursor: pointer; }
+.nearby-more-toggle:hover { color: #fff; }
+.nearby-search-more { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; margin-top: .7rem; padding-top: .9rem; border-top: 1px solid var(--nearby-line); }
+.nearby-search-more label { display: grid; gap: .3rem; min-width: 0; padding: .5rem .9rem; border: 1px solid var(--nearby-line); border-radius: 12px; background: rgba(255, 255, 255, .03); }
+.nearby-search-more label b { color: #dfe5ed; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.nearby-search-more label:focus-within { border-color: var(--nearby-blue); background: rgba(8, 119, 255, .08); }
+.nearby-search-more input, .nearby-search-more select { width: 100%; min-width: 0; height: 24px; padding: 0; border: 0; outline: 0; background: transparent; color: #aab4c1; font: inherit; font-size: .82rem; color-scheme: dark; }
+.nearby-search-more select option { background: #0b1119; color: #fff; }
+.nearby-search-more .nearby-checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 1.2rem; padding: 0; border: 0; }
+.nearby-search input[type="date"]::-webkit-calendar-picker-indicator, .nearby-search input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.7) grayscale(1) opacity(.55); cursor: pointer; }
 .nearby-search .nearby-checks { padding-top: .85rem; border-top-color: var(--nearby-line); }
 .nearby-search .nearby-checks label { color: #a6b0bd; font-size: .8rem; }
 .nearby-search .nearby-checks input { accent-color: var(--nearby-blue); }
@@ -1132,6 +1155,8 @@ small { color: var(--muted); }
   .nearby-header .button.ghost { min-height: 38px; padding-inline: 13px; }
   .nearby-account-id { display: none; }
   .nearby-account-trigger { padding: 5px; }
+  .nearby-search-primary, .nearby-search-more { grid-template-columns: 1fr; }
+  .nearby-geo-button, .nearby-search-button { width: 100%; }
   .nearby-hero { padding-inline: 14px; }
   .nearby-hero h1 { font-size: clamp(2.55rem, 13vw, 4rem); }
   .nearby-search { border-radius: 16px; }
