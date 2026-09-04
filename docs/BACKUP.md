@@ -17,8 +17,29 @@
 
 ```sh
 apt install -y rclone
-rclone config          # завести remote: Backblaze B2 / любой S3 / Яндекс.Диск (WebDAV) / SFTP
+rclone config
 rclone lsd <remote>:   # проверить доступ
+```
+
+Наш выбор — **Яндекс.Диск по WebDAV** (доступен с VPS без VPN, бесплатных 10 ГБ хватает).
+В `rclone config`:
+
+| Шаг | Значение |
+|---|---|
+| `n` (New remote), name | `yadisk` |
+| Storage | `webdav` |
+| `url` | `https://webdav.yandex.ru` |
+| `vendor` | `other` |
+| `user` | логин Яндекса (часть до `@`) |
+| `y` (own password) → password | **пароль приложения**, не пароль аккаунта |
+| `bearer_token` | пусто |
+| Edit advanced / Keep | `n`, затем `y` |
+
+Пароль приложения: Яндекс ID → «Безопасность» → «Пароли приложений» → «Файлы (WebDAV)».
+
+```sh
+rclone mkdir yadisk:kasanie-backups
+rclone lsd yadisk:                       # каталог kasanie-backups виден
 ```
 
 ### 2. Настройки
