@@ -162,4 +162,4 @@ compose*.yaml      local и production overlays
 
 ## Production
 
-Пошаговая инструкция для Ubuntu, DNS, TLS, update и backup/restore: [docs/DEPLOY_VPS.md](docs/DEPLOY_VPS.md).
+Пошаговая инструкция для Ubuntu, DNS, TLS, update и backup/restore: [docs/DEPLOY_VPS.md](docs/DEPLOY_VPS.md). Резервное копирование БД (шифрование, off-site, ротация): [docs/BACKUP.md](docs/BACKUP.md).

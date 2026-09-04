@@ -38,7 +38,8 @@
 - [~] Трекинг ошибок — **SDK вшит и выключен по умолчанию**. Бэк: `Sentry.AspNetCore` (`Program.cs`, `UseSentry`, PII off), включается `SENTRY_DSN`. Фронт: `@sentry/react` грузится динамически только при `VITE_SENTRY_DSN` (пустой = чанк не грузится, бандл не растёт). DSN-протокол общий для sentry.io и self-hosted GlitchTip.
   Осталось: **выбрать бэкенд** (sentry.io / GlitchTip на VPS), создать проект, вписать `SENTRY_DSN` в прод `.env` и `VITE_SENTRY_DSN` перед `build web`.
 - [ ] Базовые алерты: 5xx / latency / диск / БД (после включения трекинга + внешний мониторинг).
-- [ ] Ежедневный шифрованный off-site бэкап БД + одно учебное восстановление, retention
+- [~] Ежедневный шифрованный off-site бэкап БД — **механизм готов** (`scripts/backup-db.sh`: AES-256 + rclone-выгрузка + ротация; всё опционально, `docs/BACKUP.md`).
+  Осталось: на проде `apt install rclone` + `rclone config` (выбрать хранилище), завести `~/.kasanie-backup.env` с `BACKUP_PASSPHRASE`/`BACKUP_REMOTE`, поставить cron `0 3 * * *`, провести одно учебное восстановление.
 
 ### 1B. Полный цикл организатора и гостя проверен на проде
 
