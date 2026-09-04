@@ -99,6 +99,44 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task Register_ReturnsRussianMessageForDuplicateEmailAndWeakPassword()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var first = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
+        {
+            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Первый"
+        }, null, null, csrf));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        using var duplicate = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
+        {
+            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Второй"
+        }, null, null, csrf));
+        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+        var duplicateMessages = await AccountErrorsAsync(duplicate);
+        Assert.Contains(duplicateMessages, m => m is not null && m.Contains("уже существует"));
+        Assert.DoesNotContain(duplicateMessages, m => m is not null && m.Contains("already taken"));
+
+        using var weakPassword = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
+        {
+            email = "weak-player@example.test", password = "weakpassword", dateOfBirth = "2005-01-01", firstName = "Пётр", lastName = "Слабый"
+        }, null, null, csrf));
+        Assert.Equal(HttpStatusCode.BadRequest, weakPassword.StatusCode);
+        var weakMessages = await AccountErrorsAsync(weakPassword);
+        Assert.Contains(weakMessages, m => m is not null && m.Contains("специальный знак"));
+        Assert.DoesNotContain(weakMessages, m => m is not null && m.Contains("non alphanumeric"));
+
+        static async Task<string?[]> AccountErrorsAsync(HttpResponseMessage response)
+        {
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return json.RootElement.GetProperty("errors").GetProperty("account").EnumerateArray().Select(x => x.GetString()).ToArray();
+        }
+    }
+
+    [Fact]
     public async Task DevelopmentProfile_AggregatesJournalForPlayerCoachAndParent()
     {
         await using var factory = new TestApplicationFactory();

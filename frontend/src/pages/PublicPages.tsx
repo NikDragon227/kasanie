@@ -159,7 +159,10 @@ export function RegisterPage() {
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     setPending(true)
     try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName') }); setDone(true) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Регистрация не выполнена.') } finally { setPending(false) }
+    catch (e) {
+      const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
+      setError(fieldErrors.join(' ') || (e instanceof Error ? e.message : 'Регистрация не выполнена.'))
+    } finally { setPending(false) }
   }
   if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
   return <AuthFrame title="Построй свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" autoComplete="given-name" required /></label><label>Фамилия<input name="lastName" autoComplete="family-name" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label className="full">Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
