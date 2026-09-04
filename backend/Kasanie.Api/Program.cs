@@ -11,6 +11,19 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Трекинг ошибок. Без Sentry:Dsn SDK полностью выключен — ничего не шлёт.
+// Совместимо и с sentry.io, и с self-hosted GlitchTip (тот же DSN-протокол).
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
+    options.Environment = builder.Configuration["Sentry:Environment"] ?? builder.Environment.EnvironmentName;
+    options.TracesSampleRate = 0;      // перф-трейсинг пока не собираем
+    options.SendDefaultPii = false;    // не отправляем данные пользователей
+    options.AttachStacktrace = true;
+    options.MinimumEventLevel = LogLevel.Warning;
+});
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
 

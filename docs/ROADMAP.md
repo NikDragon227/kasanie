@@ -35,7 +35,9 @@
 - [x] `scripts/deploy.sh`: `up -d --force-recreate api web` + `docker image prune -f` + проверка `/health/ready` — сделано.
 - [x] GitHub Actions (`.github/workflows/ci.yml`): frontend lint + Vitest + build, backend xUnit на push в main и на PR — сделано.
 - [ ] Отдельный staging-контур (или хотя бы прогон на локальном compose перед деплоем)
-- [ ] Sentry (или GlitchTip) на фронт и бэк + базовые алерты 5xx / latency / диск / БД
+- [~] Трекинг ошибок — **SDK вшит и выключен по умолчанию**. Бэк: `Sentry.AspNetCore` (`Program.cs`, `UseSentry`, PII off), включается `SENTRY_DSN`. Фронт: `@sentry/react` грузится динамически только при `VITE_SENTRY_DSN` (пустой = чанк не грузится, бандл не растёт). DSN-протокол общий для sentry.io и self-hosted GlitchTip.
+  Осталось: **выбрать бэкенд** (sentry.io / GlitchTip на VPS), создать проект, вписать `SENTRY_DSN` в прод `.env` и `VITE_SENTRY_DSN` перед `build web`.
+- [ ] Базовые алерты: 5xx / latency / диск / БД (после включения трекинга + внешний мониторинг).
 - [ ] Ежедневный шифрованный off-site бэкап БД + одно учебное восстановление, retention
 
 ### 1B. Полный цикл организатора и гостя проверен на проде

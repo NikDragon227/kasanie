@@ -12,6 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@sentry/react": "^9.47.1",
     "@vitejs/plugin-react": "latest",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
