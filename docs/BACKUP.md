@@ -13,40 +13,47 @@
 
 ## Off-site (прод)
 
-### 1. rclone
+### 1. rclone — Яндекс.Диск, бэкенд `yandex`
+
+WebDAV Яндекса на бесплатном тарифе отключён (`402 WebDAV is not available for the free tariff`).
+Используем **родной бэкенд `yandex`** (REST API Диска) — работает и на бесплатном аккаунте.
+OAuth-токен получаем на машине с браузером и вписываем в конфиг на сервере руками
+(`rclone config create ... config_token=` в rclone 1.75 уходит в интерактивную auth-машину и на headless не годится).
+
+**На машине с браузером** (Windows: `winget install Rclone.Rclone`, затем новый терминал):
+
+```sh
+rclone authorize "yandex"
+```
+
+Вход под аккаунтом Диска → «Разрешить» → скопировать блок `{"access_token":...,"refresh_token":...,"expiry":...}`
+между `--->` и `<---End paste`.
+
+**На проде** — записать конфиг напрямую в файл:
 
 ```sh
 apt install -y rclone
-rclone config
-rclone lsd <remote>:   # проверить доступ
-```
+mkdir -p ~/.config/rclone
+cat >> ~/.config/rclone/rclone.conf <<'EOF'
 
-Наш выбор — **Яндекс.Диск по WebDAV** (доступен с VPS без VPN, бесплатных 10 ГБ хватает).
-В `rclone config`:
+[yadisk]
+type = yandex
+token = {"access_token":"...","token_type":"bearer","refresh_token":"...","expiry":"..."}
+EOF
 
-| Шаг | Значение |
-|---|---|
-| `n` (New remote), name | `yadisk` |
-| Storage | `webdav` |
-| `url` | `https://webdav.yandex.ru` |
-| `vendor` | `other` |
-| `user` | логин Яндекса (часть до `@`) |
-| `y` (own password) → password | **пароль приложения**, не пароль аккаунта |
-| `bearer_token` | пусто |
-| Edit advanced / Keep | `n`, затем `y` |
-
-Пароль приложения: Яндекс ID → «Безопасность» → «Пароли приложений» → «Файлы (WebDAV)».
-
-```sh
 rclone mkdir yadisk:kasanie-backups
-rclone lsd yadisk:                       # каталог kasanie-backups виден
+rclone lsd yadisk:                       # каталог kasanie-backups виден, без 401/402
 ```
+
+`refresh_token` rclone обновляет сам — cron не сломается. При компрометации токена: отозвать
+в Яндекс ID → «Безопасность», заново `rclone authorize "yandex"`, заменить `token = ...` в конфиге.
 
 ### 2. Настройки
 
 ```sh
 cp /opt/kasanie/scripts/backup-db.env.example ~/.kasanie-backup.env
-nano ~/.kasanie-backup.env      # BACKUP_PASSPHRASE (длинная случайная строка), BACKUP_REMOTE=<remote>:<путь>
+openssl rand -base64 36          # → это значение BACKUP_PASSPHRASE, сразу в менеджер паролей
+nano ~/.kasanie-backup.env       # BACKUP_PASSPHRASE=<из openssl>, BACKUP_REMOTE=yadisk:kasanie-backups
 chmod 600 ~/.kasanie-backup.env
 ```
 

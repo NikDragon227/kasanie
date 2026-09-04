@@ -40,8 +40,9 @@
   Проверено 4 сен 2026: остановили `db` → `GET /api/public/platform-stats` → `System.InvalidOperationException` + `Failed executing DbCommand` долетели в Bugsink → Issues за секунды.
   Шум: стартовая строка `Overriding HTTP_PORTS` и transient health-check `Unhealthy` при рестарте `db` тоже прилетают (уровень Warning). Если станет мешать — поднять `MinimumEventLevel` до `Error` в `Program.cs` либо mute в Bugsink.
 - [ ] Базовые алерты: 5xx / latency / диск / БД (после включения трекинга + внешний мониторинг).
-- [~] Ежедневный шифрованный off-site бэкап БД — **механизм готов** (`scripts/backup-db.sh`: AES-256 + rclone-выгрузка + ротация; всё опционально, `docs/BACKUP.md`).
-  Осталось: на проде `apt install rclone` + `rclone config` (выбрать хранилище), завести `~/.kasanie-backup.env` с `BACKUP_PASSPHRASE`/`BACKUP_REMOTE`, поставить cron `0 3 * * *`, провести одно учебное восстановление.
+- [x] Ежедневный шифрованный off-site бэкап БД — **работает на проде**. `scripts/backup-db.sh`: pg_dump custom → `pg_restore --list` проверка → AES-256 (`openssl -pbkdf2`) → выгрузка в Яндекс.Диск (rclone бэкенд `yandex`, не WebDAV — тот на бесплатном тарифе закрыт) → ротация (7 локально, 30 дней off-site). Cron `0 3 * * *`, `~/.kasanie-backup.env` (chmod 600), `BACKUP_PASSPHRASE` у владельца в менеджере паролей.
+  Проверено 4 сен 2026: прогон → `.dump.enc` на Яндекс.Диске; учебная расшифровка → `pg_restore --list` даёт валидный TOC (364 записи, PG 18.6).
+  Осталось: раз в месяц — полноценный restore в отдельную БД (не прод), фиксировать дату/результат.
 
 ### 1B. Полный цикл организатора и гостя проверен на проде
 
