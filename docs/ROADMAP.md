@@ -35,9 +35,10 @@
 - [x] `scripts/deploy.sh`: `up -d --force-recreate api web` + `docker image prune -f` + проверка `/health/ready` — сделано.
 - [x] GitHub Actions (`.github/workflows/ci.yml`): frontend lint + Vitest + build, backend xUnit на push в main и на PR — сделано.
 - [ ] Отдельный staging-контур (или хотя бы прогон на локальном compose перед деплоем)
-- [~] Трекинг ошибок — **SDK вшит и выключен по умолчанию**. Бэк: `Sentry.AspNetCore` (`Program.cs`, `UseSentry`, PII off), включается `SENTRY_DSN`. Фронт: `@sentry/react` грузится динамически только при `VITE_SENTRY_DSN` (пустой = чанк не грузится, бандл не растёт).
-  sentry.io недоступен из РФ (403). Бэкенд — **hosted Bugsink** (`kasanie.bugsink.com`, проект создан, DSN `…@kasanie.bugsink.com/1`). Публичный HTTPS-ingest — годится и для бэка, и для фронта. Sentry-совместимый протокол, код не меняется.
-  Осталось на проде: вписать DSN в `SENTRY_DSN` и `VITE_SENTRY_DSN` в `.env`, пересобрать `api` + `web`, `--force-recreate`, проверить тестовой 500-й (появится в Bugsink → Issues).
+- [x] Трекинг ошибок — **работает на проде** через **hosted Bugsink** (`kasanie.bugsink.com`, проект `KASANIE`, DSN `…@kasanie.bugsink.com/1`). sentry.io недоступен из РФ (403); Bugsink говорит по Sentry-совместимому протоколу, код клиента не меняется.
+  Бэк: `Sentry.AspNetCore` (`Program.cs`, `UseSentry`, PII off, `MinimumEventLevel = Warning`), включается `SENTRY_DSN`. Фронт: `@sentry/react` грузится динамически только при `VITE_SENTRY_DSN` (пустой = чанк не грузится, бандл не растёт). Один и тот же DSN в обе переменные прод `.env`; `web` пересобирается с ним при деплое.
+  Проверено 4 сен 2026: остановили `db` → `GET /api/public/platform-stats` → `System.InvalidOperationException` + `Failed executing DbCommand` долетели в Bugsink → Issues за секунды.
+  Шум: стартовая строка `Overriding HTTP_PORTS` и transient health-check `Unhealthy` при рестарте `db` тоже прилетают (уровень Warning). Если станет мешать — поднять `MinimumEventLevel` до `Error` в `Program.cs` либо mute в Bugsink.
 - [ ] Базовые алерты: 5xx / latency / диск / БД (после включения трекинга + внешний мониторинг).
 - [~] Ежедневный шифрованный off-site бэкап БД — **механизм готов** (`scripts/backup-db.sh`: AES-256 + rclone-выгрузка + ротация; всё опционально, `docs/BACKUP.md`).
   Осталось: на проде `apt install rclone` + `rclone config` (выбрать хранилище), завести `~/.kasanie-backup.env` с `BACKUP_PASSPHRASE`/`BACKUP_REMOTE`, поставить cron `0 3 * * *`, провести одно учебное восстановление.
