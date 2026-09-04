@@ -12,6 +12,7 @@ public sealed class EmailOptions
     public string Username { get; init; } = string.Empty;
     public string Password { get; init; } = string.Empty;
     public string From { get; init; } = "no-reply@kasanie.local";
+    public string FromName { get; init; } = "Касание";
     public bool UseSsl { get; init; } = true;
 }
 
@@ -35,7 +36,9 @@ public sealed class TransactionalEmailSender(IOptions<EmailOptions> options, IWe
             throw new InvalidOperationException("SMTP_HOST must be configured outside Development.");
 
         var message = new MimeMessage();
-        message.From.Add(MailboxAddress.Parse(settings.From));
+        message.From.Add(string.IsNullOrWhiteSpace(settings.FromName)
+            ? MailboxAddress.Parse(settings.From)
+            : new MailboxAddress(settings.FromName, settings.From));
         message.To.Add(MailboxAddress.Parse(recipient));
         message.Subject = subject;
         message.Body = new BodyBuilder { HtmlBody = htmlBody, TextBody = textBody }.ToMessageBody();
