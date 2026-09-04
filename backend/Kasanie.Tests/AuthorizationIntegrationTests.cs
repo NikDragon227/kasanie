@@ -828,6 +828,42 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task RegisterOrganizer_SucceedsEvenWhenConfirmationEmailFails()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var customFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ITransactionalEmailSender>();
+            services.AddSingleton<ITransactionalEmailSender, ThrowingEmailSender>();
+        }));
+        await using (var seedScope = customFactory.Services.CreateAsyncScope())
+        {
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            seedDb.Municipalities.Add(new Municipality { Id = 51, Name = "Самара", Region = "Самарская область" });
+            await seedDb.SaveChangesAsync();
+        }
+        using var client = customFactory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-organizer", new
+        {
+            email = "organizer-email-down@example.test",
+            password = "Organizer-2026!",
+            dateOfBirth = "1988-03-04",
+            displayName = "Организатор без письма",
+            city = "Самара"
+        }, null, null, csrf));
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created, $"Expected 201 despite email failure, got {(int)response.StatusCode}: {responseBody}");
+        await using var scope = customFactory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await users.FindByEmailAsync("organizer-email-down@example.test");
+        Assert.NotNull(user);
+        Assert.True(await users.IsInRoleAsync(user!, Roles.Organizer));
+    }
+
+    [Fact]
     public async Task Minor_CannotRegisterAsPublicOrganizer()
     {
         await using var factory = new TestApplicationFactory();
@@ -1363,6 +1399,12 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
 internal sealed class TestEmailSender : ITransactionalEmailSender
 {
     public Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+internal sealed class ThrowingEmailSender : ITransactionalEmailSender
+{
+    public Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException("SMTP provider rejected the recipient (5.1.10).");
 }
 
 internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text;
 
 namespace Kasanie.Api.Endpoints;
@@ -22,7 +23,7 @@ public static partial class EndpointMapping
             return Results.Ok(new { token = tokens.RequestToken });
         }).AllowAnonymous();
 
-        auth.MapPost("/register", async (RegisterRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        auth.MapPost("/register", async (RegisterRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory) =>
         {
             var errors = Validation.Register(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -39,11 +40,11 @@ public static partial class EndpointMapping
             });
             await db.SaveChangesAsync();
             await audit.WriteAsync(user.Id, "registration", nameof(ApplicationUser), user.Id);
-            await SendConfirmationAsync(user, users, emailSender, configuration);
+            await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
 
-        auth.MapPost("/register-organizer", async (RegisterOrganizerRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        auth.MapPost("/register-organizer", async (RegisterOrganizerRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory) =>
         {
             if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
             var errors = Validation.RegisterOrganizer(request);
@@ -73,11 +74,11 @@ public static partial class EndpointMapping
             });
             await db.SaveChangesAsync();
             await audit.WriteAsync(user.Id, "organizer_registration", nameof(ApplicationUser), user.Id);
-            await SendConfirmationAsync(user, users, emailSender, configuration);
+            await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт организатора создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
 
-        auth.MapPost("/register-portal-user", async (RegisterPortalUserRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        auth.MapPost("/register-portal-user", async (RegisterPortalUserRequest request, UserManager<ApplicationUser> users, AppDbContext db, IAuditService audit, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory) =>
         {
             var errors = Validation.RegisterPortalUser(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -102,7 +103,7 @@ public static partial class EndpointMapping
 
             await db.SaveChangesAsync();
             await audit.WriteAsync(user.Id, request.Role == Roles.Coach ? "coach_registration" : "parent_registration", nameof(ApplicationUser), user.Id);
-            await SendConfirmationAsync(user, users, emailSender, configuration);
+            await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
 
@@ -125,10 +126,10 @@ public static partial class EndpointMapping
             return Results.Ok(new UserDto(user.Id, user.Email!, roleList.ToArray()));
         }).RequireRateLimiting("login");
 
-        auth.MapPost("/resend-confirmation", async (EmailRequest request, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        auth.MapPost("/resend-confirmation", async (EmailRequest request, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory) =>
         {
             var user = await users.FindByEmailAsync(request.Email.Trim());
-            if (user is not null && !user.EmailConfirmed) await SendConfirmationAsync(user, users, emailSender, configuration);
+            if (user is not null && !user.EmailConfirmed) await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Ok(new { message = "Если аккаунт ожидает подтверждения, письмо отправлено." });
         }).RequireRateLimiting("login");
 
@@ -142,7 +143,7 @@ public static partial class EndpointMapping
             return Results.Ok(new { message = "Email подтверждён. Теперь можно войти." });
         }).RequireRateLimiting("login");
 
-        auth.MapPost("/forgot-password", async (EmailRequest request, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration) =>
+        auth.MapPost("/forgot-password", async (EmailRequest request, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory) =>
         {
             var user = await users.FindByEmailAsync(request.Email.Trim());
             if (user is not null && user.EmailConfirmed)
@@ -150,7 +151,7 @@ public static partial class EndpointMapping
                 var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(user));
                 var url = BuildUrl(configuration, $"/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}");
                 var (subject, html, text) = EmailTemplates.PasswordReset(url);
-                await emailSender.SendAsync(user.Email!, subject, html, text);
+                await TrySendAsync(emailSender, loggerFactory, user.Email!, subject, html, text);
             }
             return Results.Ok(new { message = "Если такой подтверждённый аккаунт существует, письмо отправлено." });
         }).RequireRateLimiting("login");
@@ -219,12 +220,28 @@ public static partial class EndpointMapping
         }).AllowAnonymous();
     }
 
-    private static async Task SendConfirmationAsync(ApplicationUser user, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration)
+    private static async Task SendConfirmationAsync(ApplicationUser user, UserManager<ApplicationUser> users, ITransactionalEmailSender emailSender, IConfiguration configuration, ILoggerFactory loggerFactory)
     {
         var token = EncodeToken(await users.GenerateEmailConfirmationTokenAsync(user));
         var url = BuildUrl(configuration, $"/confirm-email?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}");
         var (subject, html, text) = EmailTemplates.ConfirmEmail(url);
-        await emailSender.SendAsync(user.Email!, subject, html, text);
+        await TrySendAsync(emailSender, loggerFactory, user.Email!, subject, html, text);
+    }
+
+    // Письмо-подтверждение/сброс не должно ронять запрос: аккаунт уже создан, а
+    // недоставку (например, адрес в списке подавления SMTP-провайдера) видно в трекере ошибок.
+    // Пользователь запросит письмо повторно через /resend-confirmation или /forgot-password.
+    private static async Task TrySendAsync(ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory, string recipient, string subject, string html, string text)
+    {
+        try
+        {
+            await emailSender.SendAsync(recipient, subject, html, text);
+        }
+        catch (Exception ex)
+        {
+            loggerFactory.CreateLogger("Kasanie.Api.Auth.Email")
+                .LogError(ex, "Не удалось отправить письмо на {Recipient}: {Subject}", recipient, subject);
+        }
     }
 
     private static string BuildUrl(IConfiguration configuration, string path) => $"{configuration["App:PublicUrl"]?.TrimEnd('/') ?? "http://localhost"}{path}";
