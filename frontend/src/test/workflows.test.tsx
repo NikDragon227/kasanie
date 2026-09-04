@@ -178,6 +178,33 @@ describe('critical workflows', () => {
     expect(screen.getByText('Показываем активности в радиусе 10 км от выбранной точки.')).toBeInTheDocument()
   })
 
+  it('loads every sport by default and can return to all sports', async () => {
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      requested.push(String(input))
+      if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'hockey', name: 'Хоккей' }])
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 0, items: [] })
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Доступные активности' })
+
+    await waitFor(() => expect(requested.some(url => url.startsWith('/api/public/activities'))).toBe(true))
+    expect(requested.some(url => url.startsWith('/api/public/activities') && url.includes('sport='))).toBe(false)
+    expect(screen.getByRole('combobox', { name: 'Спорт' })).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'Все виды спорта' })).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.some(url => url.includes('sport=hockey'))).toBe(true))
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), '')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).not.toContain('sport='))
+  })
+
   it('filters by the selected sport game format and persists sorting in the URL', async () => {
     const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {

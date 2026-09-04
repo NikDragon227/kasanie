@@ -408,14 +408,14 @@ export function SportsNearbyPage() {
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null)
   const cityParam = params.get('city') ?? ''
   const [selectedCity, setSelectedCity] = useState(cityParam)
-  const sportParam = params.get('sport') ?? 'football'
+  const sportParam = params.get('sport') ?? ''
   const [selectedSearchSport, setSelectedSearchSport] = useState(sportParam)
   const query = params.toString()
 
   useEffect(() => { void api<Sport[]>('/api/public/sports').then(setSports).catch(() => setSports(fallbackSports)) }, [])
   useEffect(() => {
     setError('')
-    void api<SearchResult>(`/api/public/activities${query ? `?${query}` : '?sport=football'}`).then(setResult).catch(error => {
+    void api<SearchResult>(`/api/public/activities${query ? `?${query}` : ''}`).then(setResult).catch(error => {
       setError(error instanceof ApiError && error.status === 404
         ? 'Поиск активностей временно недоступен. Попробуйте обновить страницу позже.'
         : error instanceof Error ? error.message : 'Не удалось загрузить события.')
@@ -510,7 +510,7 @@ export function SportsNearbyPage() {
     return `/sports${next.size ? `?${next}` : ''}`
   }
   const districtOptions = russianCityDistricts[selectedCity.trim()] ?? []
-  const selectedSportName = sports.find(sport => sport.slug === (params.get('sport') ?? 'football'))?.name ?? 'Спорт'
+  const selectedSportName = sports.find(sport => sport.slug === params.get('sport'))?.name ?? 'Все виды спорта'
   const changeSort = (value: string) => {
     const next = new URLSearchParams(params)
     if (value && value !== 'recommended') next.set('sort', value); else next.delete('sort')
@@ -525,7 +525,7 @@ export function SportsNearbyPage() {
         <label><b>Район</b><input name="district" list="nearby-districts" defaultValue={params.get('district') ?? ''} placeholder={districtOptions.length ? 'Выберите район' : 'Любой район'} /><datalist id="nearby-districts">{districtOptions.map(district => <option key={district} value={district} />)}</datalist></label>
         <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? ''} /></label>
         <label><b>Время</b><input name="time" type="time" defaultValue={params.get('time') ?? ''} /></label>
-        <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
+        <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
         <label><b>Формат игры</b><select key={selectedSearchSport} name="gameFormat" defaultValue={availableSearchGameFormats.some(option => option.value === params.get('gameFormat')) ? params.get('gameFormat') ?? '' : ''}><option value="">Любой формат</option>{availableSearchGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>
         <label className="nearby-format"><b>Тип активности</b><select name="type" defaultValue={params.get('type') ?? ''}><option value="">Все типы</option><option value="Game">Поиграть вечером</option><option value="GroupTraining">Совместная тренировка</option><option value="CoachTraining">Тренировка с тренером</option><option value="PlayerRecruitment">Ищу команду</option><option value="Tournament">Участие в турнире</option></select></label>
         <button className="nearby-search-button" aria-label="Найти события"><span>⌕</span><b>Найти</b></button>
@@ -539,7 +539,7 @@ export function SportsNearbyPage() {
       </div>}
       <nav className="nearby-categories" aria-label="Быстрый выбор формата">{formatLinks.map(item => <Link key={item.label} className={`format-${item.icon} ${(params.get('type') ?? '') === item.value ? 'active' : ''}`} to={linkForFormat(item.value)}><span className="format-icon"><FormatIcon type={item.icon} /></span><b>{item.label}</b></Link>)}</nav>
     </section>
-    <section className="nearby-results"><div className="nearby-results-head"><div><span className="eyebrow">{selectedSportName} рядом</span><h2>Доступные активности</h2><p>{result ? `${result.total} ${pluralRu(result.total, ['вариант', 'варианта', 'вариантов'])} по выбранным фильтрам` : 'Подбираем варианты рядом'}</p></div><div className="nearby-results-actions"><label className="nearby-sort">Сначала<select aria-label="Сортировка результатов" value={params.get('sort') ?? 'recommended'} onChange={event => changeSort(event.target.value)}><option value="recommended">Рекомендованные</option><option value="distance" disabled={!params.has('latitude')}>Ближайшие</option><option value="date">По дате</option><option value="availability">Больше свободных мест</option><option value="price">Сначала дешевле</option></select></label><Link className="button" to="/register-organizer">+ Стать организатором</Link></div></div>
+    <section className="nearby-results"><div className="nearby-results-head"><div><span className="eyebrow">{params.get('sport') ? `${selectedSportName} рядом` : 'Активности рядом'}</span><h2>Доступные активности</h2><p>{result ? `${result.total} ${pluralRu(result.total, ['вариант', 'варианта', 'вариантов'])} по выбранным фильтрам` : 'Подбираем варианты рядом'}</p></div><div className="nearby-results-actions"><label className="nearby-sort">Сначала<select aria-label="Сортировка результатов" value={params.get('sort') ?? 'recommended'} onChange={event => changeSort(event.target.value)}><option value="recommended">Рекомендованные</option><option value="distance" disabled={!params.has('latitude')}>Ближайшие</option><option value="date">По дате</option><option value="availability">Больше свободных мест</option><option value="price">Сначала дешевле</option></select></label><Link className="button" to="/register-organizer">+ Стать организатором</Link></div></div>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="nearby-results-grid"><div className="activity-list">{result?.items.map(({ activity, distanceKm }) => <ActivityCard key={activity.id} activity={activity} distanceKm={distanceKm} selected={selectedActivityId === activity.id} onSelect={setSelectedActivityId} />)}{result && result.total === 0 && <div className="nearby-empty"><b>Пока ничего не найдено</b><p>Попробуйте выбрать другой день, район или формат.</p></div>}</div><YandexActivitiesMap items={mapItems} selectedActivityId={selectedActivityId} onSelect={selectFromMap} onSearchArea={searchMapArea} /></div>
     </section>
