@@ -17,17 +17,17 @@ public sealed class EmailOptions
 
 public interface ITransactionalEmailSender
 {
-    Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default);
+    Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default);
 }
 
 public sealed class TransactionalEmailSender(IOptions<EmailOptions> options, IWebHostEnvironment environment, ILogger<TransactionalEmailSender> logger) : ITransactionalEmailSender
 {
-    public async Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default)
+    public async Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default)
     {
         var settings = options.Value;
         if (environment.IsDevelopment() && string.IsNullOrWhiteSpace(settings.Host))
         {
-            logger.LogInformation("Development email to {Recipient}: {Subject}\n{Body}", recipient, subject, body);
+            logger.LogInformation("Development email to {Recipient}: {Subject}\n{Body}", recipient, subject, textBody);
             return;
         }
 
@@ -38,7 +38,7 @@ public sealed class TransactionalEmailSender(IOptions<EmailOptions> options, IWe
         message.From.Add(MailboxAddress.Parse(settings.From));
         message.To.Add(MailboxAddress.Parse(recipient));
         message.Subject = subject;
-        message.Body = new TextPart("plain") { Text = body };
+        message.Body = new BodyBuilder { HtmlBody = htmlBody, TextBody = textBody }.ToMessageBody();
 
         // 465 — implicit TLS; 587/иные — STARTTLS (обязателен, если UseSsl). System.Net.Mail.SmtpClient
         // договаривался о STARTTLS ненадёжно и мог уйти в отправку без AUTH — MailKit делает это корректно.

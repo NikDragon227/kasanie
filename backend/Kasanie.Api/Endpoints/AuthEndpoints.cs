@@ -149,7 +149,8 @@ public static partial class EndpointMapping
             {
                 var token = EncodeToken(await users.GeneratePasswordResetTokenAsync(user));
                 var url = BuildUrl(configuration, $"/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}");
-                await emailSender.SendAsync(user.Email!, "Восстановление пароля — Касание", $"Откройте ссылку, чтобы задать новый пароль:\n{url}");
+                var (subject, html, text) = EmailTemplates.PasswordReset(url);
+                await emailSender.SendAsync(user.Email!, subject, html, text);
             }
             return Results.Ok(new { message = "Если такой подтверждённый аккаунт существует, письмо отправлено." });
         }).RequireRateLimiting("login");
@@ -222,7 +223,8 @@ public static partial class EndpointMapping
     {
         var token = EncodeToken(await users.GenerateEmailConfirmationTokenAsync(user));
         var url = BuildUrl(configuration, $"/confirm-email?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}");
-        await emailSender.SendAsync(user.Email!, "Подтвердите email — Касание", $"Откройте ссылку, чтобы подтвердить email:\n{url}");
+        var (subject, html, text) = EmailTemplates.ConfirmEmail(url);
+        await emailSender.SendAsync(user.Email!, subject, html, text);
     }
 
     private static string BuildUrl(IConfiguration configuration, string path) => $"{configuration["App:PublicUrl"]?.TrimEnd('/') ?? "http://localhost"}{path}";

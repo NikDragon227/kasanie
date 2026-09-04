@@ -24,10 +24,14 @@
 
 ### 1A. Фундамент (нужен публичному продукту в любом случае)
 
-- [~] SMTP — выбран **Unisender Go, тариф «Стартовый 6К»** (6000 писем/мес; бесплатно 2 месяца, далее 800 ₽/мес). Тариф активирован, API-ключ создан.
-  **Заблокировано:** домен в Unisender Go не подтверждён — reg.ru не публикует зону. DKIM и `_dmarc` CNAME доехали, а новый SPF (`include:spf.unisender.ru`), `unisender-go-validate-hash` TXT и `NS email` — нет; SOA serial завис на несколько часов, `MX emx.mail.ru`/`mailru-domain` не удалились.
-  Дальше: тикет в поддержку reg.ru («зона не публикуется, serial не меняется») либо перенос зоны на Cloudflare. После верификации → SMTP-данные (host `smtp.go1.unisender.ru:587`, логин = email аккаунта, пароль = API-ключ) в прод `.env`, `SMTP_FROM=noreply@prokasanie.ru`, тест на Gmail.
-  (VK WorkSpace и обычный ящик Яндекса рассматривались и отпали: платный тариф / нежелание светить `@yandex.ru`.)
+- [x] SMTP — **работает на проде** через **Unisender Go «Стартовый 6К»** (6000 писем/мес; бесплатно до ~3 нояб. 2026, далее 800 ₽/мес).
+  DNS в reg.ru: SPF `include:spf.unisender.ru`, DKIM `gokey._domainkey`, `_dmarc` CNAME, `NS email` — опубликованы (reg.ru тормозил, помог «пинок» правкой TTL).
+  Отправка переведена с `System.Net.Mail.SmtpClient` (криво договаривался о STARTTLS → `5.7.1`) на **MailKit 4.17.0** (`Infrastructure/EmailSender.cs`).
+  Unisender Go SMTP: host `smtp.go2.unisender.ru:587`, логин = **числовой ID аккаунта** (не email), пароль = API-ключ, `SMTP_FROM=no-reply@prokasanie.ru`. Прод `.env` правит владелец на VPS.
+  Письма брендированы (`Infrastructure/EmailTemplates.cs`): HTML + текстовый fallback, шапка «КАСАНИЕ», кнопка. Пока 2 шаблона — подтверждение email и сброс пароля.
+  Проверено: `/forgot-password` → письмо дошло на Gmail, ссылка сработала, пароль сменился.
+- [ ] Проверить заголовки письма на Gmail: `spf=pass`, `dkim=pass`, `dmarc=pass`; убедиться, что не в «Спам».
+- [ ] Приём почты на `hello@prokasanie.ru` (для ответов/поддержки) — форвардинг на рабочий ящик или доменный ящик; обновить `mailto:` в футере, снять TODO.
 - [x] `scripts/deploy.sh`: `up -d --force-recreate api web` + `docker image prune -f` + проверка `/health/ready` — сделано.
 - [x] GitHub Actions (`.github/workflows/ci.yml`): frontend lint + Vitest + build, backend xUnit на push в main и на PR — сделано.
 - [ ] Отдельный staging-контур (или хотя бы прогон на локальном compose перед деплоем)

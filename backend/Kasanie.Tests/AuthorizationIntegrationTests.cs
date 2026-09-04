@@ -1362,7 +1362,7 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
 
 internal sealed class TestEmailSender : ITransactionalEmailSender
 {
-    public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task SendAsync(string recipient, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
