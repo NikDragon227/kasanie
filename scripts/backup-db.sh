@@ -7,8 +7,11 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 # На проде: скопировать scripts/backup-db.env.example в ~/.kasanie-backup.env, chmod 600.
 BACKUP_ENV_FILE=${BACKUP_ENV_FILE:-"$HOME/.kasanie-backup.env"}
 if [ -f "$BACKUP_ENV_FILE" ]; then
+  # set -a: значения из env-файла попадают в окружение (openssl -pass env: читает оттуда).
+  set -a
   # shellcheck disable=SC1090
   . "$BACKUP_ENV_FILE"
+  set +a
 fi
 
 BACKUP_DIR=${BACKUP_DIR:-"$ROOT_DIR/backups"}

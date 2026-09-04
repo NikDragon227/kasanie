@@ -15,8 +15,11 @@ fi
 # env-файл (BACKUP_PASSPHRASE для .enc).
 BACKUP_ENV_FILE=${BACKUP_ENV_FILE:-"$HOME/.kasanie-backup.env"}
 if [ -f "$BACKUP_ENV_FILE" ]; then
+  # set -a: значения из env-файла попадают в окружение (openssl -pass env: читает оттуда).
+  set -a
   # shellcheck disable=SC1090
   . "$BACKUP_ENV_FILE"
+  set +a
 fi
 
 if [ -f "$BACKUP_FILE.sha256" ]; then
