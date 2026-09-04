@@ -358,7 +358,8 @@ describe('critical workflows', () => {
     await waitFor(() => expect(requests).toContain('DELETE /api/organizer/activities/1'))
     expect(await screen.findByText('Событий пока нет')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Выйти' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Меню профиля' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Выйти' }))
     expect(await screen.findByText('Экран входа')).toBeInTheDocument()
     expect(requests).toContain('POST /api/auth/logout')
   })

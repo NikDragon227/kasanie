@@ -31,15 +31,31 @@ small { color: var(--muted); }
 .nearby-header { position: sticky; z-index: 30; top: 0; min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 1rem max(1.25rem, calc((100vw - 1320px) / 2)); border-bottom: 1px solid #ffffff16; background: #071a1ff2; color: #fff; backdrop-filter: blur(18px); }
 .nearby-header nav { display: flex; align-items: center; gap: 1.5rem; color: #b5c6c4; font-size: .85rem; }
 .nearby-header .button.ghost { border-color: #ffffff2b; color: #fff; }
-.nearby-logout { padding: .6rem 0; border: 0; background: transparent; color: #b5c6c4; font: inherit; font-weight: 750; cursor: pointer; }
-.nearby-logout:hover { color: #fff; }
-.nearby-logout:disabled { opacity: .55; cursor: wait; }
+.nearby-account { position: relative; }
+.nearby-account-trigger { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border: 1px solid #ffffff26; border-radius: 999px; background: #ffffff10; color: #fff; font: inherit; cursor: pointer; transition: background .2s, border-color .2s; }
+.nearby-account-trigger:hover { background: #ffffff1c; border-color: #ffffff45; }
+.nearby-account-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #075fdf, #0b8bff); color: #fff; font-size: 13px; font-weight: 800; }
+.nearby-account-id { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; text-align: left; max-width: 190px; }
+.nearby-account-id small { color: #9fb0c4; font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.nearby-account-id b { max-width: 190px; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nearby-account-caret { color: #9fb0c4; font-size: 11px; }
+.nearby-account-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 40; min-width: 214px; display: flex; flex-direction: column; padding: 6px; border: 1px solid #ffffff1f; border-radius: 14px; background: #0b1c22; box-shadow: 0 22px 46px rgba(2, 10, 20, .55); }
+.nearby-account-menu a, .nearby-account-menu button { width: 100%; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; color: #d6dee8; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.nearby-account-menu a:hover, .nearby-account-menu button:hover { background: #ffffff14; color: #fff; }
+.nearby-account-signout { margin-top: 4px; border-top: 1px solid #ffffff16; border-radius: 0 0 9px 9px; color: #ff9b9b; font-weight: 700; }
+.nearby-account-signout:disabled { opacity: .55; cursor: wait; }
 .nearby-page > main { min-height: calc(100vh - 150px); }
 .search-discovery .nearby-header { min-height: 82px; border-bottom-color: #dfe2db; background: #fffdf9f2; color: var(--ink); }
 .search-discovery .nearby-header nav { color: #566765; }
 .search-discovery .nearby-header .button.ghost { border-color: #cdd5ce; background: #fff; color: var(--ink); }
-.search-discovery .nearby-logout { color: #566765; }
-.search-discovery .nearby-logout:hover { color: var(--ink); }
+.search-discovery .nearby-account-trigger { border-color: #cdd5ce; background: #fff; color: var(--ink); }
+.search-discovery .nearby-account-trigger:hover { background: #f2f3ec; }
+.search-discovery .nearby-account-id small { color: #6a7a78; }
+.search-discovery .nearby-account-caret { color: #6a7a78; }
+.search-discovery .nearby-account-menu { border-color: #dfe2db; background: #fff; box-shadow: 0 22px 46px rgba(40, 50, 40, .18); }
+.search-discovery .nearby-account-menu a, .search-discovery .nearby-account-menu button { color: #3a4a48; }
+.search-discovery .nearby-account-menu a:hover, .search-discovery .nearby-account-menu button:hover { background: #f0f1ec; color: var(--ink); }
+.search-discovery .nearby-account-signout { border-top-color: #e6e2d8; color: #c0392b; }
 .nearby-hero { position: relative; padding: 3.2rem max(1.25rem, calc((100vw - 1450px) / 2)) 1.25rem; border-bottom: 1px solid #dfe2db; background: #f8f6ef; }
 .nearby-hero-title { margin-bottom: 2rem; text-align: center; }
 .nearby-hero-title .eyebrow { color: #55706c; }
@@ -1112,6 +1128,8 @@ small { color: var(--muted); }
   .nearby-header nav { gap: 8px; }
   .nearby-header nav > a:not(.button) { display: none; }
   .nearby-header .button.ghost { min-height: 38px; padding-inline: 13px; }
+  .nearby-account-id { display: none; }
+  .nearby-account-trigger { padding: 5px; }
   .nearby-hero { padding-inline: 14px; }
   .nearby-hero h1 { font-size: clamp(2.55rem, 13vw, 4rem); }
   .nearby-search { border-radius: 16px; }

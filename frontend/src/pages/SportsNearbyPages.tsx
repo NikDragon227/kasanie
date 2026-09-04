@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEven
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, api, post, put, remove } from '../api'
 import { useAuth } from '../auth'
+import { primaryRole, roleHome, roleLabel } from '../components'
 import { CityInput } from '../CityInput'
 
 type Venue = { id: number; slug: string; name: string; city: string; district?: string; address: string; latitude: number; longitude: number; indoor: boolean; isVerified: boolean }
@@ -185,14 +186,45 @@ function distanceKm(first: Coordinates, second: Coordinates) {
 function PublicHeader() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
   const isOrganizer = user?.roles.includes('Organizer') ?? false
+  const role = primaryRole(user?.roles ?? [])
+  const cabinetPath = roleHome[role] ?? '/my/activities'
+
+  useEffect(() => { setMenuOpen(false) }, [location.pathname])
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: PointerEvent) => { if (!accountRef.current?.contains(event.target as Node)) setMenuOpen(false) }
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown) }
+  }, [menuOpen])
+
   const signOut = async () => {
     setLoggingOut(true)
     try { await logout(); navigate('/login', { replace: true }) }
     finally { setLoggingOut(false) }
   }
-  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to="/sports">Найти игру</Link>{user && <Link to="/my/activities">Мои активности</Link>}<Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{user ? <><Link className="button ghost" to={isOrganizer ? '/organizer/activities' : '/my/activities'}>{isOrganizer ? 'Мои события' : 'Мой список'}</Link><button type="button" className="nearby-logout" disabled={loggingOut} onClick={() => void signOut()}>{loggingOut ? 'Выходим…' : 'Выйти'}</button></> : <Link className="button ghost" to="/login">Войти</Link>}</nav></header>
+
+  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to="/sports">Найти игру</Link><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{user
+    ? <div className="nearby-account" ref={accountRef}>
+        <button type="button" className="nearby-account-trigger" aria-label="Меню профиля" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
+          <span className="nearby-account-avatar" aria-hidden>{user.email[0]?.toUpperCase() ?? '?'}</span>
+          <span className="nearby-account-id"><small>{roleLabel(role)}</small><b>{user.email}</b></span>
+          <span className="nearby-account-caret" aria-hidden>▾</span>
+        </button>
+        {menuOpen && <div className="nearby-account-menu" role="menu">
+          <Link role="menuitem" to={cabinetPath}>Мой кабинет</Link>
+          <Link role="menuitem" to="/my/activities">Мои активности</Link>
+          <Link role="menuitem" to="/account/security">Безопасность</Link>
+          <button type="button" role="menuitem" className="nearby-account-signout" disabled={loggingOut} onClick={() => void signOut()}>{loggingOut ? 'Выходим…' : 'Выйти'}</button>
+        </div>}
+      </div>
+    : <Link className="button ghost" to="/login">Войти</Link>}</nav></header>
 }
 
 function YandexActivitiesMap({ items, compact = false, selectedActivityId, onSelect, onSearchArea }: {
