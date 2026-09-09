@@ -437,6 +437,33 @@ describe('critical workflows', () => {
     expect(requests).toContain('POST /api/auth/logout')
   })
 
+  it('lets the organizer repeat an event with data pre-filled', async () => {
+    const requests: string[] = []
+    const source = { ...publicActivity, status: 'Completed', organizerParticipates: false, isCurrentUserOrganizer: true, rules: 'Приходите за 20 минут до начала.' }
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input); const method = init?.method ?? 'GET'; requests.push(`${method} ${url}`)
+      if (url === '/api/me') return json({ id: 'organizer-a', email: 'organizer@example.test', roles: ['Organizer'] })
+      if (url === '/api/auth/csrf') return json({ token: 'csrf' })
+      if (url === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }])
+      if (url === '/api/public/venues') return json([publicActivity.venue])
+      if (url === '/api/organizer/activities/' && method === 'POST') return json({ id: 42 })
+      if (url === '/api/organizer/activities/42/publish') return Promise.resolve(new Response(null, { status: 204 }))
+      if (url === '/api/organizer/activities/') return json([source])
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/organizer/activities']}><AuthProvider><Routes><Route path="/organizer/activities" element={<OrganizerActivitiesPage />} /></Routes></AuthProvider></MemoryRouter>)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Повторить' }))
+    expect(await screen.findByRole('heading', { name: 'Повторение события' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Футбол вечером')
+    expect(screen.getByRole('spinbutton', { name: 'За сколько минут приходить' })).toHaveValue(20)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Опубликовать активность' }))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/'))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/42/publish'))
+  })
+
   it('lets the organizer add a participant and inspect complaint badges', async () => {
     const requests: string[] = []
     const pastActivity = { ...publicActivity, startAt: '2020-01-01T18:00:00Z', endAt: '2020-01-01T20:00:00Z', status: 'Published', organizerParticipates: false, isCurrentUserOrganizer: true }
