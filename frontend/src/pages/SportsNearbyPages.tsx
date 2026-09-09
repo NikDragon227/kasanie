@@ -476,6 +476,58 @@ export function OrganizerRegisterPage() {
   return <div className="nearby-page"><PublicHeader /><main className="organizer-signup">{done ? <section><span className="eyebrow">Почти готово</span><h1>Подтвердите email.</h1><p>Мы отправили ссылку. После подтверждения войдите и создайте первое событие.</p><Link className="button large" to="/login">Перейти ко входу</Link></section> : <section><div className="organizer-signup-copy"><h1>Создайте<br />активность.</h1></div><form className="organizer-signup-form" onSubmit={submit}><h2>Аккаунт организатора</h2><label>Как вас показывать участникам<input name="displayName" required maxLength={120} placeholder="Алексей или Команда на Московской" /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p>Уже есть аккаунт? <Link to="/login" state={{ from: '/organizer/activities' }}>Войти</Link></p></form></section>}</main></div>
 }
 
+type SavedFilter = { id: string; name: string; query: string }
+const SAVED_FILTERS_KEY = 'kasanie:sports:saved-filters'
+
+function readSavedFilters(): SavedFilter[] {
+  try {
+    const raw = localStorage.getItem(SAVED_FILTERS_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is SavedFilter => x && typeof x.id === 'string' && typeof x.name === 'string' && typeof x.query === 'string')
+      : []
+  } catch { return [] }
+}
+function writeSavedFilters(items: SavedFilter[]) {
+  try { localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(items.slice(0, 12))) } catch { /* storage unavailable */ }
+}
+
+function SavedFilters({ query, onApply }: { query: string; onApply: (query: string) => void }) {
+  const [items, setItems] = useState<SavedFilter[]>(() => readSavedFilters())
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+
+  const persist = (next: SavedFilter[]) => { const capped = next.slice(0, 12); setItems(capped); writeSavedFilters(capped) }
+  const alreadySaved = items.some(item => item.query === query)
+  const canSave = query.length > 0 && !alreadySaved
+
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = name.trim().slice(0, 40)
+    if (!trimmed || !canSave) return
+    persist([{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: trimmed, query }, ...items])
+    setName(''); setNaming(false)
+  }
+
+  if (items.length === 0 && query.length === 0) return null
+  return <div className="saved-filters">
+    <span className="saved-filters-label">Сохранённые фильтры</span>
+    <div className="saved-filters-chips">
+      {items.map(item => <span key={item.id} className="saved-filter-chip">
+        <button type="button" onClick={() => onApply(item.query)}>{item.name}</button>
+        <button type="button" className="saved-filter-remove" aria-label={`Удалить набор «${item.name}»`} onClick={() => persist(items.filter(x => x.id !== item.id))}>✕</button>
+      </span>)}
+      {naming
+        ? <form className="saved-filter-name" onSubmit={save}>
+            <input autoFocus maxLength={40} value={name} onChange={event => setName(event.target.value)} placeholder="Название набора" aria-label="Название набора фильтров" />
+            <button type="submit" className="button" disabled={name.trim().length === 0}>Сохранить</button>
+            <button type="button" className="button ghost" onClick={() => { setNaming(false); setName('') }}>Отмена</button>
+          </form>
+        : <button type="button" className="saved-filter-add" disabled={!canSave} onClick={() => setNaming(true)}>+ Сохранить фильтр</button>}
+    </div>
+  </div>
+}
+
 export function SportsNearbyPage() {
   const [params, setParams] = useSearchParams()
   const [result, setResult] = useState<SearchResult | null>(null)
@@ -601,6 +653,7 @@ export function SportsNearbyPage() {
     if (value && value !== 'recommended') next.set('sort', value); else next.delete('sort')
     setParams(next)
   }
+  const applySavedFilter = useCallback((saved: string) => setParams(new URLSearchParams(saved)), [setParams])
 
   return <div className="nearby-page search-discovery"><PublicHeader /><main>
     <section className="nearby-hero">
@@ -621,6 +674,7 @@ export function SportsNearbyPage() {
           <div className="nearby-checks"><label><input name="availableOnly" type="checkbox" defaultChecked={params.get('availableOnly') === 'true'} /> Есть места</label><label><input name="freeOnly" type="checkbox" defaultChecked={params.get('freeOnly') === 'true'} /> Бесплатно</label><label className="radius-control">Радиус<select name="radiusKm" defaultValue={params.get('radiusKm') ?? '10'}><option value="1">1 км</option><option value="3">3 км</option><option value="5">5 км</option><option value="10">10 км</option><option value="25">25 км</option></select></label></div>
         </div>}
       </form>
+      <SavedFilters query={query} onApply={applySavedFilter} />
       {params.has('latitude') && <p className="nearby-location-status">Показываем активности в радиусе {params.get('radiusKm') ?? '10'} км от выбранной точки.</p>}
       {geoError && <div className="form-error nearby-geo-error" role="alert">
         <span>{geoError}</span>{' '}

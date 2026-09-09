@@ -208,6 +208,47 @@ describe('critical workflows', () => {
     await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).not.toContain('sport='))
   })
 
+  it('lets a guest save a filter set and re-apply it later', async () => {
+    localStorage.clear()
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      requested.push(String(input))
+      if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'hockey', name: 'Хоккей' }])
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 0, items: [] })
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Доступные активности' })
+
+    // no saved sets and no active filters → block hidden
+    expect(screen.queryByText('Сохранённые фильтры')).not.toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.some(url => url.includes('sport=hockey'))).toBe(true))
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Сохранить фильтр' }))
+    await userEvent.type(screen.getByLabelText('Название набора фильтров'), 'Хоккей')
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    // persisted to localStorage
+    expect(JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)[0]).toMatchObject({ name: 'Хоккей', query: 'sport=hockey' })
+
+    // switch back to all sports, then re-apply the saved chip
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), '')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).not.toContain('sport='))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Хоккей' }))
+    await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).toContain('sport=hockey'))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Удалить набор «Хоккей»' }))
+    expect(screen.queryByRole('button', { name: 'Хоккей' })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)).toHaveLength(0)
+  })
+
   it('filters by the selected sport game format and persists sorting in the URL', async () => {
     const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
