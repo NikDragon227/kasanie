@@ -1089,6 +1089,19 @@ small { color: var(--muted); }
 .nearby-search .nearby-checks label { color: #a6b0bd; font-size: .8rem; }
 .nearby-search .nearby-checks input { accent-color: var(--nearby-blue); }
 .nearby-search .nearby-checks .radius-control select { border-color: var(--nearby-line); background: #0b1119; color: #e7ecf2; }
+.saved-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .7rem; width: min(100%, 960px); margin: .8rem auto 0; }
+.saved-filters-label { color: var(--nearby-blue-soft); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.saved-filters-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+.saved-filter-chip { display: inline-flex; align-items: center; border: 1px solid var(--nearby-line); border-radius: 999px; background: rgba(255, 255, 255, .04); overflow: hidden; }
+.saved-filter-chip > button:first-child { padding: .32rem .7rem; border: 0; background: transparent; color: #dfe5ed; font: inherit; font-size: .78rem; cursor: pointer; }
+.saved-filter-chip > button:first-child:hover { color: #fff; }
+.saved-filter-remove { padding: .32rem .5rem; border: 0; border-left: 1px solid var(--nearby-line); background: transparent; color: #8a95a5; font-size: .7rem; cursor: pointer; }
+.saved-filter-remove:hover { color: #fff; }
+.saved-filter-add { padding: .32rem .7rem; border: 1px dashed var(--nearby-line); border-radius: 999px; background: transparent; color: var(--nearby-blue-soft); font: inherit; font-size: .78rem; cursor: pointer; }
+.saved-filter-add:disabled { opacity: .4; cursor: default; }
+.saved-filter-name { display: inline-flex; flex-wrap: wrap; gap: .4rem; }
+.saved-filter-name input { padding: .32rem .6rem; border: 1px solid var(--nearby-line); border-radius: 999px; background: #0b1119; color: #e7ecf2; font: inherit; font-size: .78rem; }
+.saved-filter-name .button { padding: .32rem .8rem; font-size: .78rem; }
 .nearby-location-button { color: #69a8ff; font-size: .8rem; }
 .nearby-location-status { background: rgba(8, 119, 255, .12); color: #9ac5ff; }
 

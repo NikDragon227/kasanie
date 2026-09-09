@@ -208,6 +208,47 @@ describe('critical workflows', () => {
     await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).not.toContain('sport='))
   })
 
+  it('lets a guest save a filter set and re-apply it later', async () => {
+    localStorage.clear()
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      requested.push(String(input))
+      if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'hockey', name: 'Хоккей' }])
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 0, items: [] })
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Доступные активности' })
+
+    // no saved sets and no active filters → block hidden
+    expect(screen.queryByText('Сохранённые фильтры')).not.toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.some(url => url.includes('sport=hockey'))).toBe(true))
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Сохранить фильтр' }))
+    await userEvent.type(screen.getByLabelText('Название набора фильтров'), 'Хоккей')
+    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    // persisted to localStorage
+    expect(JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)[0]).toMatchObject({ name: 'Хоккей', query: 'sport=hockey' })
+
+    // switch back to all sports, then re-apply the saved chip
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), '')
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+    await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).not.toContain('sport='))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Хоккей' }))
+    await waitFor(() => expect(requested.filter(url => url.startsWith('/api/public/activities')).at(-1)).toContain('sport=hockey'))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Удалить набор «Хоккей»' }))
+    expect(screen.queryByRole('button', { name: 'Хоккей' })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)).toHaveLength(0)
+  })
+
   it('filters by the selected sport game format and persists sorting in the URL', async () => {
     const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
@@ -394,6 +435,33 @@ describe('critical workflows', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Выйти' }))
     expect(await screen.findByText('Экран входа')).toBeInTheDocument()
     expect(requests).toContain('POST /api/auth/logout')
+  })
+
+  it('lets the organizer repeat an event with data pre-filled', async () => {
+    const requests: string[] = []
+    const source = { ...publicActivity, status: 'Completed', organizerParticipates: false, isCurrentUserOrganizer: true, rules: 'Приходите за 20 минут до начала.' }
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input); const method = init?.method ?? 'GET'; requests.push(`${method} ${url}`)
+      if (url === '/api/me') return json({ id: 'organizer-a', email: 'organizer@example.test', roles: ['Organizer'] })
+      if (url === '/api/auth/csrf') return json({ token: 'csrf' })
+      if (url === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }])
+      if (url === '/api/public/venues') return json([publicActivity.venue])
+      if (url === '/api/organizer/activities/' && method === 'POST') return json({ id: 42 })
+      if (url === '/api/organizer/activities/42/publish') return Promise.resolve(new Response(null, { status: 204 }))
+      if (url === '/api/organizer/activities/') return json([source])
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/organizer/activities']}><AuthProvider><Routes><Route path="/organizer/activities" element={<OrganizerActivitiesPage />} /></Routes></AuthProvider></MemoryRouter>)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Повторить' }))
+    expect(await screen.findByRole('heading', { name: 'Повторение события' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Футбол вечером')
+    expect(screen.getByRole('spinbutton', { name: 'За сколько минут приходить' })).toHaveValue(20)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Опубликовать активность' }))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/'))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/42/publish'))
   })
 
   it('lets the organizer add a participant and inspect complaint badges', async () => {
