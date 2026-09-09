@@ -1141,6 +1141,409 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task WaitlistPromotion_EmailsPromotedRegisteredUserOnce()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var customFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ITransactionalEmailSender>();
+            services.AddSingleton<RecordingEmailSender>();
+            services.AddSingleton<ITransactionalEmailSender>(sp => sp.GetRequiredService<RecordingEmailSender>());
+        }));
+        await using (var seedScope = customFactory.Services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.Capacity = 1;
+            activity.WaitlistCapacity = 5;
+            activity.Status = PublicActivityStatus.Full;
+            db.Users.Add(new ApplicationUser { Id = "leaver-a", UserName = "leaver-a@example.test", Email = "leaver-a@example.test", EmailConfirmed = true });
+            db.Users.Add(new ApplicationUser { Id = "promoted-user", UserName = "promoted-user@example.test", Email = "promoted-user@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.AddRange(
+                new PublicActivityParticipant { Id = 30, PublicActivityId = 1, UserId = "leaver-a", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-4), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-4) },
+                new PublicActivityParticipant { Id = 31, PublicActivityId = 1, UserId = "promoted-user", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow.AddHours(-3) },
+                new PublicActivityParticipant { Id = 33, PublicActivityId = 1, GuestName = "PhoneGuest", GuestContact = "89201112233", GuestContactHash = "wl-phone-hash", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+            await db.SaveChangesAsync();
+        }
+        using var client = customFactory.CreateClient();
+        var sender = customFactory.Services.GetRequiredService<RecordingEmailSender>();
+
+        var csrf = await CsrfAsync(client, "leaver-a", Roles.Coach);
+        using var leave = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/activities/1/leave", new { }, "leaver-a", Roles.Coach, csrf));
+
+        Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
+        Assert.Single(sender.Sent);
+        Assert.Equal("promoted-user@example.test", sender.Sent[0].Recipient);
+        Assert.Contains("место", sender.Sent[0].Subject, StringComparison.OrdinalIgnoreCase);
+        await using var scope = customFactory.Services.CreateAsyncScope();
+        var verifyDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(PublicParticipantStatus.Confirmed, (await verifyDb.PublicActivityParticipants.SingleAsync(x => x.Id == 31)).Status);
+        Assert.Equal(PublicParticipantStatus.Waitlisted, (await verifyDb.PublicActivityParticipants.SingleAsync(x => x.Id == 33)).Status);
+    }
+
+    [Fact]
+    public async Task WaitlistPromotion_EmailsGuestWithEmailButSkipsPhoneOnlyGuest()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var customFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ITransactionalEmailSender>();
+            services.AddSingleton<RecordingEmailSender>();
+            services.AddSingleton<ITransactionalEmailSender>(sp => sp.GetRequiredService<RecordingEmailSender>());
+        }));
+        await using (var seedScope = customFactory.Services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.Capacity = 1;
+            activity.WaitlistCapacity = 5;
+            activity.Status = PublicActivityStatus.Full;
+            db.Users.Add(new ApplicationUser { Id = "holder-b", UserName = "holder-b@example.test", Email = "holder-b@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.AddRange(
+                new PublicActivityParticipant { Id = 34, PublicActivityId = 1, UserId = "holder-b", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-4), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-4) },
+                new PublicActivityParticipant { Id = 35, PublicActivityId = 1, GuestName = "EmailGuest", GuestContact = "wl-guest@example.test", GuestContactHash = "wl-guest-hash", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow.AddHours(-2) },
+                new PublicActivityParticipant { Id = 36, PublicActivityId = 1, GuestName = "PhoneGuest", GuestContact = "89201112233", GuestContactHash = "wl-phone-hash", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+            await db.SaveChangesAsync();
+        }
+        using var client = customFactory.CreateClient();
+        var sender = customFactory.Services.GetRequiredService<RecordingEmailSender>();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+
+        // Free the confirmed seat: promotes the oldest waitlisted (email guest) — one email.
+        using var removeHolder = await client.SendAsync(JsonRequest(HttpMethod.Delete, "/api/organizer/activities/1/participants/34", new { }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, removeHolder.StatusCode);
+        Assert.Single(sender.Sent);
+        Assert.Equal("wl-guest@example.test", sender.Sent[0].Recipient);
+
+        // Free it again: promotes the phone-only guest — promoted but not emailed.
+        using var removeGuest = await client.SendAsync(JsonRequest(HttpMethod.Delete, "/api/organizer/activities/1/participants/35", new { }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, removeGuest.StatusCode);
+        Assert.Single(sender.Sent);
+        await using var scope = customFactory.Services.CreateAsyncScope();
+        var verifyDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(PublicParticipantStatus.Confirmed, (await verifyDb.PublicActivityParticipants.SingleAsync(x => x.Id == 36)).Status);
+    }
+
+    [Fact]
+    public async Task WaitlistPromotion_EmailsOrganizerAddedParticipantWithEmailContact()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var customFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ITransactionalEmailSender>();
+            services.AddSingleton<RecordingEmailSender>();
+            services.AddSingleton<ITransactionalEmailSender>(sp => sp.GetRequiredService<RecordingEmailSender>());
+        }));
+        await using (var seedScope = customFactory.Services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            SeedPublicActivity(db, "organizer-a");
+            var a = db.PublicActivities.Local.Single();
+            a.Capacity = 1; a.WaitlistCapacity = 5; a.Status = PublicActivityStatus.Full;
+            db.Users.Add(new ApplicationUser { Id = "holder-c", UserName = "holder-c@example.test", Email = "holder-c@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { Id = 90, PublicActivityId = 1, UserId = "holder-c", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-2), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-2) });
+            await db.SaveChangesAsync();
+        }
+        using var client = customFactory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+        var sender = customFactory.Services.GetRequiredService<RecordingEmailSender>();
+
+        using var add = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Добавленный", contact = "added-with-email@example.test" }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+        Assert.Equal("Waitlisted", JsonDocument.Parse(await add.Content.ReadAsStringAsync()).RootElement.GetProperty("status").GetString());
+
+        using var remove = await client.SendAsync(JsonRequest(HttpMethod.Delete, "/api/organizer/activities/1/participants/90", new { }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.Single(sender.Sent);
+        Assert.Equal("added-with-email@example.test", sender.Sent[0].Recipient);
+    }
+
+    [Fact]
+    public async Task GuestJoin_PastCapacityGoesToWaitlistAndSurfacesStatus()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.Capacity = 1;
+            activity.WaitlistCapacity = 2;
+            db.Users.Add(new ApplicationUser { Id = "seat-taker", UserName = "seat-taker@example.test", Email = "seat-taker@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, UserId = "seat-taker", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-1), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+        });
+        using var guestClient = factory.CreateClient();
+        var guestCsrf = await CsrfAsync(guestClient);
+
+        var payload = new { name = "Гость", contact = "waitlist-guest@example.test", adultConfirmed = true };
+        using var join = await guestClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/public/activities/1/guest-join", payload, null, null, guestCsrf));
+        Assert.Equal(HttpStatusCode.OK, join.StatusCode);
+        using var joinJson = JsonDocument.Parse(await join.Content.ReadAsStringAsync());
+        Assert.Equal("Waitlisted", joinJson.RootElement.GetProperty("status").GetString());
+        var token = joinJson.RootElement.GetProperty("cancellationToken").GetString()!;
+
+        using var manage = await guestClient.GetAsync($"/api/public/guest-participations/{token}");
+        Assert.Equal(HttpStatusCode.OK, manage.StatusCode);
+        using var manageJson = JsonDocument.Parse(await manage.Content.ReadAsStringAsync());
+        Assert.Equal("Waitlisted", manageJson.RootElement.GetProperty("status").GetString());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var guest = await db.PublicActivityParticipants.SingleAsync(x => x.Source == "guest-web");
+        Assert.Equal(PublicParticipantStatus.Waitlisted, guest.Status);
+        Assert.Null(guest.ConfirmedAt);
+        Assert.Equal(PublicActivityStatus.Published, (await db.PublicActivities.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task GuestJoin_RejectedWhenWaitlistAlsoFull()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.Capacity = 1;
+            activity.WaitlistCapacity = 1;
+            db.Users.Add(new ApplicationUser { Id = "seat-taker-b", UserName = "seat-taker-b@example.test", Email = "seat-taker-b@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.AddRange(
+                new PublicActivityParticipant { PublicActivityId = 1, UserId = "seat-taker-b", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-2), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-2) },
+                new PublicActivityParticipant { PublicActivityId = 1, GuestName = "FirstWaiter", GuestContact = "first-waiter@example.test", GuestContactHash = "first-waiter-hash", Status = PublicParticipantStatus.Waitlisted, JoinedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+        });
+        using var guestClient = factory.CreateClient();
+        var guestCsrf = await CsrfAsync(guestClient);
+
+        var payload = new { name = "Опоздавший", contact = "late-guest@example.test", adultConfirmed = true };
+        using var join = await guestClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/public/activities/1/guest-join", payload, null, null, guestCsrf));
+
+        Assert.Equal(HttpStatusCode.Conflict, join.StatusCode);
+        Assert.Contains("листе ожидания", await join.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task GuestPromotedFromWaitlist_KeepsSameCancellationToken()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.Capacity = 1;
+            activity.WaitlistCapacity = 2;
+            activity.Status = PublicActivityStatus.Full;
+            db.Users.Add(new ApplicationUser { Id = "holder-a", UserName = "holder-a@example.test", Email = "holder-a@example.test", EmailConfirmed = true });
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { Id = 40, PublicActivityId = 1, UserId = "holder-a", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddHours(-2), ConfirmedAt = DateTimeOffset.UtcNow.AddHours(-2) });
+        });
+        using var guestClient = factory.CreateClient();
+        var guestCsrf = await CsrfAsync(guestClient);
+        var payload = new { name = "Очередь", contact = "queued-guest@example.test", adultConfirmed = true };
+        using var join = await guestClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/public/activities/1/guest-join", payload, null, null, guestCsrf));
+        Assert.Equal(HttpStatusCode.OK, join.StatusCode);
+        using var joinJson = JsonDocument.Parse(await join.Content.ReadAsStringAsync());
+        Assert.Equal("Waitlisted", joinJson.RootElement.GetProperty("status").GetString());
+        var token = joinJson.RootElement.GetProperty("cancellationToken").GetString()!;
+
+        string? tokenHashBefore;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            tokenHashBefore = (await db.PublicActivityParticipants.SingleAsync(x => x.Source == "guest-web")).GuestCancellationTokenHash;
+        }
+
+        using var holderClient = factory.CreateClient();
+        var holderCsrf = await CsrfAsync(holderClient, "holder-a", Roles.Coach);
+        using var leave = await holderClient.SendAsync(JsonRequest(HttpMethod.Post, "/api/activities/1/leave", new { }, "holder-a", Roles.Coach, holderCsrf));
+        Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
+
+        using var manage = await guestClient.GetAsync($"/api/public/guest-participations/{token}");
+        Assert.Equal(HttpStatusCode.OK, manage.StatusCode);
+        using var manageJson = JsonDocument.Parse(await manage.Content.ReadAsStringAsync());
+        Assert.Equal("Confirmed", manageJson.RootElement.GetProperty("status").GetString());
+
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var guest = await verifyDb.PublicActivityParticipants.SingleAsync(x => x.Source == "guest-web");
+        Assert.Equal(PublicParticipantStatus.Confirmed, guest.Status);
+        Assert.Equal(tokenHashBefore, guest.GuestCancellationTokenHash);
+    }
+
+    [Fact]
+    public async Task AddOrganizerParticipant_PlacesConfirmedThenWaitlistThenRejects()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var a = db.PublicActivities.Local.Single();
+            a.Capacity = 1; a.WaitlistCapacity = 1;
+        });
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+
+        using var first = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Пешеход Один", contact = "walkin-1@example.test" }, "organizer-a", Roles.Organizer, csrf));
+        using var second = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Пешеход Два", contact = "+7 920 000 00 02" }, "organizer-a", Roles.Organizer, csrf));
+        using var third = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Пешеход Три" }, "organizer-a", Roles.Organizer, csrf));
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal("Confirmed", JsonDocument.Parse(await first.Content.ReadAsStringAsync()).RootElement.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal("Waitlisted", JsonDocument.Parse(await second.Content.ReadAsStringAsync()).RootElement.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, third.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(2, await db.PublicActivityParticipants.CountAsync(x => x.Source == "organizer-added"));
+        Assert.True(await db.PublicActivities.AnyAsync(x => x.Id == 1 && x.Status == PublicActivityStatus.Full));
+    }
+
+    [Fact]
+    public async Task AddOrganizerParticipant_RejectsForNonOwnerAndDuplicateContact()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => SeedPublicActivity(db, "organizer-a"));
+        using var owner = factory.CreateClient();
+        var ownerCsrf = await CsrfAsync(owner, "organizer-a", Roles.Organizer);
+        using var stranger = factory.CreateClient();
+        var strangerCsrf = await CsrfAsync(stranger, "organizer-b", Roles.Organizer);
+
+        using var foreign = await stranger.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Чужой", contact = "x@example.test" }, "organizer-b", Roles.Organizer, strangerCsrf));
+        using var ok = await owner.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Первый", contact = "dup@example.test" }, "organizer-a", Roles.Organizer, ownerCsrf));
+        using var dup = await owner.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants",
+            new { name = "Второй", contact = "DUP@example.test" }, "organizer-a", Roles.Organizer, ownerCsrf));
+
+        Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+    }
+
+    [Fact]
+    public async Task ParticipantReport_PersistsAndDefaultsToActive()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            db.PublicActivityParticipantReports.Add(new PublicActivityParticipantReport
+            {
+                PublicActivityId = 1, AuthorOrganizerId = "organizer-a", SubjectUserId = "subject-x",
+                Reason = ParticipantReportReason.NoShow, Comment = "Не пришёл без предупреждения"
+            });
+        });
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var report = await db.PublicActivityParticipantReports.SingleAsync();
+        Assert.Equal(ParticipantReportStatus.Active, report.Status);
+        Assert.Equal("subject-x", report.SubjectUserId);
+        Assert.Null(report.SubjectGuestContactHash);
+    }
+
+    [Fact]
+    public async Task FileParticipantReport_OnlyAfterActivityEndsAndByOwner_ThenVisibleCrossActivity()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a"); // activity 1, StartAt +2d (future)
+            db.PublicActivities.Add(new PublicActivity
+            {
+                Id = 2, Slug = "past-football", SportId = 1, SportsVenueId = 1, OrganizerId = "organizer-b",
+                EventType = PublicActivityType.Game, Title = "Прошедшая игра", Description = "x",
+                StartAt = DateTimeOffset.UtcNow.AddDays(-2), EndAt = DateTimeOffset.UtcNow.AddDays(-2).AddHours(2),
+                Capacity = 10, Status = PublicActivityStatus.Published, PublishedAt = DateTimeOffset.UtcNow.AddDays(-5)
+            });
+            db.PublicActivityParticipants.AddRange(
+                new PublicActivityParticipant { Id = 70, PublicActivityId = 1, UserId = "player-x", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow },
+                new PublicActivityParticipant { Id = 71, PublicActivityId = 2, UserId = "player-x", Status = PublicParticipantStatus.Attended, JoinedAt = DateTimeOffset.UtcNow.AddDays(-3) });
+        });
+        using var orgA = factory.CreateClient();
+        var csrfA = await CsrfAsync(orgA, "organizer-a", Roles.Organizer);
+        using var orgB = factory.CreateClient();
+        var csrfB = await CsrfAsync(orgB, "organizer-b", Roles.Organizer);
+
+        using var tooEarly = await orgA.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants/70/reports",
+            new { reason = "NoShow", comment = "Не пришёл" }, "organizer-a", Roles.Organizer, csrfA));
+        Assert.Equal(HttpStatusCode.Conflict, tooEarly.StatusCode);
+
+        using var filed = await orgB.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/2/participants/71/reports",
+            new { reason = "AggressiveOrConflict", comment = "Конфликт с соперником" }, "organizer-b", Roles.Organizer, csrfB));
+        Assert.Equal(HttpStatusCode.Created, filed.StatusCode);
+
+        using var foreignFile = await orgA.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/2/participants/71/reports",
+            new { reason = "Other", comment = "нет" }, "organizer-a", Roles.Organizer, csrfA));
+        Assert.Equal(HttpStatusCode.Forbidden, foreignFile.StatusCode);
+
+        using var list = await orgA.SendAsync(Get("/api/organizer/activities/1/participants/70/reports", "organizer-a", Roles.Organizer));
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        using var listJson = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        Assert.Equal(1, listJson.RootElement.GetArrayLength());
+        Assert.False(listJson.RootElement[0].GetProperty("isMine").GetBoolean());
+        Assert.Equal("Прошедшая игра", listJson.RootElement[0].GetProperty("sourceActivityTitle").GetString());
+    }
+
+    [Fact]
+    public async Task RetractParticipantReport_RemovesItFromListAndAllowsRefile()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var a = db.PublicActivities.Local.Single();
+            a.StartAt = DateTimeOffset.UtcNow.AddDays(-1);
+            a.EndAt = DateTimeOffset.UtcNow.AddHours(-2);
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { Id = 72, PublicActivityId = 1, UserId = "player-y", Status = PublicParticipantStatus.Attended, JoinedAt = DateTimeOffset.UtcNow.AddDays(-2) });
+        });
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+
+        using var filed = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants/72/reports",
+            new { reason = "NoShow", comment = "Отменил в последний момент" }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.Created, filed.StatusCode);
+        var reportId = JsonDocument.Parse(await filed.Content.ReadAsStringAsync()).RootElement.GetProperty("reportId").GetInt64();
+
+        using var dup = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants/72/reports",
+            new { reason = "Other", comment = "ещё раз" }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+
+        using var retract = await client.SendAsync(JsonRequest(HttpMethod.Delete, $"/api/organizer/activities/1/reports/{reportId}",
+            new { }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.NoContent, retract.StatusCode);
+
+        using var list = await client.SendAsync(Get("/api/organizer/activities/1/participants/72/reports", "organizer-a", Roles.Organizer));
+        Assert.Equal(0, JsonDocument.Parse(await list.Content.ReadAsStringAsync()).RootElement.GetArrayLength());
+
+        using var refile = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/organizer/activities/1/participants/72/reports",
+            new { reason = "LateArrival", comment = "Опоздал на час" }, "organizer-a", Roles.Organizer, csrf));
+        Assert.Equal(HttpStatusCode.Created, refile.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganizerParticipants_ShowCrossOrganizerReportBadge()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            db.PublicActivityParticipants.Add(new PublicActivityParticipant { Id = 80, PublicActivityId = 1, UserId = "flagged-user", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow });
+            db.PublicActivityParticipantReports.AddRange(
+                new PublicActivityParticipantReport { PublicActivityId = 1, AuthorOrganizerId = "organizer-b", SubjectUserId = "flagged-user", Reason = ParticipantReportReason.NoShow, Comment = "не пришёл" },
+                new PublicActivityParticipantReport { PublicActivityId = 1, AuthorOrganizerId = "organizer-c", SubjectUserId = "flagged-user", Reason = ParticipantReportReason.UnsafePlay, Comment = "жёстко играл", Status = ParticipantReportStatus.Retracted });
+        });
+        using var client = factory.CreateClient();
+        using var list = await client.SendAsync(Get("/api/organizer/activities/1/participants", "organizer-a", Roles.Organizer));
+        using var json = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        var row = json.RootElement.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("id").GetInt64() == 80);
+        Assert.Equal(1, row.GetProperty("reportCount").GetInt32());
+        Assert.False(row.GetProperty("viewerHasReported").GetBoolean());
+    }
+
+    [Fact]
     public async Task PublicActivity_PreventsOrganizerIdorAndAllowsAdultJoin()
     {
         await using var factory = new TestApplicationFactory();

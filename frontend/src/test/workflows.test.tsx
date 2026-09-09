@@ -396,6 +396,46 @@ describe('critical workflows', () => {
     expect(requests).toContain('POST /api/auth/logout')
   })
 
+  it('lets the organizer add a participant and inspect complaint badges', async () => {
+    const requests: string[] = []
+    const pastActivity = { ...publicActivity, startAt: '2020-01-01T18:00:00Z', endAt: '2020-01-01T20:00:00Z', status: 'Published', organizerParticipates: false, isCurrentUserOrganizer: true }
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input); const method = init?.method ?? 'GET'; requests.push(`${method} ${url}`)
+      if (url === '/api/me') return json({ id: 'organizer-a', email: 'organizer@example.test', roles: ['Organizer'] })
+      if (url === '/api/auth/csrf') return json({ token: 'csrf' })
+      if (url === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }])
+      if (url === '/api/public/venues') return json([publicActivity.venue])
+      if (url === '/api/organizer/activities/') return json([pastActivity])
+      if (url === '/api/organizer/activities/1/participants' && method === 'GET') return json({
+        activityId: 1, capacity: 12, confirmedCount: 1, waitlistedCount: 0, cancelledCount: 0,
+        items: [{ id: 80, displayName: 'Игрок Икс', contact: null, status: 'Confirmed', joinedAt: '2020-01-01T10:00:00Z', reportCount: 1, viewerHasReported: false }]
+      })
+      if (url === '/api/organizer/activities/1/participants' && method === 'POST') return json({ participantId: 99, status: 'Confirmed' })
+      if (url === '/api/organizer/activities/1/participants/80/reports' && method === 'POST') return json({ reportId: 7 }, 201)
+      if (url === '/api/organizer/activities/1/participants/80/reports') return json([
+        { reportId: 5, reason: 'NoShow', comment: 'не пришёл на игру', createdAt: '2020-01-02T10:00:00Z', isMine: false, sourceActivityTitle: 'Прошлая игра' }
+      ])
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/organizer/activities']}><AuthProvider><Routes><Route path="/organizer/activities" element={<OrganizerActivitiesPage />} /></Routes></AuthProvider></MemoryRouter>)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Участники' }))
+    expect(await screen.findByText('Игрок Икс')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /! 1/ }))
+    expect(await screen.findByText('не пришёл на игру')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Пожаловаться' }))
+    await userEvent.type(screen.getByPlaceholderText('Что произошло'), 'опоздал на 40 минут')
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить жалобу' }))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/1/participants/80/reports'))
+
+    await userEvent.type(screen.getByPlaceholderText('Имя участника'), 'Новый Гость')
+    await userEvent.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/1/participants'))
+  })
+
   it('persists exercise marks and completes a workout', async () => {
     const requests: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {

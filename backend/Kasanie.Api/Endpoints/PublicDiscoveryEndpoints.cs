@@ -119,10 +119,13 @@ public static partial class EndpointMapping
         organizerApi.MapPost("/{id:int}/cancel", CancelPublicActivityAsync);
         organizerApi.MapDelete("/{id:int}", DeletePublicActivityAsync);
         organizerApi.MapGet("/{id:int}/participants", GetOrganizerParticipantsAsync);
+        organizerApi.MapPost("/{id:int}/participants", AddOrganizerParticipantAsync);
         organizerApi.MapDelete("/{id:int}/participants/{participantId:long}", RemoveOrganizerParticipantAsync);
 
         var organizerVenueApi = app.MapGroup("/api/organizer/venues").RequireAuthorization().RequireRateLimiting("public-action").WithTags("Sports Nearby — organizer venues");
         organizerVenueApi.MapPost("/", CreatePublicVenueAsync);
+
+        app.MapPublicDiscoveryReports();
     }
 
     private static async Task<IResult> SearchPublicActivitiesAsync(
@@ -326,8 +329,20 @@ public static partial class EndpointMapping
             .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (activity is null) return Results.Forbid();
         var names = await ResolveParticipantNamesAsync(activity.Participants.Select(x => x.UserId), db);
+        var subjectUserIds = activity.Participants.Where(p => p.UserId != null).Select(p => p.UserId!).ToArray();
+        var subjectHashes = activity.Participants.Where(p => p.GuestContactHash != null).Select(p => p.GuestContactHash!).ToArray();
+        var reportRows = await db.PublicActivityParticipantReports.AsNoTracking()
+            .Where(r => r.Status == ParticipantReportStatus.Active &&
+                ((r.SubjectUserId != null && subjectUserIds.Contains(r.SubjectUserId)) ||
+                 (r.SubjectGuestContactHash != null && subjectHashes.Contains(r.SubjectGuestContactHash))))
+            .Select(r => new { r.SubjectUserId, r.SubjectGuestContactHash, r.AuthorOrganizerId })
+            .ToListAsync();
+        bool Matches(PublicActivityParticipant p, string? subjectUserId, string? subjectHash) =>
+            (p.UserId != null && subjectUserId == p.UserId) || (p.GuestContactHash != null && subjectHash == p.GuestContactHash);
         var items = activity.Participants.OrderBy(x => ParticipantStatusOrder(x.Status)).ThenBy(x => x.JoinedAt)
-            .Select(x => new OrganizerParticipantDto(x.Id, x.UserId is not null ? names.GetValueOrDefault(x.UserId, "Участник") : x.GuestName ?? "Гость", x.GuestContact, x.Status.ToString(), x.JoinedAt, x.ConfirmedAt, x.CancelledAt));
+            .Select(x => new OrganizerParticipantDto(x.Id, x.UserId is not null ? names.GetValueOrDefault(x.UserId, "Участник") : x.GuestName ?? "Гость", x.GuestContact, x.Status.ToString(), x.JoinedAt, x.ConfirmedAt, x.CancelledAt,
+                reportRows.Count(r => Matches(x, r.SubjectUserId, r.SubjectGuestContactHash)),
+                reportRows.Any(r => r.AuthorOrganizerId == userId && Matches(x, r.SubjectUserId, r.SubjectGuestContactHash))));
         return Results.Ok(new OrganizerParticipantsDto(
             activity.Id,
             activity.Capacity,
@@ -338,14 +353,15 @@ public static partial class EndpointMapping
     }
 
     private static async Task<IResult> RemoveOrganizerParticipantAsync(
-        int id, long participantId, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        int id, long participantId, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
             : null;
-        var activity = await db.PublicActivities.Include(x => x.Participants)
+        var activity = await db.PublicActivities.Include(x => x.Participants).ThenInclude(x => x.User)
             .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (activity is null) return Results.Forbid();
         var participant = activity.Participants.SingleOrDefault(x => x.Id == participantId);
@@ -364,7 +380,63 @@ public static partial class EndpointMapping
         if (promoted is not null)
             await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), id.ToString());
         if (transaction is not null) await transaction.CommitAsync();
+        if (promoted is not null)
+            await NotifyPromotedFromWaitlistAsync(promoted, activity, configuration, emailSender, loggerFactory);
         return Results.NoContent();
+    }
+
+    private static async Task<IResult> AddOrganizerParticipantAsync(
+        int id, AddParticipantRequest request, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var name = request.Name?.Trim() ?? string.Empty;
+        var contact = request.Contact?.Trim() ?? string.Empty;
+        var errors = new Dictionary<string, string[]>();
+        if (name.Length is < 2 or > 80) errors["name"] = ["Укажите имя от 2 до 80 символов."];
+        if (contact.Length is > 120 or (> 0 and < 3)) errors["contact"] = ["Контакт от 3 до 120 символов."];
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
+        var activity = await db.PublicActivities.Include(x => x.Participants)
+            .SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (activity is null) return Results.Forbid();
+        if (activity.Status is PublicActivityStatus.Cancelled or PublicActivityStatus.Completed or PublicActivityStatus.Archived)
+            return Results.Conflict(new { message = "К этой активности больше нельзя добавлять участников." });
+
+        string? contactHash = null;
+        PublicActivityParticipant? existing = null;
+        if (contact.Length > 0)
+        {
+            var contactKey = Regex.Replace(contact.ToLowerInvariant(), "\\s+", string.Empty);
+            contactHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contactKey)));
+            existing = activity.Participants.SingleOrDefault(x => x.GuestContactHash == contactHash);
+            if (existing is not null && existing.Status != PublicParticipantStatus.Cancelled)
+                return Results.Conflict(new { message = "Этот участник уже в списке." });
+        }
+
+        var placement = ResolveParticipantPlacement(activity);
+        if (placement.RejectionMessage is not null) return Results.Conflict(new { message = placement.RejectionMessage });
+
+        var participant = existing ?? new PublicActivityParticipant { GuestContactHash = contactHash };
+        participant.GuestName = name;
+        participant.GuestContact = contact.Length > 0 ? contact : null;
+        participant.Status = placement.Status;
+        participant.JoinedAt = DateTimeOffset.UtcNow;
+        participant.ConfirmedAt = placement.Status == PublicParticipantStatus.Confirmed ? DateTimeOffset.UtcNow : null;
+        participant.CancelledAt = null;
+        participant.Source = "organizer-added";
+        if (existing is null) activity.Participants.Add(participant);
+        if (placement.BecomesFull && activity.Status == PublicActivityStatus.Published) activity.Status = PublicActivityStatus.Full;
+        activity.Version++;
+        activity.UpdatedAt = DateTimeOffset.UtcNow;
+        try { await db.SaveChangesAsync(); }
+        catch (DbUpdateException) { return Results.Conflict(new { message = "Состояние записи изменилось. Обновите страницу и попробуйте снова." }); }
+        await audit.WriteAsync(userId, "public_activity_participant_added", nameof(PublicActivity), id.ToString(), $"status:{placement.Status}");
+        if (transaction is not null) await transaction.CommitAsync();
+        return Results.Ok(new { participantId = participant.Id, status = placement.Status.ToString() });
     }
 
     private static async Task<IResult> JoinPublicActivityAsync(
@@ -390,29 +462,26 @@ public static partial class EndpointMapping
         if (existing is not null && existing.Status != PublicParticipantStatus.Cancelled)
             return Results.Conflict(new { message = "Вы уже записаны на это событие." });
 
-        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
-        var waitlisted = activity.Participants.Count(x => x.Status == PublicParticipantStatus.Waitlisted);
-        var status = confirmed < activity.Capacity ? PublicParticipantStatus.Confirmed : PublicParticipantStatus.Waitlisted;
-        if (status == PublicParticipantStatus.Waitlisted && waitlisted >= activity.WaitlistCapacity)
-            return Results.Conflict(new { message = "Свободных мест и мест в листе ожидания больше нет." });
+        var placement = ResolveParticipantPlacement(activity);
+        if (placement.RejectionMessage is not null) return Results.Conflict(new { message = placement.RejectionMessage });
 
         if (existing is null)
         {
             existing = new PublicActivityParticipant { PublicActivityId = id, UserId = userId };
             db.PublicActivityParticipants.Add(existing);
         }
-        existing.Status = status;
+        existing.Status = placement.Status;
         existing.JoinedAt = DateTimeOffset.UtcNow;
         existing.CancelledAt = null;
-        existing.ConfirmedAt = status == PublicParticipantStatus.Confirmed ? DateTimeOffset.UtcNow : null;
-        if (status == PublicParticipantStatus.Confirmed && confirmed + 1 >= activity.Capacity) activity.Status = PublicActivityStatus.Full;
+        existing.ConfirmedAt = placement.Status == PublicParticipantStatus.Confirmed ? DateTimeOffset.UtcNow : null;
+        if (placement.BecomesFull) activity.Status = PublicActivityStatus.Full;
         activity.Version++;
         activity.UpdatedAt = DateTimeOffset.UtcNow;
         try { await db.SaveChangesAsync(); }
         catch (DbUpdateException) { return Results.Conflict(new { message = "Состояние записи изменилось. Обновите страницу и попробуйте снова." }); }
-        await audit.WriteAsync(userId, "public_activity_joined", nameof(PublicActivity), id.ToString(), $"status:{status}");
+        await audit.WriteAsync(userId, "public_activity_joined", nameof(PublicActivity), id.ToString(), $"status:{placement.Status}");
         if (transaction is not null) await transaction.CommitAsync();
-        return Results.Ok(new { activityId = id, status = status.ToString() });
+        return Results.Ok(new { activityId = id, status = placement.Status.ToString() });
     }
 
     private static async Task<IResult> JoinGuestPublicActivityAsync(
@@ -443,32 +512,31 @@ public static partial class EndpointMapping
         if (existing is not null && existing.Status != PublicParticipantStatus.Cancelled)
             return Results.Conflict(new { message = "С этим контактом уже отметились на событии." });
 
-        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
-        if (confirmed >= activity.Capacity)
-            return Results.Conflict(new { message = "Свободных мест больше нет." });
+        var placement = ResolveParticipantPlacement(activity);
+        if (placement.RejectionMessage is not null) return Results.Conflict(new { message = placement.RejectionMessage });
 
         var cancellationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var participant = existing ?? new PublicActivityParticipant { GuestContactHash = contactHash };
         participant.GuestName = name;
         participant.GuestContact = contact;
         participant.GuestCancellationTokenHash = HashGuestCancellationToken(cancellationToken);
-        participant.Status = PublicParticipantStatus.Confirmed;
+        participant.Status = placement.Status;
         participant.JoinedAt = DateTimeOffset.UtcNow;
-        participant.ConfirmedAt = DateTimeOffset.UtcNow;
+        participant.ConfirmedAt = placement.Status == PublicParticipantStatus.Confirmed ? DateTimeOffset.UtcNow : null;
         participant.CancelledAt = null;
         participant.Source = "guest-web";
         if (existing is null) activity.Participants.Add(participant);
-        if (confirmed + 1 >= activity.Capacity) activity.Status = PublicActivityStatus.Full;
+        if (placement.BecomesFull) activity.Status = PublicActivityStatus.Full;
         activity.Version++;
         activity.UpdatedAt = DateTimeOffset.UtcNow;
         try { await db.SaveChangesAsync(); }
         catch (DbUpdateException) { return Results.Conflict(new { message = "Состояние записи изменилось. Обновите страницу и попробуйте снова." }); }
-        await audit.WriteAsync(null, "public_activity_guest_joined", nameof(PublicActivity), id.ToString(), "source:guest-web");
+        await audit.WriteAsync(null, "public_activity_guest_joined", nameof(PublicActivity), id.ToString(), $"source:guest-web;status:{placement.Status}");
         if (transaction is not null) await transaction.CommitAsync();
         return Results.Ok(new
         {
             activityId = id,
-            status = PublicParticipantStatus.Confirmed.ToString(),
+            status = placement.Status.ToString(),
             name,
             cancellationToken,
             managePath = $"/guest/participations/{cancellationToken}"
@@ -500,7 +568,8 @@ public static partial class EndpointMapping
     }
 
     private static async Task<IResult> CancelGuestPublicParticipationAsync(
-        string token, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        string token, AppDbContext db, IAuditService audit, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var tokenHash = TryHashGuestCancellationToken(token);
@@ -509,7 +578,7 @@ public static partial class EndpointMapping
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
             : null;
         var participant = await db.PublicActivityParticipants
-            .Include(x => x.Activity).ThenInclude(x => x.Participants)
+            .Include(x => x.Activity).ThenInclude(x => x.Participants).ThenInclude(x => x.User)
             .SingleOrDefaultAsync(x => x.GuestCancellationTokenHash == tokenHash);
         if (participant is null) return Results.NotFound();
         if (participant.Status == PublicParticipantStatus.Cancelled) return Results.NoContent();
@@ -526,18 +595,21 @@ public static partial class EndpointMapping
         if (promoted is not null)
             await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), participant.PublicActivityId.ToString());
         if (transaction is not null) await transaction.CommitAsync();
+        if (promoted is not null)
+            await NotifyPromotedFromWaitlistAsync(promoted, participant.Activity, configuration, emailSender, loggerFactory);
         return Results.NoContent();
     }
 
     private static async Task<IResult> LeavePublicActivityAsync(
-        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
             : null;
-        var activity = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id);
+        var activity = await db.PublicActivities.Include(x => x.Participants).ThenInclude(x => x.User).SingleOrDefaultAsync(x => x.Id == id);
         if (activity is null) return Results.NotFound();
         var participant = activity.Participants.SingleOrDefault(x => x.UserId == userId && x.Status != PublicParticipantStatus.Cancelled);
         if (participant is null) return Results.NotFound();
@@ -552,6 +624,8 @@ public static partial class EndpointMapping
         if (promoted is not null)
             await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), id.ToString());
         if (transaction is not null) await transaction.CommitAsync();
+        if (promoted is not null)
+            await NotifyPromotedFromWaitlistAsync(promoted, activity, configuration, emailSender, loggerFactory);
         return Results.NoContent();
     }
 
@@ -596,11 +670,12 @@ public static partial class EndpointMapping
     }
 
     private static async Task<IResult> UpdatePublicActivityAsync(
-        int id, PublicActivityRequest request, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        int id, PublicActivityRequest request, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var item = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        var item = await db.PublicActivities.Include(x => x.Participants).ThenInclude(x => x.User).SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (item is null) return Results.Forbid();
         if (item.Status is PublicActivityStatus.Completed or PublicActivityStatus.Archived) return Results.Conflict(new { message = "Завершённое событие нельзя редактировать." });
         var validation = ValidatePublicActivity(request);
@@ -615,6 +690,7 @@ public static partial class EndpointMapping
             x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
         var requestedConfirmed = confirmedWithoutOrganizer + (request.OrganizerParticipates ? 1 : 0);
         if (request.Capacity < requestedConfirmed) return Results.ValidationProblem(Error("capacity", "Вместимость не может быть меньше числа уже подтверждённых участников."));
+        PublicActivityParticipant? promoted = null;
         if (request.OrganizerParticipates)
         {
             if (organizerParticipation is null)
@@ -641,7 +717,7 @@ public static partial class EndpointMapping
             organizerParticipation.Status = PublicParticipantStatus.Cancelled;
             organizerParticipation.CancelledAt = DateTimeOffset.UtcNow;
             organizerParticipation.ConfirmedAt = null;
-            PromoteFirstWaitlisted(item);
+            promoted = PromoteFirstWaitlisted(item);
         }
         item.SportId = request.SportId; item.SportsVenueId = request.VenueId; item.EventType = request.EventType; item.GameFormat = CleanPublicField(request.GameFormat);
         item.Title = request.Title.Trim(); item.Description = request.Description.Trim(); item.StartAt = request.StartAt; item.EndAt = request.EndAt;
@@ -657,6 +733,11 @@ public static partial class EndpointMapping
         item.Version++; item.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_updated", nameof(PublicActivity), id.ToString());
+        if (promoted is not null)
+        {
+            await audit.WriteAsync(promoted.UserId, "public_activity_waitlist_promoted", nameof(PublicActivity), id.ToString());
+            await NotifyPromotedFromWaitlistAsync(promoted, item, configuration, emailSender, loggerFactory);
+        }
         return Results.NoContent();
     }
 
@@ -787,6 +868,33 @@ public static partial class EndpointMapping
         return promoted;
     }
 
+    private readonly record struct ParticipantPlacement(
+        PublicParticipantStatus Status, bool BecomesFull, string? RejectionMessage);
+
+    /// <summary>Двухуровневое решение confirmed/waitlist/отказ для новой записи. Без побочных эффектов.</summary>
+    private static ParticipantPlacement ResolveParticipantPlacement(PublicActivity activity)
+    {
+        var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
+        var waitlisted = activity.Participants.Count(x => x.Status == PublicParticipantStatus.Waitlisted);
+        var status = confirmed < activity.Capacity ? PublicParticipantStatus.Confirmed : PublicParticipantStatus.Waitlisted;
+        if (status == PublicParticipantStatus.Waitlisted && waitlisted >= activity.WaitlistCapacity)
+            return new(default, false, "Свободных мест и мест в листе ожидания больше нет.");
+        return new(status, status == PublicParticipantStatus.Confirmed && confirmed + 1 >= activity.Capacity, null);
+    }
+
+    /// <summary>Письмо участнику, которого только что перевели из листа ожидания. Гостей без email тихо пропускаем.</summary>
+    private static async Task NotifyPromotedFromWaitlistAsync(
+        PublicActivityParticipant promoted, PublicActivity activity, IConfiguration configuration,
+        ITransactionalEmailSender emailSender, ILoggerFactory loggerFactory)
+    {
+        var recipient = promoted.User?.Email ?? (promoted.GuestContact?.Contains('@') == true ? promoted.GuestContact : null);
+        if (string.IsNullOrWhiteSpace(recipient)) return;
+        var whenText = activity.StartAt.ToString("d MMMM, HH:mm", new CultureInfo("ru-RU"));
+        var (subject, html, text) = EmailTemplates.PublicActivityPromotedFromWaitlist(
+            activity.Title, whenText, BuildUrl(configuration, $"/activities/{activity.Slug}"));
+        await TrySendAsync(emailSender, loggerFactory, recipient, subject, html, text);
+    }
+
     private static void RefreshPublicActivityOccupancy(PublicActivity activity)
     {
         var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
@@ -873,9 +981,11 @@ public static partial class EndpointMapping
         int MinimumAge, int? MaximumAge, string? EquipmentRequirements, string? Rules, string? CancellationPolicy,
         DateTimeOffset? RegistrationDeadline, bool IsRecurring, string? RecurrenceRule, bool OrganizerParticipates);
     public sealed record GuestJoinRequest(string? Name, string? Contact, bool AdultConfirmed);
+    public sealed record AddParticipantRequest(string? Name, string? Contact);
     public sealed record GuestParticipationDto(string GuestName, string Status, DateTimeOffset JoinedAt, DateTimeOffset? CancelledAt, PublicActivityDto Activity);
     public sealed record ParticipationDto(int ActivityId, string Status, DateTimeOffset JoinedAt, DateTimeOffset? ConfirmedAt, DateTimeOffset? CancelledAt);
     public sealed record ParticipantActivityDto(PublicActivityDto Activity, ParticipationDto Participation);
-    public sealed record OrganizerParticipantDto(long Id, string DisplayName, string? Contact, string Status, DateTimeOffset JoinedAt, DateTimeOffset? ConfirmedAt, DateTimeOffset? CancelledAt);
+    public sealed record OrganizerParticipantDto(long Id, string DisplayName, string? Contact, string Status, DateTimeOffset JoinedAt, DateTimeOffset? ConfirmedAt, DateTimeOffset? CancelledAt,
+        int ReportCount, bool ViewerHasReported);
     public sealed record OrganizerParticipantsDto(int ActivityId, int Capacity, int ConfirmedCount, int WaitlistedCount, int CancelledCount, IEnumerable<OrganizerParticipantDto> Items);
 }

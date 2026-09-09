@@ -49,6 +49,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SportsVenue> SportsVenues => Set<SportsVenue>();
     public DbSet<PublicActivity> PublicActivities => Set<PublicActivity>();
     public DbSet<PublicActivityParticipant> PublicActivityParticipants => Set<PublicActivityParticipant>();
+    public DbSet<PublicActivityParticipantReport> PublicActivityParticipantReports => Set<PublicActivityParticipantReport>();
     public DbSet<CoachNote> CoachNotes => Set<CoachNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -94,6 +95,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PublicActivityParticipant>().HasIndex(x => x.GuestCancellationTokenHash).IsUnique().HasFilter("\"GuestCancellationTokenHash\" IS NOT NULL");
         builder.Entity<PublicActivityParticipant>().Property(x => x.GuestCancellationTokenHash).HasMaxLength(64);
         builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.Status, x.JoinedAt });
+
+        builder.Entity<PublicActivityParticipantReport>().Property(x => x.Comment).HasMaxLength(2000);
+        builder.Entity<PublicActivityParticipantReport>().HasIndex(x => x.SubjectUserId).HasFilter("\"SubjectUserId\" IS NOT NULL");
+        builder.Entity<PublicActivityParticipantReport>().HasIndex(x => x.SubjectGuestContactHash).HasFilter("\"SubjectGuestContactHash\" IS NOT NULL");
+        builder.Entity<PublicActivityParticipantReport>()
+            .HasIndex(x => new { x.AuthorOrganizerId, x.PublicActivityId });
+        builder.Entity<PublicActivityParticipantReport>().ToTable(t => t.HasCheckConstraint(
+            "CK_ParticipantReport_OneSubject",
+            "(\"SubjectUserId\" IS NOT NULL) <> (\"SubjectGuestContactHash\" IS NOT NULL)"));
+        builder.Entity<PublicActivityParticipantReport>().HasOne(x => x.Activity).WithMany().HasForeignKey(x => x.PublicActivityId);
+        builder.Entity<PublicActivityParticipantReport>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.AuthorOrganizerId);
+        builder.Entity<PublicActivityParticipantReport>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.SubjectUserId).IsRequired(false);
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);
         builder.Entity<PlayerProfile>().Property(x => x.Weight).HasPrecision(5, 1);

@@ -84,4 +84,15 @@ public static class EmailTemplates
             "Если вы не ожидали этого письма, просто проигнорируйте его.");
         return ("Активность отменена — Касание", html, text);
     }
+
+    public static (string Subject, string Html, string Text) PublicActivityPromotedFromWaitlist(string activityTitle, string whenText, string url)
+    {
+        var (html, text) = Action(
+            $"Освободилось место на «{activityTitle}»",
+            "Вы больше не в листе ожидания",
+            $"Появилось свободное место на «{activityTitle}» ({whenText}) — вы переведены из листа ожидания в подтверждённые участники. Ждём вас.",
+            "Открыть событие", url,
+            "Если планы изменились, отмените участие заранее, чтобы место досталось другому.");
+        return ("Освободилось место — Касание", html, text);
+    }
 }

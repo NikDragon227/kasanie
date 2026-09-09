@@ -27,6 +27,8 @@ public enum PublicActivityType { Game, GroupTraining, CoachTraining, OpenTeamTra
 public enum PublicActivityStatus { Draft, Published, Full, Cancelled, Completed, Archived }
 public enum PublicActivityVisibility { Public, LinkOnly, CommunityOnly, Private }
 public enum PublicParticipantStatus { Pending, Confirmed, Waitlisted, Cancelled, Attended, NoShow, Rejected }
+public enum ParticipantReportReason { NoShow, LateArrival, AggressiveOrConflict, UnsafePlay, Other }
+public enum ParticipantReportStatus { Active, Retracted }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -628,6 +630,22 @@ public sealed class PublicActivityParticipant
     public DateTimeOffset? CheckedInAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public string Source { get; set; } = "web";
+}
+
+public sealed class PublicActivityParticipantReport
+{
+    public long Id { get; set; }
+    public int PublicActivityId { get; set; }
+    public PublicActivity Activity { get; set; } = null!;
+    public long? PublicActivityParticipantId { get; set; }
+    public required string AuthorOrganizerId { get; set; }
+    public string? SubjectUserId { get; set; }
+    public string? SubjectGuestContactHash { get; set; }
+    public ParticipantReportReason Reason { get; set; }
+    public required string Comment { get; set; }
+    public ParticipantReportStatus Status { get; set; } = ParticipantReportStatus.Active;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 public sealed class CoachNote

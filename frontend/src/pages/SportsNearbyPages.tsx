@@ -15,8 +15,9 @@ type GuestParticipation = { guestName: string; status: string; joinedAt: string;
 type Coordinates = [number, number]
 type Participation = { activityId: number; status: string; joinedAt: string; confirmedAt?: string; cancelledAt?: string }
 type ParticipantActivity = { activity: Activity; participation: Participation }
-type OrganizerParticipant = { id: number; displayName: string; contact?: string; status: string; joinedAt: string; confirmedAt?: string; cancelledAt?: string }
+type OrganizerParticipant = { id: number; displayName: string; contact?: string; status: string; joinedAt: string; confirmedAt?: string; cancelledAt?: string; reportCount: number; viewerHasReported: boolean }
 type OrganizerParticipants = { activityId: number; capacity: number; confirmedCount: number; waitlistedCount: number; cancelledCount: number; items: OrganizerParticipant[] }
+type ParticipantReport = { reportId: number; reason: string; comment: string; createdAt: string; isMine: boolean; sourceActivityTitle: string }
 
 type YandexEvent = { get: <T = Coordinates>(name: string) => T }
 type YandexEventManager = { add: (name: string, handler: (event: YandexEvent) => void) => void }
@@ -51,6 +52,85 @@ const participationLabels: Record<string, string> = {
 const organizerParticipationLabels: Record<string, string> = {
   Pending: 'Ожидает', Confirmed: 'Подтверждён', Waitlisted: 'Лист ожидания', Cancelled: 'Отменил участие',
   Attended: 'Участвовал', NoShow: 'Не пришёл', Rejected: 'Удалён организатором'
+}
+const reportReasonLabels: Record<string, string> = {
+  NoShow: 'Не пришёл', LateArrival: 'Опоздал', AggressiveOrConflict: 'Агрессия или конфликт',
+  UnsafePlay: 'Опасная игра', Other: 'Другое'
+}
+const reportReasonOrder = ['NoShow', 'LateArrival', 'AggressiveOrConflict', 'UnsafePlay', 'Other']
+
+function ParticipantRosterRow({ participant, activityPast, participantLoading, confirmRemovalId, onConfirmRemoval, onRemove, onFileReport, onRetractReport, loadReports }: {
+  participant: OrganizerParticipant
+  activityPast: boolean
+  participantLoading: boolean
+  confirmRemovalId: number | null
+  onConfirmRemoval: (id: number | null) => void
+  onRemove: (id: number) => Promise<void>
+  onFileReport: (id: number, reason: string, comment: string) => Promise<void>
+  onRetractReport: (reportId: number) => Promise<void>
+  loadReports: (id: number) => Promise<ParticipantReport[]>
+}) {
+  const [showReports, setShowReports] = useState(false)
+  const [reports, setReports] = useState<ParticipantReport[] | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [reason, setReason] = useState('NoShow')
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const toggleReports = async () => {
+    const next = !showReports
+    setShowReports(next)
+    if (next) { try { setReports(await loadReports(participant.id)) } catch { setReports([]) } }
+  }
+  const submitReport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setBusy(true); setError('')
+    try {
+      await onFileReport(participant.id, reason, comment.trim())
+      setComment(''); setShowForm(false)
+      if (showReports) setReports(await loadReports(participant.id))
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Не удалось отправить жалобу.') }
+    finally { setBusy(false) }
+  }
+  const retract = async (reportId: number) => {
+    setBusy(true); setError('')
+    try { await onRetractReport(reportId); setReports(await loadReports(participant.id)) }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Не удалось отозвать жалобу.') }
+    finally { setBusy(false) }
+  }
+
+  return <article>
+    <div>
+      <b>{participant.displayName}</b>
+      <span className={`participant-status status-${participant.status.toLowerCase()}`}>{organizerParticipationLabels[participant.status] ?? participant.status}</span>
+      {participant.reportCount > 0 && <button type="button" className="report-badge" onClick={() => void toggleReports()} aria-expanded={showReports} title="Жалобы других организаторов">! {participant.reportCount}</button>}
+      {participant.contact && <small>Контакт: {participant.contact}</small>}
+      <small>Записался: {formatDate(participant.joinedAt)}</small>
+    </div>
+    {showReports && <div className="participant-reports">
+      {reports === null ? <small>Загружаем…</small> : reports.length === 0 ? <small>Активных жалоб нет.</small> : reports.map(report => <div key={report.reportId} className="participant-report">
+        <b>{reportReasonLabels[report.reason] ?? report.reason}</b>
+        <p>{report.comment}</p>
+        <small>{report.sourceActivityTitle} · {formatDate(report.createdAt)}{report.isMine ? ' · ваша' : ''}</small>
+        {report.isMine && <button type="button" className="button ghost" disabled={busy} onClick={() => void retract(report.reportId)}>Отозвать</button>}
+      </div>)}
+    </div>}
+    <div className="participant-remove">
+      {activityPast && !participant.viewerHasReported && (showForm
+        ? <form className="participant-report-form" onSubmit={submitReport}>
+            <select value={reason} onChange={event => setReason(event.target.value)}>{reportReasonOrder.map(value => <option key={value} value={value}>{reportReasonLabels[value]}</option>)}</select>
+            <textarea required maxLength={2000} value={comment} onChange={event => setComment(event.target.value)} placeholder="Что произошло" />
+            <button className="button" disabled={busy || comment.trim().length === 0}>Отправить жалобу</button>
+            <button type="button" className="button ghost" onClick={() => setShowForm(false)}>Отмена</button>
+          </form>
+        : <button type="button" className="button ghost" onClick={() => setShowForm(true)}>Пожаловаться</button>)}
+      {activityPast && participant.viewerHasReported && <small>Вы оставили жалобу</small>}
+      {!['Cancelled', 'Rejected'].includes(participant.status) && (confirmRemovalId === participant.id
+        ? <><button type="button" className="button danger" disabled={participantLoading} onClick={() => void onRemove(participant.id)}>Подтвердить удаление</button><button type="button" className="button ghost" onClick={() => onConfirmRemoval(null)}>Не удалять</button></>
+        : <button type="button" className="button ghost danger" onClick={() => onConfirmRemoval(participant.id)}>Удалить</button>)}
+    </div>
+    {error && <div className="form-error" role="alert">{error}</div>}
+  </article>
 }
 
 const russianCityDistricts: Record<string, string[]> = {
@@ -600,6 +680,7 @@ export function OrganizerActivitiesPage() {
   const [confirmRemovalId, setConfirmRemovalId] = useState<number | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [view, setView] = useState<'list' | 'form' | 'participants'>('list')
+  const [nowMs] = useState(() => Date.now())
   const reload = async () => setActivities(await api<Activity[]>('/api/organizer/activities/'))
 
   useEffect(() => {
@@ -653,7 +734,7 @@ export function OrganizerActivitiesPage() {
         sportId: Number(values.get('sportId')), venueId, eventType: Number(values.get('eventType')), gameFormat: values.get('gameFormat') ? String(values.get('gameFormat')) : null,
         title: String(values.get('title') ?? ''), description: String(values.get('description') ?? ''),
         startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
-        capacity: Number(values.get('capacity')), waitlistCapacity: 0, price: Number(values.get('price')),
+        capacity: Number(values.get('capacity')), waitlistCapacity: Number(values.get('waitlistCapacity') ?? 0), price: Number(values.get('price')),
         skillLevel: String(values.get('skillLevel') ?? 'Любой'), minimumAge: Number(values.get('minimumAge')), maximumAge: values.get('maximumAge') ? Number(values.get('maximumAge')) : null,
         equipmentRequirements: null, rules: `Приходите за ${Number(values.get('arrivalMinutes') ?? 15)} минут до начала.`, cancellationPolicy: 'Сообщите об отмене заранее.', registrationDeadline: null,
         isRecurring: false, recurrenceRule: null, organizerParticipates: values.get('organizerParticipates') === 'on'
@@ -702,17 +783,55 @@ export function OrganizerActivitiesPage() {
     finally { setParticipantLoading(false) }
   }
 
+  const refreshParticipants = async () => {
+    if (!participantActivity) return
+    setParticipants(await api<OrganizerParticipants>(`/api/organizer/activities/${participantActivity.id}/participants`))
+  }
+
+  const addParticipant = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!participantActivity) return
+    const form = event.currentTarget
+    const values = new FormData(form)
+    setParticipantLoading(true); setMessage(null)
+    try {
+      await post(`/api/organizer/activities/${participantActivity.id}/participants`, { name: values.get('name'), contact: values.get('contact') || null })
+      form.reset()
+      await refreshParticipants()
+      setMessage({ text: 'Участник добавлен.', ok: true }); await reload()
+    } catch (error) { setMessage({ text: error instanceof Error ? error.message : 'Не удалось добавить участника.', ok: false }) }
+    finally { setParticipantLoading(false) }
+  }
+
+  const fileReport = async (participantId: number, reason: string, comment: string) => {
+    if (!participantActivity) return
+    await post(`/api/organizer/activities/${participantActivity.id}/participants/${participantId}/reports`, { reason, comment })
+    await refreshParticipants()
+  }
+
+  const retractReport = async (reportId: number) => {
+    if (!participantActivity) return
+    await remove(`/api/organizer/activities/${participantActivity.id}/reports/${reportId}`)
+    await refreshParticipants()
+  }
+
+  const loadReports = (participantId: number) =>
+    api<ParticipantReport[]>(`/api/organizer/activities/${participantActivity!.id}/participants/${participantId}/reports`)
+
   const selectedSport = sports.find(sport => sport.id === selectedSportId)
   const availableGameFormats = selectedSport ? gameFormatsBySport[selectedSport.slug] ?? [] : []
 
-  return <div className="nearby-page"><PublicHeader /><main className="organizer-page"><header><span className="eyebrow">Кабинет организатора</span><h1>{view === 'form' ? (editing ? 'Редактирование события' : 'Новое событие') : 'Ваши события'}</h1><p>{view === 'form' ? 'Вид спорта, тип, формат, время и точка встречи. Карточка сразу появится в поиске.' : 'Список ваших событий. Создайте новое или откройте участников.'}</p></header>{view === 'list' && <><div className="organizer-toolbar"><button type="button" className="button large" disabled={sports.length === 0} onClick={startCreating}>+ Новое событие</button></div>{message && <div className={message.ok ? 'success-message' : 'form-error'}>{message.text}</div>}</>}{view === 'form' && <section className="organizer-view"><button type="button" className="button ghost organizer-back" onClick={backToList}>← К списку событий</button><form key={`${editing?.id ?? 'new'}-${formVersion}`} className="organizer-form" onSubmit={save}><div className="form-grid"><label>Название<input name="title" required maxLength={120} placeholder="Футбол 6×6 вечером" defaultValue={editing?.title ?? ''} /></label><label>Тип активности<select name="eventType" defaultValue={editing ? eventTypeValues[editing.eventType] ?? 0 : 0}><option value="0">Поиграть вечером</option><option value="1">Совместная тренировка</option><option value="2">Тренировка с тренером</option><option value="5">Ищу команду</option><option value="7">Турнир</option></select></label><label>Вид спорта<select name="sportId" required value={selectedSportId ?? ''} onChange={event => setSelectedSportId(Number(event.target.value))}>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>{availableGameFormats.length > 0 && <label>Формат игры<select key={`${selectedSport?.slug}-${editing?.id ?? 'new'}`} name="gameFormat" required defaultValue={editing?.gameFormat && availableGameFormats.some(option => option.value === editing.gameFormat) ? editing.gameFormat : availableGameFormats[0].value}>{availableGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>}<label>Место встречи<select value={venueChoice} onChange={event => setVenueChoice(event.target.value)} required>{venues.map(venue => <option key={venue.id} value={venue.id}>{venue.city} · {venue.name}</option>)}<option value="new-map">Отметить новое место на карте</option><option value="new-text">Указать новый адрес текстом</option></select></label>{(venueChoice === 'new-map' || venueChoice === 'new-text') && <div className="new-venue-fields full"><label>Название места<input required maxLength={160} placeholder="Поле на Московской" value={venueDraft.name} onChange={event => setVenueDraft(current => ({ ...current, name: event.target.value }))} /></label><label>Город<input required maxLength={120} placeholder="Казань" value={venueDraft.city} onChange={event => setVenueDraft(current => ({ ...current, city: event.target.value }))} /></label><label>Район<input maxLength={120} placeholder="Вахитовский" value={venueDraft.district} onChange={event => setVenueDraft(current => ({ ...current, district: event.target.value }))} /></label><label>Адрес или ориентир<input required maxLength={240} placeholder="ул. Московская, 1" value={venueDraft.address} onChange={event => setVenueDraft(current => ({ ...current, address: event.target.value }))} /></label><label className="venue-indoor"><input type="checkbox" checked={venueDraft.indoor} onChange={event => setVenueDraft(current => ({ ...current, indoor: event.target.checked }))} /> Крытая площадка</label>{venueChoice === 'new-map' && <YandexLocationPicker value={meetingPoint} addressQuery={[venueDraft.city, venueDraft.address].filter(Boolean).join(', ')} onChange={setMeetingPoint} onResolved={resolveVenue} />}</div>}<label>Начало<input name="startAt" type="datetime-local" required defaultValue={editing ? dateTimeInputValue(editing.startAt) : localDateTime(24)} /></label><label>За сколько минут приходить<input name="arrivalMinutes" type="number" min="0" max="180" defaultValue={Number(editing?.rules?.match(/(\d+)\s+минут/)?.[1] ?? 15)} /></label><label>Количество мест, включая организатора<input name="capacity" type="number" min="2" max="500" defaultValue={editing?.capacity ?? 12} required /></label><label>Цена, ₽<input name="price" type="number" min="0" step="1" defaultValue={editing?.price ?? 0} required /></label><label>Уровень<select name="skillLevel" defaultValue={editing?.skillLevel ?? 'Любой'}><option>Любой</option><option>Начинающий</option><option>Средний</option><option>Продвинутый</option></select></label><label>Возраст от<input name="minimumAge" type="number" min="1" max="99" defaultValue={editing?.minimumAge ?? 18} required /></label><label>Возраст до<input name="maximumAge" type="number" min="1" max="99" defaultValue={editing?.maximumAge ?? ''} placeholder="Без ограничения" /></label><label className="full">Дополнительная информация<textarea name="description" required maxLength={4000} placeholder="Что важно знать участникам: инвентарь, одежда, ориентир или другие детали." defaultValue={editing?.description ?? ''} /></label><label className="full organizer-participation"><span><input name="organizerParticipates" type="checkbox" defaultChecked={editing?.organizerParticipates ?? false} /><b>Я тоже участвую в активности</b></span><small>Если включено, организатор появится в списке участников и займёт одно место из общего лимита.</small></label></div><div className="organizer-form-actions"><button className="button large" disabled={pending || sports.length === 0}>{pending ? 'Сохраняем…' : editing ? 'Сохранить изменения' : 'Опубликовать активность'}</button><button type="button" className="button ghost" onClick={backToList}>Отмена</button></div>{message && <div className={message.ok ? 'success-message' : 'form-error'}>{message.text}</div>}</form></section>}{view === 'list' && <section className="organizer-list"><div><span className="eyebrow">Ваши события</span><h2>{activities.length}</h2></div>{activities.map(item => <article key={item.id}><span className={`activity-status ${item.status.toLowerCase()}`}>{item.status}</span><h3>{item.title}</h3><p>{item.sport}{item.gameFormat ? ` · ${formatGameFormat(item.sportSlug, item.gameFormat)}` : ''} · {formatDate(item.startAt)} · {item.venue.name}</p><small>{item.participantsCount}/{item.capacity} участников · {item.organizerParticipates ? 'вы занимаете одно место' : 'вы только организатор'}</small><div>{item.status !== 'Cancelled' && item.status !== 'Completed' && <button className="button ghost" disabled={pending} onClick={() => startEditing(item)}>Редактировать</button>}{item.status === 'Draft' && <button className="button" disabled={pending} onClick={() => void action(item, 'publish')}>Опубликовать</button>}{item.status !== 'Cancelled' && item.status !== 'Completed' && <button className="button ghost" disabled={pending} onClick={() => void action(item, 'cancel')}>Отменить</button>}{['Draft', 'Cancelled'].includes(item.status) && (confirmDeleteId === item.id ? <><button type="button" className="button danger" disabled={pending} onClick={() => void deleteActivity(item)}>Подтвердить удаление</button><button type="button" className="button ghost" disabled={pending} onClick={() => setConfirmDeleteId(null)}>Не удалять</button></> : <button type="button" className="button ghost danger" disabled={pending} onClick={() => setConfirmDeleteId(item.id)}>Удалить</button>)}<button className="button ghost" disabled={participantLoading} onClick={() => void openParticipants(item)}>Участники</button><Link to={`/activities/${item.slug}`}>Карточка →</Link></div></article>)}{activities.length === 0 && <div className="nearby-empty"><b>Событий пока нет</b><p>Нажмите «+ Новое событие», чтобы создать первое.</p></div>}</section>}{view === 'participants' && participantActivity && <section className="participants-manager"><div className="participants-manager-head"><div><span className="eyebrow">Участники события</span><h2>{participantActivity.title}</h2></div><button type="button" className="button ghost" onClick={() => { setParticipantActivity(null); setParticipants(null); setConfirmRemovalId(null); setView('list') }}>← К списку</button></div>{participantLoading && !participants ? <p>Загружаем участников…</p> : participants && <><div className="participant-counts"><span><b>{participants.confirmedCount}</b> подтверждено</span><span><b>{Math.max(0, participants.capacity - participants.confirmedCount)}</b> свободно</span><span><b>{participants.cancelledCount}</b> отменено</span></div><div className="participant-list">{participants.items.map(participant => <article key={participant.id}><div><b>{participant.displayName}</b><span className={`participant-status status-${participant.status.toLowerCase()}`}>{organizerParticipationLabels[participant.status] ?? participant.status}</span>{participant.contact && <small>Контакт: {participant.contact}</small>}<small>Записался: {formatDate(participant.joinedAt)}</small></div>{!["Cancelled", "Rejected"].includes(participant.status) && <div className="participant-remove">{confirmRemovalId === participant.id ? <><button type="button" className="button danger" disabled={participantLoading} onClick={() => void removeParticipant(participant.id)}>Подтвердить удаление</button><button type="button" className="button ghost" onClick={() => setConfirmRemovalId(null)}>Не удалять</button></> : <button type="button" className="button ghost danger" onClick={() => setConfirmRemovalId(participant.id)}>Удалить</button>}</div>}</article>)}</div>{participants.items.length === 0 && <div className="nearby-empty"><b>Участников пока нет</b></div>}</>}</section>}</main></div>
+  return <div className="nearby-page"><PublicHeader /><main className="organizer-page"><header><span className="eyebrow">Кабинет организатора</span><h1>{view === 'form' ? (editing ? 'Редактирование события' : 'Новое событие') : 'Ваши события'}</h1><p>{view === 'form' ? 'Вид спорта, тип, формат, время и точка встречи. Карточка сразу появится в поиске.' : 'Список ваших событий. Создайте новое или откройте участников.'}</p></header>{view === 'list' && <><div className="organizer-toolbar"><button type="button" className="button large" disabled={sports.length === 0} onClick={startCreating}>+ Новое событие</button></div>{message && <div className={message.ok ? 'success-message' : 'form-error'}>{message.text}</div>}</>}{view === 'form' && <section className="organizer-view"><button type="button" className="button ghost organizer-back" onClick={backToList}>← К списку событий</button><form key={`${editing?.id ?? 'new'}-${formVersion}`} className="organizer-form" onSubmit={save}><div className="form-grid"><label>Название<input name="title" required maxLength={120} placeholder="Футбол 6×6 вечером" defaultValue={editing?.title ?? ''} /></label><label>Тип активности<select name="eventType" defaultValue={editing ? eventTypeValues[editing.eventType] ?? 0 : 0}><option value="0">Поиграть вечером</option><option value="1">Совместная тренировка</option><option value="2">Тренировка с тренером</option><option value="5">Ищу команду</option><option value="7">Турнир</option></select></label><label>Вид спорта<select name="sportId" required value={selectedSportId ?? ''} onChange={event => setSelectedSportId(Number(event.target.value))}>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>{availableGameFormats.length > 0 && <label>Формат игры<select key={`${selectedSport?.slug}-${editing?.id ?? 'new'}`} name="gameFormat" required defaultValue={editing?.gameFormat && availableGameFormats.some(option => option.value === editing.gameFormat) ? editing.gameFormat : availableGameFormats[0].value}>{availableGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>}<label>Место встречи<select value={venueChoice} onChange={event => setVenueChoice(event.target.value)} required>{venues.map(venue => <option key={venue.id} value={venue.id}>{venue.city} · {venue.name}</option>)}<option value="new-map">Отметить новое место на карте</option><option value="new-text">Указать новый адрес текстом</option></select></label>{(venueChoice === 'new-map' || venueChoice === 'new-text') && <div className="new-venue-fields full"><label>Название места<input required maxLength={160} placeholder="Поле на Московской" value={venueDraft.name} onChange={event => setVenueDraft(current => ({ ...current, name: event.target.value }))} /></label><label>Город<input required maxLength={120} placeholder="Казань" value={venueDraft.city} onChange={event => setVenueDraft(current => ({ ...current, city: event.target.value }))} /></label><label>Район<input maxLength={120} placeholder="Вахитовский" value={venueDraft.district} onChange={event => setVenueDraft(current => ({ ...current, district: event.target.value }))} /></label><label>Адрес или ориентир<input required maxLength={240} placeholder="ул. Московская, 1" value={venueDraft.address} onChange={event => setVenueDraft(current => ({ ...current, address: event.target.value }))} /></label><label className="venue-indoor"><input type="checkbox" checked={venueDraft.indoor} onChange={event => setVenueDraft(current => ({ ...current, indoor: event.target.checked }))} /> Крытая площадка</label>{venueChoice === 'new-map' && <YandexLocationPicker value={meetingPoint} addressQuery={[venueDraft.city, venueDraft.address].filter(Boolean).join(', ')} onChange={setMeetingPoint} onResolved={resolveVenue} />}</div>}<label>Начало<input name="startAt" type="datetime-local" required defaultValue={editing ? dateTimeInputValue(editing.startAt) : localDateTime(24)} /></label><label>За сколько минут приходить<input name="arrivalMinutes" type="number" min="0" max="180" defaultValue={Number(editing?.rules?.match(/(\d+)\s+минут/)?.[1] ?? 15)} /></label><label>Количество мест, включая организатора<input name="capacity" type="number" min="2" max="500" defaultValue={editing?.capacity ?? 12} required /></label><label>Размер листа ожидания<input name="waitlistCapacity" type="number" min="0" max="500" defaultValue={editing?.waitlistCapacity ?? 0} /></label><label>Цена, ₽<input name="price" type="number" min="0" step="1" defaultValue={editing?.price ?? 0} required /></label><label>Уровень<select name="skillLevel" defaultValue={editing?.skillLevel ?? 'Любой'}><option>Любой</option><option>Начинающий</option><option>Средний</option><option>Продвинутый</option></select></label><label>Возраст от<input name="minimumAge" type="number" min="1" max="99" defaultValue={editing?.minimumAge ?? 18} required /></label><label>Возраст до<input name="maximumAge" type="number" min="1" max="99" defaultValue={editing?.maximumAge ?? ''} placeholder="Без ограничения" /></label><label className="full">Дополнительная информация<textarea name="description" required maxLength={4000} placeholder="Что важно знать участникам: инвентарь, одежда, ориентир или другие детали." defaultValue={editing?.description ?? ''} /></label><label className="full organizer-participation"><span><input name="organizerParticipates" type="checkbox" defaultChecked={editing?.organizerParticipates ?? false} /><b>Я тоже участвую в активности</b></span><small>Если включено, организатор появится в списке участников и займёт одно место из общего лимита.</small></label></div><div className="organizer-form-actions"><button className="button large" disabled={pending || sports.length === 0}>{pending ? 'Сохраняем…' : editing ? 'Сохранить изменения' : 'Опубликовать активность'}</button><button type="button" className="button ghost" onClick={backToList}>Отмена</button></div>{message && <div className={message.ok ? 'success-message' : 'form-error'}>{message.text}</div>}</form></section>}{view === 'list' && <section className="organizer-list"><div><span className="eyebrow">Ваши события</span><h2>{activities.length}</h2></div>{activities.map(item => <article key={item.id}><span className={`activity-status ${item.status.toLowerCase()}`}>{item.status}</span><h3>{item.title}</h3><p>{item.sport}{item.gameFormat ? ` · ${formatGameFormat(item.sportSlug, item.gameFormat)}` : ''} · {formatDate(item.startAt)} · {item.venue.name}</p><small>{item.participantsCount}/{item.capacity} участников · {item.organizerParticipates ? 'вы занимаете одно место' : 'вы только организатор'}</small><div>{item.status !== 'Cancelled' && item.status !== 'Completed' && <button className="button ghost" disabled={pending} onClick={() => startEditing(item)}>Редактировать</button>}{item.status === 'Draft' && <button className="button" disabled={pending} onClick={() => void action(item, 'publish')}>Опубликовать</button>}{item.status !== 'Cancelled' && item.status !== 'Completed' && <button className="button ghost" disabled={pending} onClick={() => void action(item, 'cancel')}>Отменить</button>}{['Draft', 'Cancelled'].includes(item.status) && (confirmDeleteId === item.id ? <><button type="button" className="button danger" disabled={pending} onClick={() => void deleteActivity(item)}>Подтвердить удаление</button><button type="button" className="button ghost" disabled={pending} onClick={() => setConfirmDeleteId(null)}>Не удалять</button></> : <button type="button" className="button ghost danger" disabled={pending} onClick={() => setConfirmDeleteId(item.id)}>Удалить</button>)}<button className="button ghost" disabled={participantLoading} onClick={() => void openParticipants(item)}>Участники</button><Link to={`/activities/${item.slug}`}>Карточка →</Link></div></article>)}{activities.length === 0 && <div className="nearby-empty"><b>Событий пока нет</b><p>Нажмите «+ Новое событие», чтобы создать первое.</p></div>}</section>}{view === 'participants' && participantActivity && <section className="participants-manager"><div className="participants-manager-head"><div><span className="eyebrow">Участники события</span><h2>{participantActivity.title}</h2></div><button type="button" className="button ghost" onClick={() => { setParticipantActivity(null); setParticipants(null); setConfirmRemovalId(null); setView('list') }}>← К списку</button></div>{participantLoading && !participants ? <p>Загружаем участников…</p> : participants && <><div className="participant-counts"><span><b>{participants.confirmedCount}</b> подтверждено</span><span><b>{Math.max(0, participants.capacity - participants.confirmedCount)}</b> свободно</span><span><b>{participants.cancelledCount}</b> отменено</span></div><form className="participant-add" onSubmit={addParticipant}><input name="name" required minLength={2} maxLength={80} placeholder="Имя участника" /><input name="contact" maxLength={120} placeholder="Телефон / email / Telegram (необязательно)" /><button className="button" disabled={participantLoading}>Добавить участника</button></form><div className="participant-list">{participants.items.map(participant => <ParticipantRosterRow key={participant.id} participant={participant} activityPast={new Date(participantActivity.endAt).getTime() < nowMs} participantLoading={participantLoading} confirmRemovalId={confirmRemovalId} onConfirmRemoval={setConfirmRemovalId} onRemove={removeParticipant} onFileReport={fileReport} onRetractReport={retractReport} loadReports={loadReports} />)}</div>{participants.items.length === 0 && <div className="nearby-empty"><b>Участников пока нет</b></div>}</>}</section>}</main></div>
 }
 
 function GuestSuccessPanel({ activity, result }: { activity: Activity; result: GuestJoinResult }) {
+  const waitlisted = result.status === 'Waitlisted'
   return <div className="guest-success" role="status">
-    <span className="guest-success-mark">✓</span>
-    <h2>Вы в игре, {result.name}!</h2>
-    <p>Место подтверждено. Сохраните событие и ссылку управления записью.</p>
+    <span className="guest-success-mark">{waitlisted ? '⏳' : '✓'}</span>
+    <h2>{waitlisted ? `Вы в листе ожидания, ${result.name}` : `Вы в игре, ${result.name}!`}</h2>
+    <p>{waitlisted
+      ? 'Как только освободится место, вы станете подтверждённым участником. Если вы оставили email, придёт уведомление. Сохраните ссылку управления записью.'
+      : 'Место подтверждено. Сохраните событие и ссылку управления записью.'}</p>
     <div className="guest-success-actions">
       <a className="button" href={calendarDataUrl(activity)} download={`kasanie-${activity.slug}.ics`}>Добавить в календарь</a>
       <a className="button ghost" href={yandexRouteUrl(activity.venue)} target="_blank" rel="noreferrer">Открыть маршрут</a>
@@ -828,10 +947,10 @@ export function PublicActivityPage() {
               <label>Как вас зовут<input name="name" required minLength={2} maxLength={80} autoComplete="name" /></label>
               <label>Телефон, email или Telegram<input name="contact" required minLength={3} maxLength={120} autoComplete="tel" /></label>
               <label className="guest-consent"><input name="adultConfirmed" type="checkbox" required />Мне исполнилось 18 лет, согласен на передачу контакта организатору</label>
-              <button className="button large" disabled={pending || !canJoin}>{pending ? 'Отмечаем…' : 'Подтвердить участие'}</button>
+              <button className="button large" disabled={pending || !canJoin}>{pending ? 'Отмечаем…' : activity.availablePlaces > 0 ? 'Подтвердить участие' : 'Встать в лист ожидания'}</button>
               <button type="button" className="button ghost" onClick={() => setShowGuestJoin(false)}>Назад</button>
             </form> : <>
-              <button className="button large" disabled={!canJoin} onClick={() => setShowGuestJoin(true)}>{canJoin ? 'Я буду' : 'Мест нет'}</button>
+              <button className="button large" disabled={!canJoin} onClick={() => setShowGuestJoin(true)}>{activity.availablePlaces > 0 ? 'Я буду' : activity.waitlistAvailablePlaces > 0 ? 'Встать в лист ожидания' : 'Мест нет'}</button>
               <small className="guest-without-account">Запись без регистрации</small>
               <Link className="guest-login-link" to="/login" state={{ from: location.pathname }}>Уже есть аккаунт? Войти</Link>
             </>}
