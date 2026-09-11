@@ -1400,20 +1400,21 @@ small { color: var(--muted); }
 .search-discovery .nearby-search-button .nearby-search-icon {
   position: relative;
   display: block;
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
   box-sizing: border-box;
   border: 2px solid currentColor;
   border-radius: 50%;
   font-size: 0;
+  transform: translate(-2px, -2px);
 }
 .search-discovery .nearby-search-button .nearby-search-icon::after {
   content: '';
   position: absolute;
-  right: -5px;
-  bottom: -3px;
-  width: 7px;
+  right: -6px;
+  bottom: -4px;
+  width: 8px;
   height: 2px;
   border-radius: 999px;
   background: currentColor;
