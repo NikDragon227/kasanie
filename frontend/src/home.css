@@ -179,19 +179,18 @@
 }
 
 .home-brand-mark.home-brand-mark-outlined {
-  position: relative;
+  position: static;
   width: 34px;
   height: 42px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .home-brand-mark.home-brand-mark-outlined img {
-  position: absolute;
-  top: 0;
-  left: -24px;
-  width: 78px;
-  max-width: none;
-  height: auto;
-  object-fit: initial;
-  filter: drop-shadow(0 0 .55px #111) drop-shadow(0 0 .55px #111);
+  position: static;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: none;
 }
