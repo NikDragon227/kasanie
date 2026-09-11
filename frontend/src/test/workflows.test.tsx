@@ -144,8 +144,13 @@ describe('critical workflows', () => {
     render(<MemoryRouter initialEntries={['/']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
 
     expect(await screen.findByText('Футбол вечером')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Найдите спорт рядом' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Доступные активности' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Развиваться' })).toHaveAttribute('href', '/join')
+    expect(screen.getByRole('link', { name: /Управляйте командой/ })).toHaveAttribute('href', '/register-coach')
+    expect(screen.getByRole('link', { name: /Тренируйтесь индивидуально/ })).toHaveAttribute('href', '/register')
+    expect(screen.getByRole('link', { name: /Будьте рядом с ребёнком/ })).toHaveAttribute('href', '/register-parent')
+    expect(screen.getByRole('navigation', { name: 'Разделы сайта' })).toBeInTheDocument()
     expect(screen.getByLabelText('Город')).toBeInTheDocument()
     expect(screen.queryByLabelText('Район')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Время')).not.toBeInTheDocument()
