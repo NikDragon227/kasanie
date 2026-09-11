@@ -289,7 +289,7 @@ function PublicHeader() {
 
   const isDiscoveryHome = location.pathname === '/' || location.pathname === '/sports'
 
-  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src={isDiscoveryHome ? '/brand/kasanie-mark-light.svg' : '/brand/kasanie-mark.webp'} alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
+  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src="/brand/kasanie-mark-light.svg" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
     ? <div className="nearby-account" ref={accountRef}>
         <button type="button" className="nearby-account-trigger" aria-label="Меню профиля" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
           <span className="nearby-account-avatar" aria-hidden>{user.email[0]?.toUpperCase() ?? '?'}</span>
@@ -480,6 +480,7 @@ export function OrganizerRegisterPage() {
 
 type SavedFilter = { id: string; name: string; query: string }
 const SAVED_FILTERS_KEY = 'kasanie:sports:saved-filters'
+const RECENT_ACTIVITIES_KEY = 'kasanie:sports:recent-activities'
 
 function readSavedFilters(): SavedFilter[] {
   try {
@@ -492,6 +493,17 @@ function readSavedFilters(): SavedFilter[] {
 }
 function writeSavedFilters(items: SavedFilter[]) {
   try { localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(items.slice(0, 12))) } catch { /* storage unavailable */ }
+}
+
+function readRecentActivityIds(): number[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_ACTIVITIES_KEY) ?? '[]')
+    return Array.isArray(parsed) ? parsed.filter((value): value is number => Number.isInteger(value)).slice(0, 12) : []
+  } catch { return [] }
+}
+
+function rememberActivityId(activityId: number) {
+  try { localStorage.setItem(RECENT_ACTIVITIES_KEY, JSON.stringify([activityId, ...readRecentActivityIds().filter(id => id !== activityId)].slice(0, 12))) } catch { /* storage unavailable */ }
 }
 
 function SavedFilters({ query, onApply }: { query: string; onApply: (query: string) => void }) {
@@ -540,6 +552,7 @@ export function SportsNearbyPage() {
   const [locating, setLocating] = useState(false)
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null)
   const [showMoreFilters, setShowMoreFilters] = useState(false)
+  const [recentActivityIds] = useState(readRecentActivityIds)
   const cityParam = params.get('city') ?? ''
   const [selectedCity, setSelectedCity] = useState(cityParam)
   const sportParam = params.get('sport') ?? ''
@@ -656,10 +669,17 @@ export function SportsNearbyPage() {
     setParams(next)
   }
   const applySavedFilter = useCallback((saved: string) => setParams(new URLSearchParams(saved)), [setParams])
+  const isBrowseHome = params.size === 0
+  const browseItems = result?.items ?? []
+  const recentlyViewed = recentActivityIds.map(id => browseItems.find(item => item.activity.id === id)).filter((item): item is SearchItem => Boolean(item))
+  const cityShelves = Array.from(browseItems.reduce((groups, item) => {
+    const city = item.activity.venue.city
+    groups.set(city, [...(groups.get(city) ?? []), item])
+    return groups
+  }, new Map<string, SearchItem[]>()))
 
   return <div className="nearby-page search-discovery"><PublicHeader /><main>
     <section className="nearby-hero">
-      <div className="nearby-hero-title"><span className="eyebrow">Касание рядом</span><h1>Найдите спорт рядом</h1><p>Игры, тренировки, секции и спортивные события — в вашем городе.</p></div>
       <form key={`${query}-${sports.length}`} className="nearby-search" onSubmit={submit}>
         <div className="nearby-search-primary">
           <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
@@ -685,11 +705,18 @@ export function SportsNearbyPage() {
       </div>}
       <nav className="nearby-categories" aria-label="Быстрый выбор формата">{formatLinks.map(item => <Link key={item.label} className={`format-${item.icon} ${(params.get('type') ?? '') === item.value ? 'active' : ''}`} to={linkForFormat(item.value)}><span className="format-icon"><FormatIcon type={item.icon} /></span><b>{item.label}</b></Link>)}</nav>
     </section>
-    <section className="nearby-results"><div className="nearby-results-head"><div><span className="eyebrow">{params.get('sport') ? `${selectedSportName} рядом` : 'Активности рядом'}</span><h2>Доступные активности</h2><p>{result ? `${result.total} ${pluralRu(result.total, ['вариант', 'варианта', 'вариантов'])} по выбранным фильтрам` : 'Подбираем варианты рядом'}</p></div><div className="nearby-results-actions"><label className="nearby-sort">Сначала<select aria-label="Сортировка результатов" value={params.get('sort') ?? 'recommended'} onChange={event => changeSort(event.target.value)}><option value="recommended">Рекомендованные</option><option value="distance" disabled={!params.has('latitude')}>Ближайшие</option><option value="date">По дате</option><option value="availability">Больше свободных мест</option><option value="price">Сначала дешевле</option></select></label><Link className="button" to="/register-organizer">Создать событие</Link></div></div>
+    {isBrowseHome ? <section className="discovery-shelves" aria-label="Подборки активностей">
+      {error && <div className="discovery-home-empty" role="alert"><h2>Не удалось загрузить подборки</h2><p>Проверьте соединение и попробуйте обновить страницу.</p><button className="button" type="button" onClick={() => window.location.reload()}>Обновить</button></div>}
+      {!result && !error && <div className="discovery-shelf-loading">Подбираем активности…</div>}
+      {recentlyViewed.length > 0 && <DiscoveryShelf title="Вы недавно смотрели" items={recentlyViewed} />}
+      {browseItems.length > 0 && <DiscoveryShelf title="Актуальные события" items={browseItems.slice(0, 12)} />}
+      {cityShelves.map(([city, items]) => <DiscoveryShelf key={city} title={`Активности: ${city}`} items={items} />)}
+      {result?.total === 0 && <div className="discovery-home-empty"><h2>События скоро появятся</h2><p>Станьте первым организатором в своём городе или выберите другой город в поиске.</p><Link className="button" to="/register-organizer">Создать событие</Link></div>}
+    </section> : <section className="nearby-results"><div className="nearby-results-head"><div><span className="eyebrow">{params.get('sport') ? `${selectedSportName} рядом` : 'Активности рядом'}</span><h2>Доступные активности</h2><p>{result ? `${result.total} ${pluralRu(result.total, ['вариант', 'варианта', 'вариантов'])} по выбранным фильтрам` : 'Подбираем варианты рядом'}</p></div><div className="nearby-results-actions"><label className="nearby-sort">Сначала<select aria-label="Сортировка результатов" value={params.get('sort') ?? 'recommended'} onChange={event => changeSort(event.target.value)}><option value="recommended">Рекомендованные</option><option value="distance" disabled={!params.has('latitude')}>Ближайшие</option><option value="date">По дате</option><option value="availability">Больше свободных мест</option><option value="price">Сначала дешевле</option></select></label><Link className="button" to="/register-organizer">Создать событие</Link></div></div>
       {error && <div className="form-error" role="alert">{error}</div>}
       <div className="nearby-results-grid"><div className="activity-list">{result?.items.map(({ activity, distanceKm }) => <ActivityCard key={activity.id} activity={activity} distanceKm={distanceKm} selected={selectedActivityId === activity.id} onSelect={setSelectedActivityId} />)}{result && result.total === 0 && <div className="nearby-empty"><span aria-hidden>⌕</span><b>Пока ничего не найдено</b><p>Измените дату или формат — либо создайте активность, которой не хватает рядом с вами.</p><div>{query && <Link className="button ghost" to="/">Сбросить фильтры</Link>}<Link className="button" to="/register-organizer">Создать событие</Link></div></div>}</div><YandexActivitiesMap items={mapItems} selectedActivityId={selectedActivityId} onSelect={selectFromMap} onSearchArea={searchMapArea} fallbackLatitude={params.has('latitude') ? Number(params.get('latitude')) : undefined} fallbackLongitude={params.has('longitude') ? Number(params.get('longitude')) : undefined} /></div>
-    </section>
-    <section className="nearby-services" aria-labelledby="nearby-services-title">
+    </section>}
+    {isBrowseHome && <section className="nearby-services" aria-labelledby="nearby-services-title">
       <div className="nearby-services-head"><span className="eyebrow">Больше, чем поиск событий</span><h2 id="nearby-services-title">Развивайтесь в своём ритме</h2><p>От первой тренировки до управления командой — нужный маршрут уже внутри «Касания».</p></div>
       <div className="nearby-service-grid">
         <Link className="nearby-service-card service-team" to="/register-coach"><span className="nearby-service-copy"><small>Для тренеров и команд</small><strong>Управляйте командой</strong><p>Состав, расписание, тренировки и обратная связь в одном кабинете.</p><b>Открыть кабинет <span aria-hidden>→</span></b></span><img src="/brand/home-reference/coach.webp" alt="" loading="lazy" /></Link>
@@ -697,8 +724,26 @@ export function SportsNearbyPage() {
         <Link className="nearby-service-card service-parent" to="/register-parent"><span className="nearby-service-copy"><small>Для родителей</small><strong>Будьте рядом с ребёнком</strong><p>Расписание, достижения и связь с тренером без лишних чатов.</p><b>Кабинет родителя <span aria-hidden>→</span></b></span><img src="/brand/home-reference/child.webp" alt="" loading="lazy" /></Link>
       </div>
       <div className="nearby-organizer-cta"><div><span className="eyebrow">Для организаторов</span><h2>Проводите игры и тренировки?</h2><p>Добавьте событие — участники найдут его через поиск и карту.</p></div><Link className="button" to="/register-organizer">Создать событие</Link></div>
-    </section>
+    </section>}
   </main><footer className="nearby-footer"><div className="nearby-footer-main"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src="/brand/kasanie-mark-light.svg" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спорт рядом и развитие</small></span></Link><nav aria-label="Разделы сайта"><div><b>Активности</b><Link to="/">Найти рядом</Link><Link to="/register-organizer">Создать событие</Link></div><div><b>Развитие</b><Link to="/join">Выбрать роль</Link><Link to="/register-coach">Для тренеров</Link><Link to="/register-parent">Для родителей</Link></div><div><b>Аккаунт</b><Link to="/login">Войти</Link><Link to="/my/activities">Мои активности</Link></div></nav></div><div className="nearby-footer-bottom"><span>© {new Date().getFullYear()} Касание</span><span>Спортивная платформа для людей и команд</span></div></footer></div>
+}
+
+function DiscoveryShelf({ title, items }: { title: string; items: SearchItem[] }) {
+  return <section className="discovery-shelf"><div className="discovery-shelf-head"><h2>{title}</h2><span>{items.length} {pluralRu(items.length, ['вариант', 'варианта', 'вариантов'])}</span></div><div className="discovery-shelf-track">{items.map(({ activity, distanceKm }) => <DiscoveryActivityCard key={activity.id} activity={activity} distanceKm={distanceKm} />)}</div></section>
+}
+
+const discoveryCoverByEvent: Record<string, string> = {
+  Game: '/brand/home-reference/nearby-v2.png',
+  GroupTraining: '/brand/home-reference/kids.webp',
+  CoachTraining: '/brand/home-reference/coach-v2.png',
+  OpenTeamTraining: '/brand/home-reference/board.webp',
+  PlayerRecruitment: '/brand/home-reference/player-v2.png',
+  Tournament: '/brand/home-reference/trophy.webp'
+}
+
+function DiscoveryActivityCard({ activity, distanceKm }: { activity: Activity; distanceKm?: number }) {
+  const date = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(activity.startAt))
+  return <Link className="discovery-activity-card" to={`/activities/${activity.slug}`} onClick={() => rememberActivityId(activity.id)}><span className={`discovery-activity-cover activity-${activity.eventType.toLowerCase()}`}><img src={discoveryCoverByEvent[activity.eventType] ?? '/brand/home-reference/ball.webp'} alt="" loading="lazy" /><b>{eventLabels[activity.eventType] ?? activity.eventType}</b></span><span className="discovery-activity-copy"><span><strong>{activity.title}</strong><b>{formatPrice(activity.price)}</b></span><small>{date}</small><small>{activity.venue.city} · {activity.venue.name}{typeof distanceKm === 'number' ? ` · ${distanceKm} км` : ''}</small><small>{activity.sport}{activity.gameFormat ? ` · ${formatGameFormat(activity.sportSlug, activity.gameFormat)}` : ''}</small></span></Link>
 }
 
 function ActivityCard({ activity, distanceKm, selected, onSelect }: { activity: Activity; distanceKm?: number; selected?: boolean; onSelect?: (activityId: number) => void }) {
@@ -943,6 +988,7 @@ export function PublicActivityPage() {
   useEffect(() => {
     void reloadActivity().catch(error => setMessage({ text: error instanceof Error ? error.message : 'Событие не найдено.', ok: false }))
   }, [reloadActivity])
+  useEffect(() => { if (activity) rememberActivityId(activity.id) }, [activity])
 
   const join = async () => {
     if (!activity) return

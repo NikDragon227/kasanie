@@ -143,9 +143,11 @@ describe('critical workflows', () => {
 
     render(<MemoryRouter initialEntries={['/']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
 
-    expect(await screen.findByText('Футбол вечером')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Найдите спорт рядом' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Доступные активности' })).toBeInTheDocument()
+    expect(await screen.findAllByText('Футбол вечером')).not.toHaveLength(0)
+    expect(screen.queryByRole('heading', { name: 'Найдите спорт рядом' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Актуальные события' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Активности: Казань' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Карта найденных занятий')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Развиваться' })).toHaveAttribute('href', '/join')
     expect(screen.getByRole('link', { name: /Управляйте командой/ })).toHaveAttribute('href', '/register-coach')
     expect(screen.getByRole('link', { name: /Тренируйтесь индивидуально/ })).toHaveAttribute('href', '/register')
@@ -162,7 +164,7 @@ describe('critical workflows', () => {
     expect(screen.getByRole('option', { name: 'Бадминтон' })).toBeInTheDocument()
     expect(screen.queryByText('Мини-футбол')).not.toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('img')).toHaveLength(6)
-    expect(screen.getByText('8 мест свободно')).toBeInTheDocument()
+    expect(screen.getAllByText('Бесплатно')).not.toHaveLength(0)
   })
 
   it('searches public activities around the current location and radius', async () => {
@@ -180,7 +182,7 @@ describe('critical workflows', () => {
     })
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
-    await screen.findByRole('heading', { name: 'Доступные активности' })
+    await screen.findByRole('button', { name: 'Найти события' })
     await userEvent.click(screen.getByRole('button', { name: 'Рядом со мной' }))
 
     await waitFor(() => expect(requested.some(url => url.includes('latitude=55.796300') && url.includes('longitude=49.106400') && url.includes('radiusKm=10'))).toBe(true))
@@ -198,7 +200,7 @@ describe('critical workflows', () => {
     })
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
-    await screen.findByRole('heading', { name: 'Доступные активности' })
+    await screen.findByRole('button', { name: 'Найти события' })
 
     await waitFor(() => expect(requested.some(url => url.startsWith('/api/public/activities'))).toBe(true))
     expect(requested.some(url => url.startsWith('/api/public/activities') && url.includes('sport='))).toBe(false)
@@ -226,7 +228,7 @@ describe('critical workflows', () => {
     })
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
-    await screen.findByRole('heading', { name: 'Доступные активности' })
+    await screen.findByRole('button', { name: 'Найти события' })
 
     // no saved sets and no active filters → block hidden
     expect(screen.queryByText('Сохранённые фильтры')).not.toBeInTheDocument()
@@ -266,7 +268,7 @@ describe('critical workflows', () => {
     })
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
-    await screen.findByRole('heading', { name: 'Доступные активности' })
+    await screen.findByRole('button', { name: 'Найти события' })
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
     await userEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
     expect(screen.getByRole('option', { name: '5+1 — 5 полевых и вратарь' })).toBeInTheDocument()
@@ -294,7 +296,7 @@ describe('critical workflows', () => {
     })
 
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
-    await screen.findByRole('heading', { name: 'Доступные активности' })
+    await screen.findByRole('button', { name: 'Найти события' })
     await userEvent.click(screen.getByRole('button', { name: 'Рядом со мной' }))
     const permissionLink = await screen.findByRole('button', { name: 'Разрешить доступ к геопозиции' })
     await userEvent.click(permissionLink)

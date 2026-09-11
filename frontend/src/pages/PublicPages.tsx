@@ -24,7 +24,7 @@ const joinRoles = [
 
 export function RegistrationChoicePage() {
   return <div className="join-page">
-    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
+    <header className="entry-nav"><Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark-light.svg" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><Link className="button ghost" to="/login">Уже есть аккаунт</Link></header>
     <main className="join-main">
       <div className="join-heading"><h1>Кем вы будете<br />в «Касании»?</h1><p>Выберите роль — дальше покажем только нужные поля и возможности.</p></div>
       <div className="join-role-grid">{joinRoles.map((role, index) => <Link key={role.name} className="join-role-card" to={role.to}><span className="join-role-mark">{role.mark}</span><small>0{index + 1}</small><h2>{role.name}</h2><p>{role.description}</p><strong>Зарегистрироваться <span>→</span></strong></Link>)}</div>
@@ -74,7 +74,7 @@ export function LandingPage() {
   ] as const
   return <div className="landing landing-v2">
     <header className="landing-nav landing-nav-v2">
-      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>
+      <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark-light.svg" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>
       <nav aria-label="Навигация по странице"><Link to="/">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/">Найти игру</Link></nav>
     </header>
     <main>
