@@ -1397,6 +1397,29 @@ small { color: var(--muted); }
   box-shadow: none;
 }
 .search-discovery .nearby-search-button span { font-size: 1.5rem; line-height: 1; }
+.search-discovery .nearby-search-button .nearby-search-icon {
+  position: relative;
+  display: block;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  font-size: 0;
+}
+.search-discovery .nearby-search-button .nearby-search-icon::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 7px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(45deg);
+  transform-origin: center;
+}
 .search-discovery .nearby-search-button b { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .search-discovery .nearby-more-toggle {
   min-height: 48px;
