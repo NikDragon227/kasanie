@@ -693,10 +693,10 @@ export function SportsNearbyPage() {
           <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
           <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
           <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? defaultSearchDateTime.date} /></label>
+          <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}><span aria-hidden>☷</span>{showMoreFilters ? 'Скрыть' : 'Фильтры'} <i aria-hidden>{showMoreFilters ? '▴' : '▾'}</i></button>
           <button type="button" className={`nearby-geo-button${params.has('latitude') ? ' active' : ''}`} disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}><span aria-hidden>⌖</span>{locating ? 'Определяем…' : params.has('latitude') ? 'Рядом (сбросить)' : 'Рядом со мной'}</button>
           <button className="nearby-search-button" aria-label="Найти события"><span>⌕</span><b>Найти</b></button>
         </div>
-        <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}>{showMoreFilters ? 'Скрыть фильтры' : 'Ещё фильтры'} <span aria-hidden>{showMoreFilters ? '▴' : '▾'}</span></button>
         {showMoreFilters && <div className="nearby-search-more">
           <label><b>Район</b><input name="district" list="nearby-districts" defaultValue={params.get('district') ?? ''} placeholder={districtOptions.length ? 'Выберите район' : 'Любой район'} /><datalist id="nearby-districts">{districtOptions.map(district => <option key={district} value={district} />)}</datalist></label>
           <label><b>Время</b><input name="time" type="time" step="3600" defaultValue={params.get('time') ?? defaultSearchDateTime.time} /></label>
