@@ -1374,7 +1374,8 @@ small { color: var(--muted); }
 .search-discovery .nearby-search input[type="date"]::-webkit-calendar-picker-indicator,
 .search-discovery .nearby-search input[type="time"]::-webkit-calendar-picker-indicator { filter: none; opacity: .55; }
 .search-discovery .nearby-geo-button {
-  min-height: 54px;
+  min-height: 48px;
+  align-self: center;
   margin-inline: .5rem .35rem;
   padding-inline: 1rem;
   border: 0;
@@ -1385,8 +1386,10 @@ small { color: var(--muted); }
 .search-discovery .nearby-geo-button:hover { background: #f2f2f2; color: #0877ff; }
 .search-discovery .nearby-geo-button.active { border: 0; background: #eaf3ff; color: #0877ff; }
 .search-discovery .nearby-search-button {
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
+  align-self: center;
+  justify-self: center;
   margin: 0;
   padding: 0;
   border-radius: 50%;
@@ -1396,7 +1399,7 @@ small { color: var(--muted); }
 .search-discovery .nearby-search-button span { font-size: 1.5rem; line-height: 1; }
 .search-discovery .nearby-search-button b { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .search-discovery .nearby-more-toggle {
-  min-height: 44px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
