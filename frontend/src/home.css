@@ -177,3 +177,21 @@
 @media (prefers-reduced-motion: reduce) {
   .home-page *, .home-page *::before, .home-page *::after { transition-duration: .01ms !important; }
 }
+
+.home-brand-mark.home-brand-mark-outlined {
+  position: relative;
+  width: 34px;
+  height: 42px;
+  overflow: hidden;
+}
+
+.home-brand-mark.home-brand-mark-outlined img {
+  position: absolute;
+  top: 0;
+  left: -24px;
+  width: 78px;
+  max-width: none;
+  height: auto;
+  object-fit: initial;
+  filter: drop-shadow(0 0 .55px #111) drop-shadow(0 0 .55px #111);
+}

@@ -31,7 +31,7 @@ function HomeIcon({ name }: { name: string }) {
 }
 
 function Brand() {
-  return <Link className="home-brand" to="/" aria-label="Касание — главная"><span className="home-brand-mark"><img src="/brand/kasanie-mark.webp" alt="" /></span><strong>КАСАНИЕ</strong></Link>
+  return <Link className="home-brand" to="/" aria-label="Касание — главная"><span className="home-brand-mark home-brand-mark-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><strong>КАСАНИЕ</strong></Link>
 }
 
 function Header() {
