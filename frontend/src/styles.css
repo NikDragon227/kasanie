@@ -1353,8 +1353,10 @@ small { color: var(--muted); }
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 12px 36px rgba(0, 0, 0, .11);
+  transition: border-radius .2s ease, box-shadow .2s ease;
 }
-.search-discovery .nearby-search-primary { grid-template-columns: 1.35fr 1fr 1fr auto auto; gap: 0; align-items: center; }
+.search-discovery .nearby-search.is-expanded { border-radius: 32px; box-shadow: 0 18px 48px rgba(0, 0, 0, .12); }
+.search-discovery .nearby-search-primary { grid-template-columns: minmax(260px, 1.35fr) minmax(190px, 1fr) minmax(190px, 1fr) auto 54px; gap: 0; align-items: center; }
 .search-discovery .nearby-search-primary label {
   min-height: 62px;
   gap: .15rem;
@@ -1393,14 +1395,17 @@ small { color: var(--muted); }
 }
 .search-discovery .nearby-search-button span { font-size: 1.5rem; line-height: 1; }
 .search-discovery .nearby-search-button b { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.search-discovery .nearby-more-toggle { color: #555; }
+.search-discovery .nearby-more-toggle { min-height: 32px; margin: .2rem auto 0; padding: .25rem .8rem; color: #555; }
 .search-discovery .nearby-more-toggle:hover { color: #0877ff; }
-.search-discovery .nearby-search-more { border-top-color: #e5e5e5; }
-.search-discovery .nearby-search-more label { border-color: #ddd; background: #fff; }
+.search-discovery .nearby-search-more { gap: .55rem; margin-top: .15rem; padding-top: .7rem; border-top-color: #e5e5e5; }
+.search-discovery .nearby-search-more > label { min-height: 64px; align-content: center; border-color: #ddd; border-radius: 16px; background: #fff; }
 .search-discovery .nearby-search-more label b { color: #333; }
 .search-discovery .nearby-search-more label:focus-within { border-color: #0877ff; background: #f7fbff; }
 .search-discovery .nearby-search-more input, .search-discovery .nearby-search-more select { color: #444; color-scheme: light; }
 .search-discovery .nearby-search-more select option { background: #fff; color: #111; }
+.search-discovery .nearby-search-more .nearby-checks { justify-content: center; gap: .7rem; min-height: 58px; padding: .7rem 0 .15rem; border-top: 1px solid #ededed; }
+.search-discovery .nearby-search-more .nearby-checks label { min-height: 44px; display: flex; align-items: center; gap: .55rem; padding: .55rem .9rem; border: 1px solid #ddd; border-radius: 14px; background: #fff; }
+.search-discovery .nearby-search-more .nearby-checks input { width: 18px; height: 18px; flex: 0 0 auto; }
 .search-discovery .nearby-search .nearby-checks label { color: #555; }
 .search-discovery .nearby-search .nearby-checks .radius-control select { border-color: #ddd; background: #fff; color: #222; }
 .search-discovery .saved-filters-label { color: #555; }

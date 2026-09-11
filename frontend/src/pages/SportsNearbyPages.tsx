@@ -151,7 +151,7 @@ const russianCityDistricts: Record<string, string[]> = {
   Краснодар: ['Западный', 'Карасунский', 'Прикубанский', 'Центральный']
 }
 
-const discoverySportSlugs = new Set(['football', 'basketball', 'running', 'volleyball', 'tennis', 'badminton', 'workout', 'hockey'])
+const discoverySportSlugs = new Set(['football', 'basketball', 'running', 'volleyball', 'tennis', 'badminton', 'workout', 'hockey', 'adaptive-sport'])
 const fallbackSports: Sport[] = [
   { id: 1, slug: 'football', name: 'Футбол' },
   { id: 2, slug: 'basketball', name: 'Баскетбол' },
@@ -160,7 +160,8 @@ const fallbackSports: Sport[] = [
   { id: 5, slug: 'tennis', name: 'Теннис' },
   { id: 6, slug: 'badminton', name: 'Бадминтон' },
   { id: 7, slug: 'workout', name: 'Функциональные тренировки' },
-  { id: 8, slug: 'hockey', name: 'Хоккей' }
+  { id: 8, slug: 'hockey', name: 'Хоккей' },
+  { id: 9, slug: 'adaptive-sport', name: 'Адаптивный спорт' }
 ]
 type GameFormatOption = { value: string; label: string; display: string }
 const gameFormatsBySport: Record<string, GameFormatOption[]> = {
@@ -223,7 +224,13 @@ const pluralRu = (value: number, forms: [string, string, string]) => {
   if (modulo10 >= 2 && modulo10 <= 4) return forms[1]
   return forms[2]
 }
-const today = () => new Date().toISOString().slice(0, 10)
+const localDateInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const today = () => localDateInputValue(new Date())
+const nextWholeHour = () => {
+  const date = new Date()
+  date.setHours(date.getHours() + 1, 0, 0, 0)
+  return { date: localDateInputValue(date), time: `${String(date.getHours()).padStart(2, '0')}:00` }
+}
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character)
 
 function loadYandexMaps() {
@@ -557,6 +564,7 @@ export function SportsNearbyPage() {
   const [selectedCity, setSelectedCity] = useState(cityParam)
   const sportParam = params.get('sport') ?? ''
   const [selectedSearchSport, setSelectedSearchSport] = useState(sportParam)
+  const [defaultSearchDateTime] = useState(nextWholeHour)
   const query = params.toString()
 
   useEffect(() => { void api<Sport[]>('/api/public/sports').then(setSports).catch(() => setSports(fallbackSports)) }, [])
@@ -680,18 +688,18 @@ export function SportsNearbyPage() {
 
   return <div className="nearby-page search-discovery"><PublicHeader /><main>
     <section className="nearby-hero">
-      <form key={`${query}-${sports.length}`} className="nearby-search" onSubmit={submit}>
+      <form key={`${query}-${sports.length}`} className={`nearby-search${showMoreFilters ? ' is-expanded' : ''}`} onSubmit={submit}>
         <div className="nearby-search-primary">
           <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
           <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
-          <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? ''} /></label>
+          <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? defaultSearchDateTime.date} /></label>
           <button type="button" className={`nearby-geo-button${params.has('latitude') ? ' active' : ''}`} disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}><span aria-hidden>⌖</span>{locating ? 'Определяем…' : params.has('latitude') ? 'Рядом (сбросить)' : 'Рядом со мной'}</button>
           <button className="nearby-search-button" aria-label="Найти события"><span>⌕</span><b>Найти</b></button>
         </div>
         <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}>{showMoreFilters ? 'Скрыть фильтры' : 'Ещё фильтры'} <span aria-hidden>{showMoreFilters ? '▴' : '▾'}</span></button>
         {showMoreFilters && <div className="nearby-search-more">
           <label><b>Район</b><input name="district" list="nearby-districts" defaultValue={params.get('district') ?? ''} placeholder={districtOptions.length ? 'Выберите район' : 'Любой район'} /><datalist id="nearby-districts">{districtOptions.map(district => <option key={district} value={district} />)}</datalist></label>
-          <label><b>Время</b><input name="time" type="time" defaultValue={params.get('time') ?? ''} /></label>
+          <label><b>Время</b><input name="time" type="time" step="3600" defaultValue={params.get('time') ?? defaultSearchDateTime.time} /></label>
           <label><b>Формат игры</b><select key={selectedSearchSport} name="gameFormat" defaultValue={availableSearchGameFormats.some(option => option.value === params.get('gameFormat')) ? params.get('gameFormat') ?? '' : ''}><option value="">Любой формат</option>{availableSearchGameFormats.map(format => <option key={format.value} value={format.value}>{format.label}</option>)}</select></label>
           <div className="nearby-checks"><label><input name="availableOnly" type="checkbox" defaultChecked={params.get('availableOnly') === 'true'} /> Есть места</label><label><input name="freeOnly" type="checkbox" defaultChecked={params.get('freeOnly') === 'true'} /> Бесплатно</label><label className="radius-control">Радиус<select name="radiusKm" defaultValue={params.get('radiusKm') ?? '10'}><option value="1">1 км</option><option value="3">3 км</option><option value="5">5 км</option><option value="10">10 км</option><option value="25">25 км</option></select></label></div>
         </div>}

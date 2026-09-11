@@ -48,7 +48,8 @@ public sealed class PlatformCatalogSeeder(AppDbContext db)
         ("football", "Футбол"), ("basketball", "Баскетбол"),
         ("volleyball", "Волейбол"), ("running", "Бег"), ("hockey", "Хоккей"),
         ("tennis", "Теннис"), ("badminton", "Бадминтон"),
-        ("workout", "Функциональные тренировки")
+        ("workout", "Функциональные тренировки"),
+        ("adaptive-sport", "Адаптивный спорт")
     ];
 
     private static readonly ExerciseTemplate[] Exercises =

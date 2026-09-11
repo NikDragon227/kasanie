@@ -20,5 +20,6 @@ public sealed class PlatformCatalogSeederTests
         Assert.Equal(12, await db.Exercises.CountAsync());
         Assert.Equal(12, await db.Exercises.Select(x => x.Name).Distinct().CountAsync());
         Assert.All(await db.Exercises.ToListAsync(), x => Assert.True(x.IsActive));
+        Assert.Single(await db.Sports.Where(x => x.Slug == "adaptive-sport" && x.Name == "Адаптивный спорт").ToListAsync());
     }
 }

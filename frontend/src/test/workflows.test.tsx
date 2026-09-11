@@ -20,7 +20,7 @@ const publicActivity = {
   venue: { id: 1, slug: 'central', name: 'Центральное поле', city: 'Казань', district: 'Центр', address: 'Тестовая, 1', latitude: 55.79, longitude: 49.12, indoor: false, isVerified: true }
 }
 
-beforeEach(() => { vi.restoreAllMocks() })
+beforeEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
   it('presents the product, live platform statistics and primary public paths', async () => {
@@ -136,7 +136,7 @@ describe('critical workflows', () => {
   it('shows public nearby activities without authentication', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
-      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'futsal', name: 'Мини-футбол' }, { id: 3, slug: 'badminton', name: 'Бадминтон' }])
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'futsal', name: 'Мини-футбол' }, { id: 3, slug: 'badminton', name: 'Бадминтон' }, { id: 4, slug: 'adaptive-sport', name: 'Адаптивный спорт' }])
       if (String(input).startsWith('/api/public/activities')) return json({ total: 1, items: [{ activity: { id: 1, slug: 'football-evening', sportSlug: 'football', sport: 'Футбол', eventType: 'Game', title: 'Футбол вечером', description: 'Открытая игра для взрослых', organizerName: 'Команда на Московской', startAt: '2026-08-28T18:00:00Z', endAt: '2026-08-28T20:00:00Z', price: 0, currency: 'RUB', skillLevel: 'Любой', minimumAge: 18, capacity: 12, participantsCount: 4, availablePlaces: 8, waitlistAvailablePlaces: 4, status: 'Published', isRecurring: false, venue: { id: 1, slug: 'central', name: 'Центральное поле', city: 'Казань', district: 'Центр', address: 'Тестовая, 1', latitude: 55.79, longitude: 49.12, indoor: false, isVerified: true } } }] })
       return json({})
     })
@@ -162,9 +162,22 @@ describe('critical workflows', () => {
     expect(screen.queryByText('Без регистрации для поиска')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Спорт' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Бадминтон' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Адаптивный спорт' })).toBeInTheDocument()
     expect(screen.queryByText('Мини-футбол')).not.toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('img')).toHaveLength(6)
     expect(screen.getAllByText('Бесплатно')).not.toHaveLength(0)
+  })
+
+  it('prefills the current date and the next whole hour in nearby filters', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 8, 11, 16, 40, 0))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => undefined))
+
+    render(<MemoryRouter initialEntries={['/']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+
+    expect(screen.getByLabelText('Дата')).toHaveValue('2026-09-11')
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
+    expect(screen.getByLabelText('Время')).toHaveValue('17:00')
   })
 
   it('searches public activities around the current location and radius', async () => {
@@ -242,7 +255,10 @@ describe('critical workflows', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     // persisted to localStorage
-    expect(JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)[0]).toMatchObject({ name: 'Хоккей', query: 'sport=hockey' })
+    const savedFilter = JSON.parse(localStorage.getItem('kasanie:sports:saved-filters')!)[0]
+    expect(savedFilter).toMatchObject({ name: 'Хоккей' })
+    expect(new URLSearchParams(savedFilter.query).get('sport')).toBe('hockey')
+    expect(new URLSearchParams(savedFilter.query).get('date')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 
     // switch back to all sports, then re-apply the saved chip
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), '')
