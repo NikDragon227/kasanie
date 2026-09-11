@@ -26,7 +26,7 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Либо запустите `start-dev.cmd` / `./start-dev.ps1`. Откройте [http://localhost](http://localhost). Первый запуск скачает images, применит migration и заполнит Development demo data. Проверка: `curl.exe --fail http://localhost/health/ready`.
+Либо запустите `start-dev.cmd` / `./start-dev.ps1`. Скрипт проверит Docker Desktop, при необходимости запустит его и поднимет контейнеры в фоне. Откройте [http://localhost](http://localhost). Первый запуск скачает images, применит migration и заполнит Development demo data. Проверка: `curl.exe --fail http://localhost/health/ready`.
 
 Если порт 80 занят, задайте `HTTP_PORT=8088` в `.env` и откройте `http://localhost:8088`.
 
