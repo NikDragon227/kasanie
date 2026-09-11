@@ -141,10 +141,11 @@ describe('critical workflows', () => {
       return json({})
     })
 
-    render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
 
     expect(await screen.findByText('Футбол вечером')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Доступные активности' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Развиваться' })).toHaveAttribute('href', '/join')
     expect(screen.getByLabelText('Город')).toBeInTheDocument()
     expect(screen.queryByLabelText('Район')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Время')).not.toBeInTheDocument()

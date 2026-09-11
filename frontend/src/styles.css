@@ -1038,6 +1038,7 @@ small { color: var(--muted); }
 .nearby-header nav > a:not(.button):hover, .search-discovery .nearby-header nav > a:not(.button):hover { color: #fff; }
 .nearby-header nav > a:not(.button):hover::after, .nearby-header nav > a:not(.button):focus-visible::after { transform: scaleX(1); }
 .nearby-header .button.ghost, .search-discovery .nearby-header .button.ghost { min-height: 42px; padding: .65rem 1.2rem; border-color: #0877ff; background: linear-gradient(135deg, #075fdf, #0877ff); color: #fff; }
+.nearby-header .nearby-develop-button { min-height: 42px; padding: .65rem 1.25rem; white-space: nowrap; }
 .nearby-logout, .search-discovery .nearby-logout { color: #aeb5c0; }
 
 .nearby-hero {
@@ -1164,12 +1165,15 @@ small { color: var(--muted); }
   .nearby-results-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  .nearby-header, .search-discovery .nearby-header { min-height: 68px; padding-inline: 14px; }
+  .nearby-header, .search-discovery .nearby-header { min-height: 68px; gap: 10px; padding-inline: 14px; }
+  .nearby-header .brand { gap: 8px; }
+  .nearby-header .brand-emblem { width: 28px; height: 38px; }
   .nearby-header .brand small { display: none; }
-  .nearby-header .brand strong { font-size: 11px; }
+  .nearby-header .brand strong { font-size: 10px; letter-spacing: .28em; }
   .nearby-header nav { gap: 8px; }
   .nearby-header nav > a:not(.button) { display: none; }
-  .nearby-header .button.ghost { min-height: 38px; padding-inline: 13px; }
+  .nearby-header .button.ghost { min-height: 38px; padding-inline: 10px; }
+  .nearby-header .nearby-develop-button { min-height: 38px; padding-inline: 10px; }
   .nearby-account-id { display: none; }
   .nearby-account-trigger { padding: 5px; }
   .nearby-search-primary, .nearby-search-more { grid-template-columns: 1fr; }

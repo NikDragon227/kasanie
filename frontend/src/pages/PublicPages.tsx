@@ -75,7 +75,7 @@ export function LandingPage() {
   return <div className="landing landing-v2">
     <header className="landing-nav landing-nav-v2">
       <Link className="brand" to="/"><span className="brand-emblem"><img src="/brand/kasanie-mark.webp" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>
-      <nav aria-label="Навигация по странице"><Link to="/sports">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/sports">Найти игру</Link></nav>
+      <nav aria-label="Навигация по странице"><Link to="/">Спорт рядом</Link><a href="#product">Платформа</a><a href="#how">Как работает</a><a href="#roles">Для кого</a><Link className="button ghost" to="/login">Войти</Link><Link className="button" to="/">Найти игру</Link></nav>
     </header>
     <main>
       <section className="landing-hero-v2">

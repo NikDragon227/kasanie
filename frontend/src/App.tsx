@@ -1,8 +1,7 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell, AuthenticatedGuard, RoleGuard } from './components'
 import { AccountSecurityPage } from './pages/AccountPages'
 import { ConfirmEmailPage, ForgotPasswordPage, LoginPage, PortalUserRegisterPage, RegisterPage, RegistrationChoicePage, ResetPasswordPage } from './pages/PublicPages'
-import { HomePage } from './pages/HomePage'
 import { AssessmentPage, PlayerDashboard, ProfilePage, ProgressPage, TrainingPlanPage, WorkoutPage } from './pages/PlayerPages'
 import { AdminAssessmentsPage, AdminDashboard, AdminExercisesPage, AdminMunicipalitiesPage, AdminProgramsPage, AdminUsersPage, ChildDetailPage, CoachDashboard, CoachPlayerPage, CoachPlayersPage, ParentDashboard } from './pages/RolePages'
 import { AdminSchoolsPage, SchoolCoachesPage, SchoolPlayersPage, SchoolSettingsPage } from './pages/SchoolPages'
@@ -11,9 +10,14 @@ import { TeamTrainingDetailPage, TeamTrainingJournalPage } from './pages/TeamTra
 import { CoachTeamsPage } from './pages/CoachTeamPage'
 import { GuestParticipationPage, MyActivitiesPage, OrganizerActivitiesPage, OrganizerRegisterPage, PublicActivityPage, SportsNearbyPage } from './pages/SportsNearbyPages'
 
+function SportsRouteRedirect() {
+  const location = useLocation()
+  return <Navigate to={{ pathname: '/', search: location.search, hash: location.hash }} replace />
+}
+
 export default function App() {
   return <Routes>
-    <Route path="/" element={<HomePage />} /><Route path="/sports" element={<SportsNearbyPage />} /><Route path="/activities/:slug" element={<PublicActivityPage />} /><Route path="/guest/participations/:token" element={<GuestParticipationPage />} /><Route path="/join" element={<RegistrationChoicePage />} /><Route path="/register-parent" element={<PortalUserRegisterPage role="Parent" />} /><Route path="/register-coach" element={<PortalUserRegisterPage role="Coach" />} /><Route path="/register-organizer" element={<OrganizerRegisterPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/confirm-email" element={<ConfirmEmailPage />} />
+    <Route path="/" element={<SportsNearbyPage />} /><Route path="/sports" element={<SportsRouteRedirect />} /><Route path="/activities/:slug" element={<PublicActivityPage />} /><Route path="/guest/participations/:token" element={<GuestParticipationPage />} /><Route path="/join" element={<RegistrationChoicePage />} /><Route path="/register-parent" element={<PortalUserRegisterPage role="Parent" />} /><Route path="/register-coach" element={<PortalUserRegisterPage role="Coach" />} /><Route path="/register-organizer" element={<OrganizerRegisterPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/confirm-email" element={<ConfirmEmailPage />} />
     <Route element={<AuthenticatedGuard />}><Route path="/my/activities" element={<MyActivitiesPage />} /><Route path="/organizer/activities" element={<OrganizerActivitiesPage />} /><Route element={<AppShell />}><Route path="/account/security" element={<AccountSecurityPage />} /></Route></Route>
     <Route element={<RoleGuard role="Player" />}><Route element={<AppShell />}><Route path="/player" element={<PlayerDashboard />} /><Route path="/player/profile" element={<ProfilePage />} /><Route path="/player/assessment" element={<AssessmentPage />} /><Route path="/player/training" element={<TrainingPlanPage />} /><Route path="/player/training/:sessionId" element={<WorkoutPage />} /><Route path="/player/progress" element={<ProgressPage />} /></Route></Route>
     <Route element={<RoleGuard role="Coach" />}><Route element={<AppShell />}><Route path="/coach" element={<CoachDashboard />} /><Route path="/coach/teams" element={<CoachTeamsPage />} /><Route path="/coach/trainings" element={<TeamTrainingJournalPage />} /><Route path="/coach/trainings/:trainingId" element={<TeamTrainingDetailPage />} /><Route path="/coach/players" element={<CoachPlayersPage />} /><Route path="/coach/players/:playerId" element={<CoachPlayerPage />} /></Route></Route>
