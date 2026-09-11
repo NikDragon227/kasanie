@@ -289,7 +289,7 @@ function PublicHeader() {
 
   const isDiscoveryHome = location.pathname === '/' || location.pathname === '/sports'
 
-  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem"><img src="/brand/kasanie-mark-light.svg" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
+  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className={`brand-emblem${isDiscoveryHome ? ' brand-emblem-source' : ''}`}><img src={isDiscoveryHome ? '/brand/kasanie-logo.png' : '/brand/kasanie-mark-light.svg'} alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
     ? <div className="nearby-account" ref={accountRef}>
         <button type="button" className="nearby-account-trigger" aria-label="Меню профиля" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
           <span className="nearby-account-avatar" aria-hidden>{user.email[0]?.toUpperCase() ?? '?'}</span>

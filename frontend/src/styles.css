@@ -1324,6 +1324,23 @@ small { color: var(--muted); }
 }
 .search-discovery .nearby-header .brand strong { color: #101010; }
 .search-discovery .nearby-header .brand small { color: #777; }
+.search-discovery .nearby-header .brand-emblem-source {
+  position: relative;
+  width: 42px;
+  height: 48px;
+  overflow: hidden;
+  background: #fff;
+}
+.search-discovery .nearby-header .brand-emblem-source img {
+  position: absolute;
+  top: -3px;
+  left: -27px;
+  width: 96px;
+  max-width: none;
+  height: auto;
+  object-fit: initial;
+  filter: invert(1) hue-rotate(180deg);
+}
 .search-discovery .nearby-header nav { color: #555; }
 .search-discovery .nearby-header nav > a:not(.button):hover { color: #0877ff; }
 .search-discovery .nearby-header .button.ghost { border-color: #d8d8d8; background: #fff; color: #161616; }
