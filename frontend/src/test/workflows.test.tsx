@@ -137,7 +137,7 @@ describe('critical workflows', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
       if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }, { id: 2, slug: 'futsal', name: 'Мини-футбол' }, { id: 3, slug: 'badminton', name: 'Бадминтон' }, { id: 4, slug: 'adaptive-sport', name: 'Адаптивный спорт' }])
-      if (String(input).startsWith('/api/public/activities')) return json({ total: 1, items: [{ activity: { id: 1, slug: 'football-evening', sportSlug: 'football', sport: 'Футбол', eventType: 'Game', title: 'Футбол вечером', description: 'Открытая игра для взрослых', organizerName: 'Команда на Московской', startAt: '2026-08-28T18:00:00Z', endAt: '2026-08-28T20:00:00Z', price: 0, currency: 'RUB', skillLevel: 'Любой', minimumAge: 18, capacity: 12, participantsCount: 4, availablePlaces: 8, waitlistAvailablePlaces: 4, status: 'Published', isRecurring: false, venue: { id: 1, slug: 'central', name: 'Центральное поле', city: 'Казань', district: 'Центр', address: 'Тестовая, 1', latitude: 55.79, longitude: 49.12, indoor: false, isVerified: true } } }] })
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 1, items: [{ activity: { id: 1, slug: 'football-evening', sportSlug: 'football', sport: 'Футбол', eventType: 'Game', title: 'Футбол вечером', description: 'Открытая игра для взрослых', coverImageUrl: '/uploads/activities/custom-cover.jpg', organizerName: 'Команда на Московской', startAt: '2026-08-28T18:00:00Z', endAt: '2026-08-28T20:00:00Z', price: 0, currency: 'RUB', skillLevel: 'Любой', minimumAge: 18, capacity: 12, participantsCount: 4, availablePlaces: 8, waitlistAvailablePlaces: 4, status: 'Published', isRecurring: false, venue: { id: 1, slug: 'central', name: 'Центральное поле', city: 'Казань', district: 'Центр', address: 'Тестовая, 1', latitude: 55.79, longitude: 49.12, indoor: false, isVerified: true } } }] })
       return json({})
     })
 
@@ -145,8 +145,9 @@ describe('critical workflows', () => {
 
     expect(await screen.findAllByText('Футбол вечером')).not.toHaveLength(0)
     expect(screen.queryByRole('heading', { name: 'Найдите спорт рядом' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Актуальные события' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Активности: Казань' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Актуальные события · Казань' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Активности: Казань' })).not.toBeInTheDocument()
+    expect(document.querySelector('img[src="/uploads/activities/custom-cover.jpg"]')).toBeInTheDocument()
     expect(screen.queryByLabelText('Карта найденных занятий')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Развиваться' })).toHaveAttribute('href', '/join')
     expect(screen.getByRole('link', { name: /Управляйте командой/ })).toHaveAttribute('href', '/register-coach')
@@ -489,6 +490,7 @@ describe('critical workflows', () => {
 
   it('lets the organizer repeat an event with data pre-filled', async () => {
     const requests: string[] = []
+    let uploadedCover: FormData | null = null
     const source = { ...publicActivity, status: 'Completed', organizerParticipates: false, isCurrentUserOrganizer: true, rules: 'Приходите за 20 минут до начала.' }
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input); const method = init?.method ?? 'GET'; requests.push(`${method} ${url}`)
@@ -497,6 +499,7 @@ describe('critical workflows', () => {
       if (url === '/api/public/sports') return json([{ id: 1, slug: 'football', name: 'Футбол' }])
       if (url === '/api/public/venues') return json([publicActivity.venue])
       if (url === '/api/organizer/activities/' && method === 'POST') return json({ id: 42 })
+      if (url === '/api/organizer/activities/42/cover' && method === 'POST') { uploadedCover = init?.body as FormData; return json({ coverImageUrl: '/uploads/activities/new.png' }) }
       if (url === '/api/organizer/activities/42/publish') return Promise.resolve(new Response(null, { status: 204 }))
       if (url === '/api/organizer/activities/') return json([source])
       return json({})
@@ -508,10 +511,13 @@ describe('critical workflows', () => {
     expect(await screen.findByRole('heading', { name: 'Повторение события' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Название' })).toHaveValue('Футбол вечером')
     expect(screen.getByRole('spinbutton', { name: 'За сколько минут приходить' })).toHaveValue(20)
+    await userEvent.upload(screen.getByLabelText('Загрузить фото'), new File(['cover'], 'cover.png', { type: 'image/png' }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Опубликовать активность' }))
     await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/'))
+    await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/42/cover'))
     await waitFor(() => expect(requests).toContain('POST /api/organizer/activities/42/publish'))
+    expect((uploadedCover as FormData | null)?.get('file')).toBeInstanceOf(File)
   })
 
   it('lets the organizer add a participant and inspect complaint badges', async () => {

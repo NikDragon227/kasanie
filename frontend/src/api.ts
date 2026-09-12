@@ -31,5 +31,6 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export const post = <T>(path: string, value?: unknown) => api<T>(path, { method: 'POST', body: value === undefined ? undefined : JSON.stringify(value) })
+export const postForm = <T>(path: string, value: FormData) => api<T>(path, { method: 'POST', body: value })
 export const put = <T>(path: string, value: unknown) => api<T>(path, { method: 'PUT', body: JSON.stringify(value) })
 export const remove = <T>(path: string) => api<T>(path, { method: 'DELETE' })

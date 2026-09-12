@@ -23,6 +23,7 @@ services:
       CookieSecure: ${COOKIE_SECURE:-false}
       Analytics__MinimumGroupSize: ${ANALYTICS_MINIMUM_GROUP_SIZE:-3}
       DataProtection__KeysPath: /app/keys
+      ActivityUploads__Path: /app/uploads
       BootstrapAdmin__Email: ${BootstrapAdmin__Email:-}
       BootstrapAdmin__Password: ${BootstrapAdmin__Password:-}
       App__PublicUrl: ${APP_BASE_URL:-http://localhost}
@@ -39,6 +40,7 @@ services:
         condition: service_healthy
     volumes:
       - kasanie_keys:/app/keys
+      - kasanie_activity_uploads:/app/uploads
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/health/live >/dev/null || exit 1"]
       interval: 10s
@@ -64,3 +66,4 @@ services:
 volumes:
   kasanie_pgdata:
   kasanie_keys:
+  kasanie_activity_uploads:

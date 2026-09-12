@@ -625,6 +625,10 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("GenderPolicy")
                         .IsRequired()
                         .HasColumnType("text");

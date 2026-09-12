@@ -15,6 +15,8 @@ namespace Kasanie.Api.Endpoints;
 
 public static partial class EndpointMapping
 {
+    private const long MaxActivityCoverBytes = 6 * 1024 * 1024;
+
     private static readonly IReadOnlyDictionary<string, string[]> GameFormatsBySport = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
     {
         ["football"] = ["5×5", "6×6", "7×7", "8×8", "9×9", "10×10", "11×11"],
@@ -115,6 +117,8 @@ public static partial class EndpointMapping
         });
         organizerApi.MapPost("/", CreatePublicActivityAsync);
         organizerApi.MapPut("/{id:int}", UpdatePublicActivityAsync);
+        organizerApi.MapPost("/{id:int}/cover", UploadPublicActivityCoverAsync);
+        organizerApi.MapDelete("/{id:int}/cover", DeletePublicActivityCoverAsync);
         organizerApi.MapPost("/{id:int}/publish", PublishPublicActivityAsync);
         organizerApi.MapPost("/{id:int}/cancel", CancelPublicActivityAsync);
         organizerApi.MapDelete("/{id:int}", DeletePublicActivityAsync);
@@ -731,6 +735,92 @@ public static partial class EndpointMapping
         return Results.NoContent();
     }
 
+    private static async Task<IResult> UploadPublicActivityCoverAsync(
+        int id, HttpRequest request, ClaimsPrincipal principal, AppDbContext db, IAuditService audit,
+        IConfiguration configuration, IWebHostEnvironment environment)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (item is null) return Results.Forbid();
+        if (item.Status is PublicActivityStatus.Completed or PublicActivityStatus.Archived)
+            return Results.Conflict(new { message = "Завершённое событие нельзя редактировать." });
+        if (!request.HasFormContentType)
+            return Results.ValidationProblem(Error("file", "Выберите фотографию события."));
+
+        var file = (await request.ReadFormAsync(request.HttpContext.RequestAborted)).Files.GetFile("file");
+        if (file is null || file.Length == 0)
+            return Results.ValidationProblem(Error("file", "Выберите фотографию события."));
+        if (file.Length > MaxActivityCoverBytes)
+            return Results.ValidationProblem(Error("file", "Фотография должна быть не больше 6 МБ."));
+
+        var signature = new byte[12];
+        await using (var signatureStream = file.OpenReadStream())
+        {
+            var read = await signatureStream.ReadAsync(signature, request.HttpContext.RequestAborted);
+            if (read < signature.Length) Array.Resize(ref signature, read);
+        }
+        var extension = DetectImageExtension(signature);
+        if (extension is null)
+            return Results.ValidationProblem(Error("file", "Поддерживаются только изображения JPEG, PNG и WebP."));
+
+        var uploadRoot = ActivityUploadsPath(configuration, environment);
+        var activityDirectory = Path.Combine(uploadRoot, "activities");
+        Directory.CreateDirectory(activityDirectory);
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var destination = Path.Combine(activityDirectory, fileName);
+        try
+        {
+            await using var target = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
+            await using var source = file.OpenReadStream();
+            await source.CopyToAsync(target, request.HttpContext.RequestAborted);
+        }
+        catch
+        {
+            if (File.Exists(destination)) File.Delete(destination);
+            throw;
+        }
+
+        var previousCover = item.CoverImageUrl;
+        item.CoverImageUrl = $"/uploads/activities/{fileName}";
+        item.Version++;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            await db.SaveChangesAsync(request.HttpContext.RequestAborted);
+        }
+        catch
+        {
+            if (File.Exists(destination)) File.Delete(destination);
+            throw;
+        }
+        DeleteStoredActivityCover(previousCover, uploadRoot);
+        await audit.WriteAsync(userId, "public_activity_cover_uploaded", nameof(PublicActivity), id.ToString());
+        return Results.Ok(new { coverImageUrl = item.CoverImageUrl });
+    }
+
+    private static async Task<IResult> DeletePublicActivityCoverAsync(
+        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit,
+        IConfiguration configuration, IWebHostEnvironment environment)
+    {
+        if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
+        if (item is null) return Results.Forbid();
+        if (item.Status is PublicActivityStatus.Completed or PublicActivityStatus.Archived)
+            return Results.Conflict(new { message = "Завершённое событие нельзя редактировать." });
+        if (item.CoverImageUrl is null) return Results.NoContent();
+
+        var previousCover = item.CoverImageUrl;
+        item.CoverImageUrl = null;
+        item.Version++;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        DeleteStoredActivityCover(previousCover, ActivityUploadsPath(configuration, environment));
+        await audit.WriteAsync(userId, "public_activity_cover_deleted", nameof(PublicActivity), id.ToString());
+        return Results.NoContent();
+    }
+
     private static async Task<IResult> PublishPublicActivityAsync(
         int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
     {
@@ -773,7 +863,7 @@ public static partial class EndpointMapping
     }
 
     private static async Task<IResult> DeletePublicActivityAsync(
-        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration)
+        int id, ClaimsPrincipal principal, AppDbContext db, IAuditService audit, IConfiguration configuration, IWebHostEnvironment environment)
     {
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -785,10 +875,13 @@ public static partial class EndpointMapping
             return Results.Conflict(new { message = "Завершённая активность хранится в истории и не может быть удалена." });
         if (item.Status == PublicActivityStatus.Archived) return Results.NoContent();
 
+        var previousCover = item.CoverImageUrl;
+        item.CoverImageUrl = null;
         item.Status = PublicActivityStatus.Archived;
         item.Version++;
         item.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
+        DeleteStoredActivityCover(previousCover, ActivityUploadsPath(configuration, environment));
         await audit.WriteAsync(userId, "public_activity_deleted", nameof(PublicActivity), id.ToString());
         return Results.NoContent();
     }
@@ -798,7 +891,7 @@ public static partial class EndpointMapping
         var confirmed = activity.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
         var waitlisted = activity.Participants.Count(x => x.Status == PublicParticipantStatus.Waitlisted);
         return new PublicActivityDto(activity.Id, activity.Slug, activity.Sport.Slug, activity.Sport.Name, activity.EventType.ToString(), activity.GameFormat,
-            activity.Title, activity.Description, organizerName ?? "Организатор", activity.StartAt, activity.EndAt, activity.Price, activity.Currency, activity.SkillLevel,
+            activity.Title, activity.Description, activity.CoverImageUrl, organizerName ?? "Организатор", activity.StartAt, activity.EndAt, activity.Price, activity.Currency, activity.SkillLevel,
             activity.MinimumAge, activity.MaximumAge, activity.Capacity, activity.WaitlistCapacity, confirmed, Math.Max(0, activity.Capacity - confirmed),
             Math.Max(0, activity.WaitlistCapacity - waitlisted),
             activity.Status.ToString(), activity.IsRecurring, activity.Participants.Any(x => x.UserId == activity.OrganizerId && x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended), activity.OrganizerId == currentUserId, activity.EquipmentRequirements, activity.Rules, activity.CancellationPolicy,
@@ -972,6 +1065,29 @@ public static partial class EndpointMapping
         }
     }
 
+    private static string ActivityUploadsPath(IConfiguration configuration, IWebHostEnvironment environment) =>
+        configuration.GetValue<string>("ActivityUploads:Path") ?? Path.Combine(environment.ContentRootPath, "uploads");
+
+    private static string? DetectImageExtension(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff) return ".jpg";
+        if (bytes.Length >= 8 && bytes[..8].SequenceEqual(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a })) return ".png";
+        if (bytes.Length >= 12 && bytes[..4].SequenceEqual("RIFF"u8) && bytes.Slice(8, 4).SequenceEqual("WEBP"u8)) return ".webp";
+        return null;
+    }
+
+    private static void DeleteStoredActivityCover(string? coverImageUrl, string uploadRoot)
+    {
+        const string prefix = "/uploads/activities/";
+        if (string.IsNullOrWhiteSpace(coverImageUrl) || !coverImageUrl.StartsWith(prefix, StringComparison.Ordinal)) return;
+        var fileName = Path.GetFileName(coverImageUrl);
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+        var path = Path.Combine(uploadRoot, "activities", fileName);
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     private static bool PublicDiscoveryEnabled(IConfiguration configuration) => configuration.GetValue("PublicDiscovery:Enabled", false);
     private static string HashGuestCancellationToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
@@ -987,7 +1103,7 @@ public static partial class EndpointMapping
 
     public sealed record PublicVenueDto(int Id, string Slug, string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, bool IsVerified);
     public sealed record PublicVenueRequest(string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, string? Region);
-    public sealed record PublicActivityDto(int Id, string Slug, string SportSlug, string Sport, string EventType, string? GameFormat, string Title, string Description, string OrganizerName,
+    public sealed record PublicActivityDto(int Id, string Slug, string SportSlug, string Sport, string EventType, string? GameFormat, string Title, string Description, string? CoverImageUrl, string OrganizerName,
         DateTimeOffset StartAt, DateTimeOffset EndAt, decimal Price, string Currency, string SkillLevel, int MinimumAge, int? MaximumAge,
         int Capacity, int WaitlistCapacity, int ParticipantsCount, int AvailablePlaces, int WaitlistAvailablePlaces, string Status, bool IsRecurring, bool OrganizerParticipates, bool IsCurrentUserOrganizer, string? EquipmentRequirements,
         string? Rules, string? CancellationPolicy, PublicVenueDto Venue);

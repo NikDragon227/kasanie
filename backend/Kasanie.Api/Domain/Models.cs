@@ -583,6 +583,7 @@ public sealed class PublicActivity
     public string? GameFormat { get; set; }
     public required string Title { get; set; }
     public required string Description { get; set; }
+    public string? CoverImageUrl { get; set; }
     public required string OrganizerId { get; set; }
     public ApplicationUser Organizer { get; set; } = null!;
     public int SportsVenueId { get; set; }

@@ -88,6 +88,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PublicActivity>().HasIndex(x => new { x.Status, x.Visibility, x.StartAt });
         builder.Entity<PublicActivity>().HasIndex(x => new { x.SportId, x.SportsVenueId, x.StartAt });
         builder.Entity<PublicActivity>().Property(x => x.GameFormat).HasMaxLength(40);
+        builder.Entity<PublicActivity>().Property(x => x.CoverImageUrl).HasMaxLength(300);
         builder.Entity<PublicActivity>().Property(x => x.Price).HasPrecision(12, 2);
         builder.Entity<PublicActivity>().Property(x => x.Version).IsConcurrencyToken();
         builder.Entity<PublicActivityParticipant>().HasIndex(x => new { x.PublicActivityId, x.UserId }).IsUnique();

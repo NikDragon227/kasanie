@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,6 +113,9 @@ builder.Services.AddScoped<PlatformCatalogSeeder>();
 builder.Services.AddScoped<IdentityInitializer>();
 
 var app = builder.Build();
+var activityUploadsPath = builder.Configuration.GetValue<string>("ActivityUploads:Path")
+    ?? Path.Combine(builder.Environment.ContentRootPath, "uploads");
+Directory.CreateDirectory(activityUploadsPath);
 app.UseExceptionHandler();
 app.Use(async (context, next) =>
 {
@@ -122,6 +126,12 @@ app.Use(async (context, next) =>
 });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseForwardedHeaders();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(activityUploadsPath),
+    RequestPath = "/uploads",
+    OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable"
+});
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();

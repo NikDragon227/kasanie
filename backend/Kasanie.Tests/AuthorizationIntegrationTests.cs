@@ -865,6 +865,46 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task Organizer_CanUploadAndRemoveOwnActivityCover()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db => SeedPublicActivity(db, "organizer-a"));
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "organizer-a", Roles.Organizer);
+        using var multipart = new MultipartFormDataContent();
+        var image = new ByteArrayContent([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+        image.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        multipart.Add(image, "file", "activity.png");
+        using var uploadRequest = new HttpRequestMessage(HttpMethod.Post, "/api/organizer/activities/1/cover") { Content = multipart };
+        uploadRequest.Headers.Add("X-CSRF-TOKEN", csrf);
+        uploadRequest.Headers.Add(TestAuthHandler.UserIdHeader, "organizer-a");
+        uploadRequest.Headers.Add(TestAuthHandler.RoleHeader, Roles.Organizer);
+
+        using var upload = await client.SendAsync(uploadRequest);
+
+        var uploadBody = await upload.Content.ReadAsStringAsync();
+        Assert.True(upload.StatusCode == HttpStatusCode.OK, $"Expected 200, got {(int)upload.StatusCode}: {uploadBody}");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var coverUrl = await db.PublicActivities.Where(x => x.Id == 1).Select(x => x.CoverImageUrl).SingleAsync();
+            Assert.NotNull(coverUrl);
+            Assert.StartsWith("/uploads/activities/", coverUrl);
+            Assert.True(File.Exists(Path.Combine(factory.ActivityUploadsPath, "activities", Path.GetFileName(coverUrl!))));
+        }
+
+        using var delete = await client.SendAsync(JsonRequest(HttpMethod.Delete, "/api/organizer/activities/1/cover", new { }, "organizer-a", Roles.Organizer, csrf));
+
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Null(await db.PublicActivities.Where(x => x.Id == 1).Select(x => x.CoverImageUrl).SingleAsync());
+        }
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(factory.ActivityUploadsPath, "activities")));
+    }
+
+    [Fact]
     public async Task Adult_CanRegisterAsPublicOrganizerWithoutPlayerProfile()
     {
         await using var factory = new TestApplicationFactory();
@@ -1862,6 +1902,7 @@ public sealed class AuthorizationIntegrationTests
 internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string databaseName = $"kasanie-auth-{Guid.NewGuid()}";
+    public string ActivityUploadsPath { get; } = Path.Combine(Path.GetTempPath(), $"kasanie-activity-uploads-{Guid.NewGuid()}");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -1870,6 +1911,7 @@ internal sealed class TestApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("Analytics:MinimumGroupSize", "3");
         builder.UseSetting("App:PublicUrl", "https://prokasanie.test");
         builder.UseSetting("PublicDiscovery:Enabled", "true");
+        builder.UseSetting("ActivityUploads:Path", ActivityUploadsPath);
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
