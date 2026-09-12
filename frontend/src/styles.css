@@ -1827,8 +1827,8 @@ small { color: var(--muted); }
 .brand-emblem.brand-emblem-outlined {
   position: static;
   flex: 0 0 auto;
-  width: 34px;
-  height: 42px;
+  width: 51px;
+  height: 63px;
   overflow: visible;
   border-radius: 0;
   background: transparent;
@@ -1843,4 +1843,18 @@ small { color: var(--muted); }
   height: 100%;
   object-fit: contain;
   filter: none;
+}
+
+/* Footer marks stay compact while page and workspace headers use the full-size emblem. */
+.landing-v2 .landing-footer-v2 .brand-emblem.brand-emblem-outlined {
+  width: 34px;
+  height: 42px;
+}
+
+@media (max-width: 680px) {
+  .nearby-header .brand-emblem.brand-emblem-outlined,
+  .join-page .brand-emblem.brand-emblem-outlined {
+    width: 28px;
+    height: 38px;
+  }
 }
