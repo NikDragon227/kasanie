@@ -824,6 +824,34 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task PublicDiscovery_FiltersDateAndTimeInActivityTimeZone()
+    {
+        await using var factory = new TestApplicationFactory();
+        var activityDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2));
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+        var localStart = activityDate.ToDateTime(new TimeOnly(17, 0));
+        var startAt = new DateTimeOffset(localStart, zone.GetUtcOffset(localStart));
+        await factory.SeedAsync(db =>
+        {
+            SeedPublicActivity(db, "organizer-a");
+            var activity = db.PublicActivities.Local.Single();
+            activity.TimeZone = "Europe/Moscow";
+            activity.StartAt = startAt;
+            activity.EndAt = startAt.AddHours(2);
+        });
+        using var client = factory.CreateClient();
+
+        using var matching = await client.GetAsync($"/api/public/activities?date={activityDate:yyyy-MM-dd}&time=16:00");
+        using var tooLate = await client.GetAsync($"/api/public/activities?date={activityDate:yyyy-MM-dd}&time=18:00");
+
+        using var matchingJson = JsonDocument.Parse(await matching.Content.ReadAsStringAsync());
+        using var tooLateJson = JsonDocument.Parse(await tooLate.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, matching.StatusCode);
+        Assert.Equal(1, matchingJson.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(0, tooLateJson.RootElement.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
     public async Task PublicActivity_RequiresAuthenticationToJoin()
     {
         await using var factory = new TestApplicationFactory();

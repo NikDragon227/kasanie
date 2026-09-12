@@ -585,18 +585,24 @@ export function SportsNearbyPage() {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    const next = new URLSearchParams()
-    for (const key of ['city', 'district', 'date', 'time', 'sport', 'gameFormat']) {
+    const next = new URLSearchParams(params)
+    for (const key of ['city', 'sport', 'date', 'district', 'time', 'gameFormat']) {
+      if (!form.has(key)) continue
       const value = String(form.get(key) ?? '').trim()
       if (value) next.set(key, value)
+      else next.delete(key)
     }
-    const currentType = params.get('type')
-    if (currentType) next.set('type', currentType)
-    if (form.get('freeOnly')) next.set('freeOnly', 'true')
-    if (form.get('availableOnly')) next.set('availableOnly', 'true')
+    for (const key of ['freeOnly', 'availableOnly']) {
+      if (!form.has(key)) continue
+      if (form.get(key)) next.set(key, 'true')
+      else next.delete(key)
+    }
     const latitude = params.get('latitude'); const longitude = params.get('longitude')
-    if (!next.get('city') && latitude && longitude) {
-      next.set('latitude', latitude); next.set('longitude', longitude); next.set('radiusKm', String(form.get('radiusKm') ?? params.get('radiusKm') ?? '10'))
+    if (next.get('city')) {
+      next.delete('latitude'); next.delete('longitude'); next.delete('radiusKm')
+    } else if (latitude && longitude) {
+      next.set('latitude', latitude); next.set('longitude', longitude)
+      if (form.has('radiusKm')) next.set('radiusKm', String(form.get('radiusKm') ?? '10'))
     }
     setParams(next)
   }

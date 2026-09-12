@@ -157,17 +157,6 @@ public static partial class EndpointMapping
                 (x.Venue.District != null && x.Venue.District.ToLower().Contains(normalized)) ||
                 x.Venue.Address.ToLower().Contains(normalized));
         }
-        if (date.HasValue)
-        {
-            var from = new DateTimeOffset(date.Value.ToDateTime(time ?? TimeOnly.MinValue), TimeSpan.Zero);
-            var to = new DateTimeOffset(date.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            query = query.Where(x => x.StartAt >= from && x.StartAt < to);
-        }
-        else if (time.HasValue)
-        {
-            var minimumTime = time.Value.ToTimeSpan();
-            query = query.Where(x => x.StartAt.TimeOfDay >= minimumTime);
-        }
         if (type.HasValue) query = query.Where(x => x.EventType == type.Value);
         if (freeOnly == true) query = query.Where(x => x.Price == 0);
 
@@ -183,6 +172,7 @@ public static partial class EndpointMapping
         }
 
         var activities = await query.OrderBy(x => x.StartAt).Take(200).ToListAsync();
+        activities = activities.Where(activity => MatchesLocalStart(activity, date, time)).ToList();
         var organizerIds = activities.Select(x => x.OrganizerId).Distinct().ToArray();
         var organizerNames = await db.PublicOrganizerProfiles.AsNoTracking().Where(x => organizerIds.Contains(x.UserId))
             .ToDictionaryAsync(x => x.UserId, x => x.DisplayName);
@@ -955,6 +945,31 @@ public static partial class EndpointMapping
         var dLon = (lon2 - lon1) * Math.PI / 180d;
         var a = Math.Pow(Math.Sin(dLat / 2), 2) + Math.Cos(lat1 * Math.PI / 180d) * Math.Cos(lat2 * Math.PI / 180d) * Math.Pow(Math.Sin(dLon / 2), 2);
         return earthRadiusKm * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    private static bool MatchesLocalStart(PublicActivity activity, DateOnly? date, TimeOnly? time)
+    {
+        if (!date.HasValue && !time.HasValue) return true;
+        var localStart = LocalStart(activity);
+        if (date.HasValue && DateOnly.FromDateTime(localStart.DateTime) != date.Value) return false;
+        return !time.HasValue || TimeOnly.FromDateTime(localStart.DateTime) >= time.Value;
+    }
+
+    private static DateTimeOffset LocalStart(PublicActivity activity)
+    {
+        try
+        {
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(activity.TimeZone);
+            return TimeZoneInfo.ConvertTime(activity.StartAt, timeZone);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return activity.StartAt;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return activity.StartAt;
+        }
     }
 
     private static bool PublicDiscoveryEnabled(IConfiguration configuration) => configuration.GetValue("PublicDiscovery:Enabled", false);

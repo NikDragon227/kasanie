@@ -32,7 +32,8 @@ code=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost/health/ready ||
 if [ "$code" = "200" ]; then
   echo "health/ready: 200 OK"
 else
-  echo "!!! ВНИМАНИЕ: http://localhost/health/ready вернул '$code' — смотри логи api"
+  echo "ОШИБКА: http://localhost/health/ready вернул '$code' — смотри логи api" >&2
+  exit 1
 fi
 
 echo ""

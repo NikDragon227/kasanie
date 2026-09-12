@@ -156,7 +156,7 @@ describe('critical workflows', () => {
     expect(screen.getByLabelText('Город')).toBeInTheDocument()
     expect(screen.queryByLabelText('Район')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Время')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     expect(screen.getByLabelText('Район')).toBeInTheDocument()
     expect(screen.getByLabelText('Время')).toBeInTheDocument()
     expect(screen.queryByText('Без регистрации для поиска')).not.toBeInTheDocument()
@@ -176,8 +176,34 @@ describe('critical workflows', () => {
     render(<MemoryRouter initialEntries={['/']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
 
     expect(screen.getByLabelText('Дата')).toHaveValue('2026-09-11')
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     expect(screen.getByLabelText('Время')).toHaveValue('17:00')
+  })
+
+  it('keeps selected additional filters when their panel is collapsed before searching', async () => {
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      requested.push(String(input))
+      if (String(input) === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (String(input) === '/api/public/sports') return json([{ id: 1, slug: 'hockey', name: 'Хоккей' }])
+      if (String(input).startsWith('/api/public/activities')) return json({ total: 0, items: [] })
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/?sport=hockey&gameFormat=5%2B1&time=17%3A00&freeOnly=true&availableOnly=true&sort=price']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
+    await screen.findByRole('button', { name: 'Скрыть' })
+    await userEvent.click(screen.getByRole('button', { name: 'Скрыть' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
+
+    await waitFor(() => {
+      const request = requested.filter(url => url.startsWith('/api/public/activities')).at(-1) ?? ''
+      expect(request).toContain('sport=hockey')
+      expect(request).toContain('gameFormat=5%2B1')
+      expect(request).toContain('time=17%3A00')
+      expect(request).toContain('freeOnly=true')
+      expect(request).toContain('availableOnly=true')
+      expect(request).toContain('sort=price')
+    })
   })
 
   it('searches public activities around the current location and radius', async () => {
@@ -286,7 +312,7 @@ describe('critical workflows', () => {
     render(<MemoryRouter initialEntries={['/sports']}><AuthProvider><SportsNearbyPage /></AuthProvider></MemoryRouter>)
     await screen.findByRole('button', { name: 'Найти события' })
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Спорт' }), 'hockey')
-    await userEvent.click(screen.getByRole('button', { name: 'Ещё фильтры' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Фильтры' }))
     expect(screen.getByRole('option', { name: '5+1 — 5 полевых и вратарь' })).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Формат игры' }), '5+1')
     await userEvent.click(screen.getByRole('button', { name: 'Найти события' }))
