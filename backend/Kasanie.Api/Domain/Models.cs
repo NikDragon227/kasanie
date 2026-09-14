@@ -29,6 +29,9 @@ public enum PublicActivityVisibility { Public, LinkOnly, CommunityOnly, Private 
 public enum PublicParticipantStatus { Pending, Confirmed, Waitlisted, Cancelled, Attended, NoShow, Rejected }
 public enum ParticipantReportReason { NoShow, LateArrival, AggressiveOrConflict, UnsafePlay, Other }
 public enum ParticipantReportStatus { Active, Retracted }
+public enum FeedbackCategory { Bug, Idea, HardToUse, NotFound, Complaint, Other }
+public enum FeedbackStatus { New, InProgress, Resolved, Closed }
+public enum FeedbackPriority { Low, Normal, High, Urgent }
 
 public sealed class ApplicationUser : IdentityUser
 {
@@ -647,6 +650,22 @@ public sealed class PublicActivityParticipantReport
     public ParticipantReportStatus Status { get; set; } = ParticipantReportStatus.Active;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAt { get; set; }
+}
+
+public sealed class FeedbackSubmission
+{
+    public long Id { get; set; }
+    public string? UserId { get; set; }
+    public FeedbackCategory Category { get; set; }
+    public required string Message { get; set; }
+    public string? ContactEmail { get; set; }
+    public required string PagePath { get; set; }
+    public string? TechnicalContext { get; set; }
+    public FeedbackStatus Status { get; set; } = FeedbackStatus.New;
+    public FeedbackPriority Priority { get; set; } = FeedbackPriority.Normal;
+    public string? ResolutionNote { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class CoachNote

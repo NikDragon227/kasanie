@@ -785,6 +785,64 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("PublicActivityParticipants");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PagePath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TechnicalContext")
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "Priority", "CreatedAt");
+
+                    b.HasIndex("UserId")
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.ToTable("FeedbackSubmissions");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivityParticipantReport", b =>
                 {
                     b.Property<long>("Id")
@@ -2170,6 +2228,14 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Activity");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivityParticipantReport", b =>

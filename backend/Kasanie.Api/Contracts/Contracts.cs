@@ -55,6 +55,8 @@ public sealed record TeamAttendanceItemRequest(int PlayerId, string Status);
 public sealed record SaveTeamAttendanceRequest(List<TeamAttendanceItemRequest> Players);
 public sealed record TeamTrainingResultRequest(int PlayerId, int TeamTrainingExerciseId, bool IsCompleted, bool Understood);
 public sealed record SaveTeamTrainingReviewRequest(List<TeamTrainingResultRequest> Results, string? Notes);
+public sealed record FeedbackCreateRequest(string? Category, string Message, string? ContactEmail, string PagePath, string? TechnicalContext);
+public sealed record FeedbackUpdateRequest(string? Status, string? Priority, string? ResolutionNote);
 
 public static class Validation
 {
@@ -121,6 +123,17 @@ public static class Validation
         if (string.IsNullOrWhiteSpace(value.Name) || string.IsNullOrWhiteSpace(value.Description) || string.IsNullOrWhiteSpace(value.Instructions) || string.IsNullOrWhiteSpace(value.Unit)) errors["assessment"] = ["Заполните название, описание, инструкцию и единицу измерения."];
         if (value.MinimumReasonableValue >= value.MaximumReasonableValue) errors["range"] = ["Минимальное значение должно быть меньше максимального."];
         if (value.Norms.Count == 0 || value.Norms.Any(x => x.MinimumAge < 3 || x.MaximumAge > 25 || x.MinimumAge > x.MaximumAge || x.LowPerformanceValue == x.HighPerformanceValue || string.IsNullOrWhiteSpace(x.SourceNote))) errors["norms"] = ["Проверьте возрастной диапазон, пороги и источник нормы."];
+        return errors;
+    }
+
+    public static Dictionary<string, string[]> Feedback(FeedbackCreateRequest value)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (!Enum.TryParse<FeedbackCategory>(value.Category, ignoreCase: false, out var category) || !Enum.IsDefined(category)) errors["category"] = ["Выберите тип обращения из списка."];
+        if (string.IsNullOrWhiteSpace(value.Message) || value.Message.Trim().Length < 10 || value.Message.Trim().Length > 2000) errors["message"] = ["Опишите обращение: от 10 до 2000 символов."];
+        if (string.IsNullOrWhiteSpace(value.PagePath) || value.PagePath.Length > 300 || !value.PagePath.StartsWith('/')) errors["pagePath"] = ["Не удалось определить страницу обращения."];
+        if (!string.IsNullOrWhiteSpace(value.ContactEmail) && (!new EmailAddressAttribute().IsValid(value.ContactEmail) || value.ContactEmail.Trim().Length > 254)) errors["contactEmail"] = ["Укажите корректный email для ответа."];
+        if (value.TechnicalContext?.Length > 1500) errors["technicalContext"] = ["Технический контекст слишком длинный."];
         return errors;
     }
 }

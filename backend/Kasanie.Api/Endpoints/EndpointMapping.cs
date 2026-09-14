@@ -16,6 +16,7 @@ public static partial class EndpointMapping
         app.MapAdmin();
         app.MapSchools();
         app.MapPublicDiscovery();
+        app.MapFeedback();
         return app;
     }
 

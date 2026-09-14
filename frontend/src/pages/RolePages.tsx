@@ -96,6 +96,34 @@ export function AdminDashboard() {
   </>
 }
 
+type AdminFeedbackItem = { id: number; category: string; message: string; contactEmail?: string; pagePath: string; technicalContext?: string; status: string; priority: string; resolutionNote?: string; createdAt: string; updatedAt: string; userEmail?: string }
+type AdminFeedbackResponse = { total: number; items: AdminFeedbackItem[] }
+const feedbackCategoryLabels: Record<string, string> = { Bug: 'Баг', Idea: 'Идея', HardToUse: 'Неудобство', NotFound: 'Не нашёл нужного', Complaint: 'Жалоба', Other: 'Другое' }
+const feedbackStatusLabels: Record<string, string> = { New: 'Новое', InProgress: 'В работе', Resolved: 'Решено', Closed: 'Закрыто' }
+const feedbackPriorityLabels: Record<string, string> = { Low: 'Низкий', Normal: 'Обычный', High: 'Высокий', Urgent: 'Срочный' }
+
+export function AdminFeedbackPage() {
+  const [status, setStatus] = useState('New')
+  const [category, setCategory] = useState('')
+  const [notice, setNotice] = useState('')
+  const params = new URLSearchParams({ page: '1', pageSize: '100' })
+  if (status) params.set('status', status)
+  if (category) params.set('category', category)
+  const state = useApiData<AdminFeedbackResponse>(`/api/admin/feedback?${params}`)
+  const update = async (event: FormEvent<HTMLFormElement>, item: AdminFeedbackItem) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    try {
+      await put(`/api/admin/feedback/${item.id}`, { status: form.get('status'), priority: form.get('priority'), resolutionNote: String(form.get('resolutionNote') ?? '').trim() || null })
+      setNotice(`Обращение №${item.id} обновлено.`)
+      await state.reload()
+    } catch (updateError) {
+      setNotice(updateError instanceof Error ? updateError.message : 'Не удалось обновить обращение.')
+    }
+  }
+  return <><PageHeader eyebrow="Голос пользователей" title="Обратная связь" /><p className="admin-dashboard-note">Обращения поступают из публичного виджета. Меняйте статус и приоритет после разбора, чтобы очередь оставалась рабочей.</p><div className="toolbar feedback-admin-filters"><select aria-label="Статус обращений" value={status} onChange={event => setStatus(event.target.value)}><option value="">Все статусы</option>{Object.entries(feedbackStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="Категория обращений" value={category} onChange={event => setCategory(event.target.value)}><option value="">Все категории</option>{Object.entries(feedbackCategoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><span>{state.data ? `${state.data.total} в очереди` : ''}</span></div>{notice && <p className="success-message">{notice}</p>}{state.loading ? <PageLoader /> : state.error || !state.data ? <ErrorState message={state.error} retry={state.reload} /> : <section className="feedback-admin-list">{state.data.items.length ? state.data.items.map(item => <article className="card feedback-admin-card" key={item.id}><header><div><span className={`feedback-category feedback-${item.category}`}>{feedbackCategoryLabels[item.category] ?? item.category}</span><h2>Обращение №{item.id}</h2></div><time>{formatDate(item.createdAt)}</time></header><p>{item.message}</p><div className="feedback-admin-meta"><span>Страница: <b>{item.pagePath}</b></span><span>{item.userEmail ? `Пользователь: ${item.userEmail}` : 'Гость'}</span>{item.contactEmail && <a href={`mailto:${item.contactEmail}`}>{item.contactEmail}</a>}</div>{item.technicalContext && <details><summary>Технический контекст</summary><code>{item.technicalContext}</code></details>}<form onSubmit={event => void update(event, item)}><label>Статус<select name="status" defaultValue={item.status}>{Object.entries(feedbackStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Приоритет<select name="priority" defaultValue={item.priority}>{Object.entries(feedbackPriorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="full">Результат разбора<textarea name="resolutionNote" defaultValue={item.resolutionNote} maxLength={2000} placeholder="Что решили или что нужно уточнить" /></label><button className="button">Сохранить</button></form></article>) : <EmptyState title="Обращений с такими фильтрами нет" />}</section>}</>
+}
+
 function PlatformTrendChart({ points, days }: { points: AdminTrendPoint[]; days: number }) {
   const bucketSize = Math.max(1, Math.ceil(points.length / 15))
   const buckets = Array.from({ length: Math.ceil(points.length / bucketSize) }, (_, index) => {

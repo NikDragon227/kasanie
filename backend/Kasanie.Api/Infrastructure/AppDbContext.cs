@@ -50,6 +50,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PublicActivity> PublicActivities => Set<PublicActivity>();
     public DbSet<PublicActivityParticipant> PublicActivityParticipants => Set<PublicActivityParticipant>();
     public DbSet<PublicActivityParticipantReport> PublicActivityParticipantReports => Set<PublicActivityParticipantReport>();
+    public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
     public DbSet<CoachNote> CoachNotes => Set<CoachNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -108,6 +109,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<PublicActivityParticipantReport>().HasOne(x => x.Activity).WithMany().HasForeignKey(x => x.PublicActivityId);
         builder.Entity<PublicActivityParticipantReport>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.AuthorOrganizerId);
         builder.Entity<PublicActivityParticipantReport>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.SubjectUserId).IsRequired(false);
+
+        builder.Entity<FeedbackSubmission>().Property(x => x.Message).HasMaxLength(2000);
+        builder.Entity<FeedbackSubmission>().Property(x => x.ContactEmail).HasMaxLength(254);
+        builder.Entity<FeedbackSubmission>().Property(x => x.PagePath).HasMaxLength(300);
+        builder.Entity<FeedbackSubmission>().Property(x => x.TechnicalContext).HasMaxLength(1500);
+        builder.Entity<FeedbackSubmission>().Property(x => x.ResolutionNote).HasMaxLength(2000);
+        builder.Entity<FeedbackSubmission>().HasIndex(x => new { x.Status, x.Priority, x.CreatedAt });
+        builder.Entity<FeedbackSubmission>().HasIndex(x => x.UserId).HasFilter("\"UserId\" IS NOT NULL");
+        builder.Entity<FeedbackSubmission>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).IsRequired(false);
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);
         builder.Entity<PlayerProfile>().Property(x => x.Weight).HasPrecision(5, 1);

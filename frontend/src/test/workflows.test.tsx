@@ -10,6 +10,7 @@ import { HomePage } from '../pages/HomePage'
 import { AssessmentForm, PlayerDashboard, WorkoutPage } from '../pages/PlayerPages'
 import { AdminDashboard } from '../pages/RolePages'
 import { GuestParticipationPage, MyActivitiesPage, OrganizerActivitiesPage, PublicActivityPage, SportsNearbyPage } from '../pages/SportsNearbyPages'
+import { FeedbackWidget } from '../FeedbackWidget'
 
 const json = (value: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } }))
 const publicActivity = {
@@ -43,6 +44,29 @@ describe('critical workflows', () => {
     render(<MemoryRouter><RegistrationChoicePage /></MemoryRouter>)
     for (const role of ['Игрок', 'Родитель', 'Тренер', 'Организатор']) expect(screen.getByRole('heading', { name: role })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Тренер/ })).toHaveAttribute('href', '/register-coach')
+  })
+
+  it('sends public feedback with the selected category', async () => {
+    const requests: { path: string; method: string; body?: string }[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const path = String(input)
+      requests.push({ path, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined })
+      if (path === '/api/me') return json({ message: 'Unauthorized' }, 401)
+      if (path === '/api/auth/csrf') return json({ token: 'csrf-test' })
+      if (path === '/api/feedback') return json({ id: 14, status: 'New' }, 201)
+      return json({})
+    })
+
+    render(<MemoryRouter initialEntries={['/']}><AuthProvider><FeedbackWidget /></AuthProvider></MemoryRouter>)
+    await userEvent.click(screen.getByRole('button', { name: 'Оставить обратную связь' }))
+    await userEvent.selectOptions(screen.getByLabelText('Тип обращения'), 'Idea')
+    await userEvent.type(screen.getByLabelText('Сообщение'), 'Добавьте возможность сохранять любимые фильтры поиска.')
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить' }))
+
+    expect(await screen.findByRole('heading', { name: 'Спасибо — обращение получено' })).toBeInTheDocument()
+    const feedbackRequest = requests.find(request => request.path === '/api/feedback')
+    expect(feedbackRequest?.body).toContain('"category":"Idea"')
+    expect(feedbackRequest?.body).toContain('"pagePath":"/"')
   })
 
   it('shows the player registration trajectory message', () => {
@@ -175,7 +199,7 @@ describe('critical workflows', () => {
     vi.spyOn(search, 'getBoundingClientRect').mockReturnValue({ bottom: 70 } as DOMRect)
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 500 })
     fireEvent.scroll(window)
-    expect(await screen.findByRole('button', { name: /^Открыть поиск:/ })).toHaveAccessibleName(/Все виды спорта, Сегодня/)
+    expect(await screen.findByRole('button', { name: /^Открыть поиск:/ })).toHaveAccessibleName(/Куда\?, Все виды спорта/)
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
   })
 

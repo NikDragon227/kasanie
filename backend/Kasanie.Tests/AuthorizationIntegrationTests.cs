@@ -69,6 +69,60 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task PublicFeedback_IsStoredAndAdminCanTriageIt()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var created = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/feedback", new
+        {
+            category = "HardToUse",
+            message = "На странице поиска не сразу понятно, как открыть дополнительные фильтры.",
+            contactEmail = "reply@example.test",
+            pagePath = "/",
+            technicalContext = "{\"viewport\":\"390×844\"}"
+        }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        long feedbackId;
+        using (var json = JsonDocument.Parse(await created.Content.ReadAsStringAsync())) feedbackId = json.RootElement.GetProperty("id").GetInt64();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var feedback = await db.FeedbackSubmissions.FindAsync(feedbackId);
+            Assert.NotNull(feedback);
+            Assert.Equal(FeedbackCategory.HardToUse, feedback!.Category);
+            Assert.Equal(FeedbackStatus.New, feedback.Status);
+            Assert.Equal("/", feedback.PagePath);
+        }
+
+        using var listed = await client.SendAsync(Get("/api/admin/feedback?status=New&page=1&pageSize=20", "admin-a", Roles.Admin));
+        Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+        using var listJson = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
+        Assert.Equal(1, listJson.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal("HardToUse", listJson.RootElement.GetProperty("items")[0].GetProperty("category").GetString());
+
+        var adminCsrf = await CsrfAsync(client, "admin-a", Roles.Admin);
+        using var updated = await client.SendAsync(JsonRequest(HttpMethod.Put, $"/api/admin/feedback/{feedbackId}", new { status = "InProgress", priority = "High", resolutionNote = "Проверяем сценарий на мобильном." }, "admin-a", Roles.Admin, adminCsrf));
+        Assert.Equal(HttpStatusCode.NoContent, updated.StatusCode);
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await verifyDb.FeedbackSubmissions.FindAsync(feedbackId);
+        Assert.Equal(FeedbackStatus.InProgress, saved!.Status);
+        Assert.Equal(FeedbackPriority.High, saved.Priority);
+    }
+
+    [Fact]
+    public async Task FeedbackAdminQueue_DeniesNonAdmin()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        using var response = await client.SendAsync(Get("/api/admin/feedback?page=1&pageSize=20", "coach-a", Roles.Coach));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Player_CanRegisterBeforeCompletingFootballProfile()
     {
         await using var factory = new TestApplicationFactory();
