@@ -246,6 +246,12 @@ const nextWholeHour = () => {
   date.setHours(date.getHours() + 1, 0, 0, 0)
   return { date: localDateInputValue(date), time: `${String(date.getHours()).padStart(2, '0')}:00` }
 }
+const shortDateLabel = (value: string) => {
+  if (!value) return 'Когда?'
+  if (value === today()) return 'Сегодня'
+  const date = new Date(`${value}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? 'Когда?' : new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date)
+}
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character)
 
 function loadYandexMaps() {
@@ -282,7 +288,15 @@ function distanceKm(first: Coordinates, second: Coordinates) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-function PublicHeader() {
+type CompactDiscoverySearch = {
+  visible: boolean
+  city: string
+  sport: string
+  date: string
+  onOpen: () => void
+}
+
+function PublicHeader({ compactSearch }: { compactSearch?: CompactDiscoverySearch }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -311,7 +325,9 @@ function PublicHeader() {
 
   const isDiscoveryHome = location.pathname === '/' || location.pathname === '/sports'
 
-  return <header className="nearby-header"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link><nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
+  const showCompactSearch = isDiscoveryHome && compactSearch?.visible
+
+  return <header className={`nearby-header${showCompactSearch ? ' is-compact has-compact-search' : ''}`}><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></Link>{showCompactSearch && <button type="button" className="nearby-header-search" onClick={compactSearch.onOpen} aria-label={`Открыть поиск: ${compactSearch.city}, ${compactSearch.sport}, ${compactSearch.date}`}><span><small>Город</small><b>{compactSearch.city}</b></span><span><small>Спорт</small><b>{compactSearch.sport}</b></span><span><small>Дата</small><b>{compactSearch.date}</b></span><i className="nearby-header-search-icon" aria-hidden /></button>}<nav><Link to={isOrganizer ? '/organizer/activities' : '/register-organizer'}>Организаторам</Link>{isDiscoveryHome && <Link className="button nearby-develop-button" to="/join">Развиваться</Link>}{user
     ? <div className="nearby-account" ref={accountRef}>
         <button type="button" className="nearby-account-trigger" aria-label="Меню профиля" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
           <span className="nearby-account-avatar" aria-hidden>{user.email[0]?.toUpperCase() ?? '?'}</span>
@@ -580,6 +596,9 @@ export function SportsNearbyPage() {
   const sportParam = params.get('sport') ?? ''
   const [selectedSearchSport, setSelectedSearchSport] = useState(sportParam)
   const [defaultSearchDateTime] = useState(nextWholeHour)
+  const [selectedSearchDate, setSelectedSearchDate] = useState(params.get('date') ?? defaultSearchDateTime.date)
+  const searchRef = useRef<HTMLFormElement>(null)
+  const [headerCompact, setHeaderCompact] = useState(false)
   const query = params.toString()
 
   useEffect(() => { void api<Sport[]>('/api/public/sports').then(setSports).catch(() => setSports(fallbackSports)) }, [])
@@ -593,9 +612,23 @@ export function SportsNearbyPage() {
   }, [query])
   useEffect(() => setSelectedCity(cityParam), [cityParam])
   useEffect(() => setSelectedSearchSport(sportParam), [sportParam])
+  useEffect(() => setSelectedSearchDate(params.get('date') ?? defaultSearchDateTime.date), [defaultSearchDateTime.date, params])
   useEffect(() => {
     if (params.has('latitude') || params.get('district') || params.get('time') || params.get('gameFormat') || params.get('availableOnly') === 'true' || params.get('freeOnly') === 'true') setShowMoreFilters(true)
   }, [query, params])
+  useEffect(() => {
+    const updateHeader = () => {
+      const searchBounds = searchRef.current?.getBoundingClientRect()
+      setHeaderCompact(Boolean(window.scrollY > 0 && searchBounds && searchBounds.bottom <= 96))
+    }
+    updateHeader()
+    window.addEventListener('scroll', updateHeader, { passive: true })
+    window.addEventListener('resize', updateHeader)
+    return () => {
+      window.removeEventListener('scroll', updateHeader)
+      window.removeEventListener('resize', updateHeader)
+    }
+  }, [])
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -707,14 +740,19 @@ export function SportsNearbyPage() {
     groups.set(city, [...(groups.get(city) ?? []), item])
     return groups
   }, new Map<string, SearchItem[]>()))
+  const openMainSearch = useCallback(() => {
+    const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    searchRef.current?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
+    window.setTimeout(() => searchRef.current?.querySelector<HTMLInputElement>('input[name="city"]')?.focus(), reducedMotion ? 0 : 350)
+  }, [])
 
-  return <div className="nearby-page search-discovery"><PublicHeader /><main>
+  return <div className="nearby-page search-discovery"><PublicHeader compactSearch={{ visible: headerCompact, city: selectedCity.trim() || cityParam || 'Куда?', sport: sports.find(sport => sport.slug === selectedSearchSport)?.name ?? 'Все виды спорта', date: shortDateLabel(selectedSearchDate), onOpen: openMainSearch }} /><main>
     <section className="nearby-hero">
-      <form key={`${query}-${sports.length}`} className={`nearby-search${showMoreFilters ? ' is-expanded' : ''}`} onSubmit={submit}>
+      <form ref={searchRef} role="search" aria-label="Поиск активностей" key={`${query}-${sports.length}`} className={`nearby-search${showMoreFilters ? ' is-expanded' : ''}`} onSubmit={submit}>
         <div className="nearby-search-primary">
           <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
           <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
-          <label><b>Дата</b><input name="date" type="date" min={today()} defaultValue={params.get('date') ?? defaultSearchDateTime.date} /></label>
+          <label><b>Дата</b><input name="date" type="date" min={today()} value={selectedSearchDate} onChange={event => setSelectedSearchDate(event.target.value)} /></label>
           <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}><span aria-hidden>☷</span>{showMoreFilters ? 'Скрыть' : 'Фильтры'} <i aria-hidden>{showMoreFilters ? '▴' : '▾'}</i></button>
           <button type="button" className={`nearby-geo-button${params.has('latitude') ? ' active' : ''}`} disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}><span aria-hidden>⌖</span>{locating ? 'Определяем…' : params.has('latitude') ? 'Рядом (сбросить)' : 'Рядом со мной'}</button>
           <button className="nearby-search-button" aria-label="Найти события"><span className="nearby-search-icon" aria-hidden /><b>Найти</b></button>
@@ -754,7 +792,24 @@ export function SportsNearbyPage() {
       </div>
       <div className="nearby-organizer-cta"><div><span className="eyebrow">Для организаторов</span><h2>Проводите игры и тренировки?</h2><p>Добавьте событие — участники найдут его через поиск и карту.</p></div><Link className="button" to="/register-organizer">Создать событие</Link></div>
     </section>}
-  </main><footer className="nearby-footer"><div className="nearby-footer-main"><Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спорт рядом и развитие</small></span></Link><nav aria-label="Разделы сайта"><div><b>Активности</b><Link to="/">Найти рядом</Link><Link to="/register-organizer">Создать событие</Link></div><div><b>Развитие</b><Link to="/join">Выбрать роль</Link><Link to="/register-coach">Для тренеров</Link><Link to="/register-parent">Для родителей</Link></div><div><b>Аккаунт</b><Link to="/login">Войти</Link><Link to="/my/activities">Мои активности</Link></div></nav></div><div className="nearby-footer-bottom"><span>© {new Date().getFullYear()} Касание</span><span>Спортивная платформа для людей и команд</span></div></footer></div>
+  </main>
+  <footer className="nearby-footer">
+    <div className="nearby-footer-main">
+      <div className="nearby-footer-brand-copy">
+        <Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спорт рядом и развитие</small></span></Link>
+        <p>Игры, тренировки, команды и спортивное развитие — в одном месте.</p>
+        <a className="nearby-footer-contact" href="mailto:hello@prokasanie.ru">hello@prokasanie.ru</a>
+      </div>
+      <nav aria-label="Разделы сайта">
+        <div><b>О Касании</b><Link to="/">Главная</Link><Link to="/join">Выбрать направление</Link><Link to="/register-organizer">Организаторам и площадкам</Link></div>
+        <div><b>Активности</b><Link to="/">Найти рядом</Link><Link to="/my/activities">Мои активности</Link><Link to="/register-organizer">Создать событие</Link></div>
+        <div><b>Развитие</b><Link to="/register-coach">Для тренеров</Link><Link to="/register">Для игроков</Link><Link to="/register-parent">Для родителей</Link></div>
+        <div><b>Поддержка и документы</b><a href="mailto:hello@prokasanie.ru">Написать в поддержку</a><span>Пользовательское соглашение</span><span>Политика конфиденциальности</span><small>Документы готовятся к публикации</small></div>
+      </nav>
+    </div>
+    <div className="nearby-footer-bottom"><span>© {new Date().getFullYear()} Касание</span><span>Спортивная платформа для людей и команд</span></div>
+  </footer>
+  </div>
 }
 
 function DiscoveryShelf({ title, items }: { title: string; items: SearchItem[] }) {

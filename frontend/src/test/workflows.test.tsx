@@ -154,6 +154,10 @@ describe('critical workflows', () => {
     expect(screen.getByRole('link', { name: /Тренируйтесь индивидуально/ })).toHaveAttribute('href', '/register')
     expect(screen.getByRole('link', { name: /Будьте рядом с ребёнком/ })).toHaveAttribute('href', '/register-parent')
     expect(screen.getByRole('navigation', { name: 'Разделы сайта' })).toBeInTheDocument()
+    expect(screen.getByText('О Касании')).toBeInTheDocument()
+    expect(screen.getByText('Поддержка и документы')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'hello@prokasanie.ru' })).toHaveAttribute('href', 'mailto:hello@prokasanie.ru')
+    expect(screen.getByText('Документы готовятся к публикации')).toBeInTheDocument()
     expect(screen.getByLabelText('Город')).toBeInTheDocument()
     expect(screen.queryByLabelText('Район')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Время')).not.toBeInTheDocument()
@@ -167,6 +171,12 @@ describe('critical workflows', () => {
     expect(screen.queryByText('Мини-футбол')).not.toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Быстрый выбор формата' }).querySelectorAll('img')).toHaveLength(6)
     expect(screen.getAllByText('Бесплатно')).not.toHaveLength(0)
+    const search = screen.getByRole('search', { name: 'Поиск активностей' })
+    vi.spyOn(search, 'getBoundingClientRect').mockReturnValue({ bottom: 70 } as DOMRect)
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 500 })
+    fireEvent.scroll(window)
+    expect(await screen.findByRole('button', { name: /^Открыть поиск:/ })).toHaveAccessibleName(/Все виды спорта, Сегодня/)
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
   })
 
   it('prefills the current date and the next whole hour in nearby filters', () => {
