@@ -183,6 +183,12 @@ small { color: var(--muted); }
   .activity-detail-meta { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 760px) {
+  .platform-funnel-steps { display: grid; grid-template-columns: 1fr 22px 1fr; }
+  .platform-funnel-steps i { display: grid; place-items: center; }
+  .platform-funnel-steps i:nth-of-type(3), .platform-funnel-steps i:nth-of-type(4) { display: none; }
+}
+
 /* Public */
 .landing { min-height: 100vh; background: var(--ink); color: var(--white); }
 .landing-nav { height: 82px; max-width: 1240px; margin: auto; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; }
@@ -247,6 +253,13 @@ small { color: var(--muted); }
   .platform-secondary-stats { margin-top: 0; }
   .platform-secondary-stats .stat-card { min-height: 104px; background: #f9faf6; }
   .platform-secondary-stats .stat-card strong { font-size: 1.35rem; }
+  .platform-funnel { margin-top: 1rem; }
+  .platform-funnel .card-heading small { color: var(--muted); font-size: .68rem; }
+  .platform-funnel-steps { display: flex; align-items: stretch; justify-content: space-between; gap: .65rem; margin-top: 1.1rem; }
+  .platform-funnel-steps span { display: grid; flex: 1; gap: .3rem; min-width: 0; padding: .8rem; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: .68rem; }
+  .platform-funnel-steps b { color: var(--ink); font-family: Unbounded; font-size: 1.25rem; }
+  .platform-funnel-steps i { align-self: center; color: var(--mint); font-style: normal; font-weight: 900; }
+  .platform-funnel > p { margin: .85rem 0 0; color: var(--muted); font-size: .72rem; }
   .platform-trend { margin-top: 1rem; }
   .trend-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .7rem 1rem; color: var(--muted); font-size: .65rem; }
   .trend-legend span { display: inline-flex; align-items: center; gap: .35rem; }

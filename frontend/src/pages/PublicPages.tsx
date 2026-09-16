@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
+import { analyticsEvents, trackProductEvent } from '../analytics'
 
 const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer'].find(x => roles.includes(x)) ?? roles[0]
@@ -50,9 +51,11 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     setError('')
     if (!dateOfBirth || Number.isNaN(birth.getTime()) || adultAt > now) return setError('Самостоятельная регистрация доступна с 18 лет.')
     if (String(values.get('password') ?? '').length < 8) return setError('Пароль должен содержать не менее 8 символов.')
+    trackProductEvent(analyticsEvents.registrationStarted, { role })
     setPending(true)
     try {
       await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role })
+      trackProductEvent(analyticsEvents.registrationCompleted, { role })
       setDone(true)
     } catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
@@ -142,8 +145,9 @@ export function LoginForm() {
     event.preventDefault(); setError('')
     if (!email.includes('@')) return setError('Укажите корректный email.')
     if (!password) return setError('Введите пароль.')
+    trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
     setPending(true)
-    try { const next = await login(email, password); const from = (location.state as { from?: string } | null)?.from; navigate(from ?? roleHome[primaryRole(next.roles)] ?? '/') }
+    try { const next = await login(email, password); trackProductEvent(analyticsEvents.loginCompleted, { role: primaryRole(next.roles) }); const from = (location.state as { from?: string } | null)?.from; navigate(from ?? roleHome[primaryRole(next.roles)] ?? '/') }
     catch (e) { setError(e instanceof ApiError && (e.status === 423 || e.status === 403) ? e.message : 'Неверный email или пароль.') }
     finally { setPending(false) }
   }
@@ -157,8 +161,9 @@ export function RegisterPage() {
     event.preventDefault(); setError(''); const data = new FormData(event.currentTarget); const birth = String(data.get('dateOfBirth')); const age = new Date().getFullYear() - new Date(birth).getFullYear()
     if (!birth || age < 14) return setError('Игроку младше 14 лет профиль создаёт родитель из своего кабинета.')
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
+    trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
     setPending(true)
-    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName') }); setDone(true) }
+    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName') }); trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Player' }); setDone(true) }
     catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
       setError(fieldErrors.join(' ') || (e instanceof Error ? e.message : 'Регистрация не выполнена.'))

@@ -4,6 +4,7 @@ import { ApiError, api, post, postForm, put, remove } from '../api'
 import { useAuth } from '../auth'
 import { primaryRole, roleHome, roleLabel } from '../components'
 import { CityInput } from '../CityInput'
+import { analyticsEvents, trackPageView, trackProductEvent } from '../analytics'
 
 type Venue = { id: number; slug: string; name: string; city: string; district?: string; address: string; latitude: number; longitude: number; indoor: boolean; isVerified: boolean }
 type Activity = { id: number; slug: string; sportSlug: string; sport: string; eventType: string; gameFormat?: string; title: string; description: string; coverImageUrl?: string; organizerName: string; startAt: string; endAt: string; price: number; currency: string; skillLevel: string; minimumAge: number; maximumAge?: number; capacity: number; waitlistCapacity?: number; participantsCount: number; availablePlaces: number; waitlistAvailablePlaces: number; status: string; isRecurring: boolean; organizerParticipates: boolean; isCurrentUserOrganizer: boolean; equipmentRequirements?: string; rules?: string; cancellationPolicy?: string; venue: Venue }
@@ -503,9 +504,11 @@ export function OrganizerRegisterPage() {
     setError('')
     if (!dateOfBirth || Number.isNaN(birth.getTime()) || eighteenthBirthday > currentDate) return setError('Регистрация организатора доступна только с 18 лет.')
     if (String(values.get('password') ?? '').length < 8) return setError('Пароль должен содержать не менее 8 символов.')
+    trackProductEvent(analyticsEvents.registrationStarted, { role: 'Organizer' })
     setPending(true)
     try {
       await post('/api/auth/register-organizer', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), city: values.get('city') })
+      trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Organizer' })
       setDone(true)
     } catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
@@ -598,9 +601,11 @@ export function SportsNearbyPage() {
   const [defaultSearchDateTime] = useState(nextWholeHour)
   const [selectedSearchDate, setSelectedSearchDate] = useState(params.get('date') ?? defaultSearchDateTime.date)
   const searchRef = useRef<HTMLFormElement>(null)
+  const trackedEmptySearches = useRef(new Set<string>())
   const [headerCompact, setHeaderCompact] = useState(false)
   const query = params.toString()
 
+  useEffect(() => trackPageView(), [])
   useEffect(() => { void api<Sport[]>('/api/public/sports').then(setSports).catch(() => setSports(fallbackSports)) }, [])
   useEffect(() => {
     setError('')
@@ -610,6 +615,12 @@ export function SportsNearbyPage() {
         : error instanceof Error ? error.message : 'Не удалось загрузить события.')
     })
   }, [query])
+  useEffect(() => {
+    if (query && result?.total === 0 && !trackedEmptySearches.current.has(query)) {
+      trackedEmptySearches.current.add(query)
+      trackProductEvent(analyticsEvents.searchEmpty, { hasCity: Boolean(cityParam), hasSport: Boolean(sportParam) })
+    }
+  }, [cityParam, query, result?.total, sportParam])
   useEffect(() => setSelectedCity(cityParam), [cityParam])
   useEffect(() => setSelectedSearchSport(sportParam), [sportParam])
   useEffect(() => setSelectedSearchDate(params.get('date') ?? defaultSearchDateTime.date), [defaultSearchDateTime.date, params])
@@ -652,6 +663,12 @@ export function SportsNearbyPage() {
       next.set('latitude', latitude); next.set('longitude', longitude)
       if (form.has('radiusKm')) next.set('radiusKm', String(form.get('radiusKm') ?? '10'))
     }
+    trackProductEvent(analyticsEvents.searchSubmitted, {
+      hasCity: Boolean(next.get('city')),
+      hasSport: Boolean(next.get('sport')),
+      hasDate: Boolean(next.get('date')),
+      hasLocation: Boolean(next.get('latitude'))
+    })
     setParams(next)
   }
 
@@ -728,6 +745,7 @@ export function SportsNearbyPage() {
   const changeSort = (value: string) => {
     const next = new URLSearchParams(params)
     if (value && value !== 'recommended') next.set('sort', value); else next.delete('sort')
+    trackProductEvent(analyticsEvents.filterChanged, { filter: 'sort', value: value || 'recommended' })
     setParams(next)
   }
   const applySavedFilter = useCallback((saved: string) => setParams(new URLSearchParams(saved)), [setParams])
@@ -751,8 +769,8 @@ export function SportsNearbyPage() {
       <form ref={searchRef} role="search" aria-label="Поиск активностей" key={`${query}-${sports.length}`} className={`nearby-search${showMoreFilters ? ' is-expanded' : ''}`} onSubmit={submit}>
         <div className="nearby-search-primary">
           <label><b>Город</b><CityInput name="city" defaultValue={params.get('city') ?? ''} onValueChange={setSelectedCity} /></label>
-          <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => setSelectedSearchSport(event.target.value)}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
-          <label><b>Дата</b><input name="date" type="date" min={today()} value={selectedSearchDate} onChange={event => setSelectedSearchDate(event.target.value)} /></label>
+          <label><b>Спорт</b><select name="sport" value={selectedSearchSport} onChange={event => { setSelectedSearchSport(event.target.value); trackProductEvent(analyticsEvents.filterChanged, { filter: 'sport', hasValue: Boolean(event.target.value) }) }}><option value="">Все виды спорта</option>{visibleSports.map(sport => <option key={sport.id} value={sport.slug}>{sport.name}</option>)}</select></label>
+          <label><b>Дата</b><input name="date" type="date" min={today()} value={selectedSearchDate} onChange={event => { setSelectedSearchDate(event.target.value); trackProductEvent(analyticsEvents.filterChanged, { filter: 'date' }) }} /></label>
           <button type="button" className="nearby-more-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters(value => !value)}><span aria-hidden>☷</span>{showMoreFilters ? 'Скрыть' : 'Фильтры'} <i aria-hidden>{showMoreFilters ? '▴' : '▾'}</i></button>
           <button type="button" className={`nearby-geo-button${params.has('latitude') ? ' active' : ''}`} disabled={locating} onClick={params.has('latitude') ? clearCurrentLocation : locateCurrentPosition}><span aria-hidden>⌖</span>{locating ? 'Определяем…' : params.has('latitude') ? 'Рядом (сбросить)' : 'Рядом со мной'}</button>
           <button className="nearby-search-button" aria-label="Найти события"><span className="nearby-search-icon" aria-hidden /><b>Найти</b></button>
@@ -818,14 +836,14 @@ function DiscoveryShelf({ title, items }: { title: string; items: SearchItem[] }
 
 function DiscoveryActivityCard({ activity, distanceKm }: { activity: Activity; distanceKm?: number }) {
   const date = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(activity.startAt))
-  return <Link className="discovery-activity-card" to={`/activities/${activity.slug}`} onClick={() => rememberActivityId(activity.id)}><span className={`discovery-activity-cover activity-${activity.eventType.toLowerCase()}`}><img src={activityCover(activity)} alt="" loading="lazy" /><b>{eventLabels[activity.eventType] ?? activity.eventType}</b></span><span className="discovery-activity-copy"><span><strong>{activity.title}</strong><b>{formatPrice(activity.price)}</b></span><small>{date}</small><small>{activity.venue.city} · {activity.venue.name}{typeof distanceKm === 'number' ? ` · ${distanceKm} км` : ''}</small><small>{activity.sport}{activity.gameFormat ? ` · ${formatGameFormat(activity.sportSlug, activity.gameFormat)}` : ''}</small></span></Link>
+  return <Link className="discovery-activity-card" to={`/activities/${activity.slug}`} onClick={() => { rememberActivityId(activity.id); trackProductEvent(analyticsEvents.activityOpened, { source: 'shelf', eventType: activity.eventType }) }}><span className={`discovery-activity-cover activity-${activity.eventType.toLowerCase()}`}><img src={activityCover(activity)} alt="" loading="lazy" /><b>{eventLabels[activity.eventType] ?? activity.eventType}</b></span><span className="discovery-activity-copy"><span><strong>{activity.title}</strong><b>{formatPrice(activity.price)}</b></span><small>{date}</small><small>{activity.venue.city} · {activity.venue.name}{typeof distanceKm === 'number' ? ` · ${distanceKm} км` : ''}</small><small>{activity.sport}{activity.gameFormat ? ` · ${formatGameFormat(activity.sportSlug, activity.gameFormat)}` : ''}</small></span></Link>
 }
 
 function ActivityCard({ activity, distanceKm, selected, onSelect }: { activity: Activity; distanceKm?: number; selected?: boolean; onSelect?: (activityId: number) => void }) {
   const start = new Date(activity.startAt)
   const time = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(start)
   const day = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(start)
-  return <Link id={`activity-card-${activity.id}`} className={`activity-card${selected ? ' selected' : ''}`} to={`/activities/${activity.slug}`} onMouseEnter={() => onSelect?.(activity.id)} onFocus={() => onSelect?.(activity.id)}>
+  return <Link id={`activity-card-${activity.id}`} className={`activity-card${selected ? ' selected' : ''}`} to={`/activities/${activity.slug}`} onClick={() => trackProductEvent(analyticsEvents.activityOpened, { source: 'search', eventType: activity.eventType })} onMouseEnter={() => onSelect?.(activity.id)} onFocus={() => onSelect?.(activity.id)}>
     <div className={`activity-card-cover activity-${activity.eventType.toLowerCase()}`}><img src={activityCover(activity)} alt="" loading="lazy" /><span className="activity-card-badge">{eventLabels[activity.eventType] ?? activity.eventType}</span><span className="activity-card-time"><b>{time}</b><small>{day}</small></span></div>
     <div className="activity-card-body"><div className="activity-card-top"><span>{activity.venue.district || activity.venue.city}</span><b>{formatPrice(activity.price)}</b></div><h3>{activity.title}</h3><p>{activity.description}</p><div className="activity-meta"><span>⌖ {activity.venue.city}{activity.venue.district ? ` · ${activity.venue.district}` : ''}{typeof distanceKm === 'number' ? ` · ${distanceKm} км` : ''}</span><span>◫ {activity.sport}{activity.gameFormat ? ` · ${formatGameFormat(activity.sportSlug, activity.gameFormat)}` : ''}</span><span>◎ {activity.skillLevel}</span><span>Организатор: {activity.organizerName}</span></div><div className="activity-card-footer"><span className={activity.availablePlaces > 0 ? 'places-ok' : 'places-full'}>{activity.availablePlaces > 0 ? `${activity.availablePlaces} ${pluralRu(activity.availablePlaces, ['место свободно', 'места свободно', 'мест свободно'])}` : 'Мест нет'}</span><span>Подробнее →</span></div></div>
   </Link>
@@ -1098,7 +1116,9 @@ export function PublicActivityPage() {
     if (!activity) return
     setPending(true); setMessage(null)
     try {
+      trackProductEvent(analyticsEvents.joinStarted, { method: 'account', eventType: activity.eventType })
       const result = await post<{ status: string }>(`/api/activities/${activity.id}/join`)
+      trackProductEvent(analyticsEvents.joinCompleted, { method: 'account', waitlisted: result.status === 'Waitlisted', eventType: activity.eventType })
       setMessage({ text: result.status === 'Waitlisted' ? 'Вы добавлены в лист ожидания.' : 'Вы записаны. Организатор увидит ваше участие.', ok: true })
       await reloadActivity()
     } catch (error) {
@@ -1111,6 +1131,7 @@ export function PublicActivityPage() {
     setPending(true); setMessage(null)
     try {
       await post(`/api/activities/${activity.id}/leave`)
+      trackProductEvent(analyticsEvents.participationCancelled, { method: 'account', eventType: activity.eventType })
       setMessage({ text: 'Участие отменено.', ok: true })
       await reloadActivity()
     } catch (error) {
@@ -1125,11 +1146,13 @@ export function PublicActivityPage() {
     const values = new FormData(form)
     setPending(true); setMessage(null)
     try {
+      trackProductEvent(analyticsEvents.joinStarted, { method: 'guest', eventType: activity.eventType })
       const result = await post<GuestJoinResult>(`/api/public/activities/${activity.id}/guest-join`, {
         name: values.get('name'),
         contact: values.get('contact'),
         adultConfirmed: values.get('adultConfirmed') === 'on'
       })
+      trackProductEvent(analyticsEvents.joinCompleted, { method: 'guest', waitlisted: result.status === 'Waitlisted', eventType: activity.eventType })
       form.reset()
       setShowGuestJoin(false)
       setGuestConfirmation(result)

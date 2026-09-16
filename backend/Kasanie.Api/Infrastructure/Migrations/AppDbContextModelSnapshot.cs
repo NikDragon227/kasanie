@@ -843,6 +843,51 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("FeedbackSubmissions");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PagePath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PropertiesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt", "Name");
+
+                    b.HasIndex("SessionId", "CreatedAt");
+
+                    b.HasIndex("UserId")
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.ToTable("ProductAnalyticsEvents");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivityParticipantReport", b =>
                 {
                     b.Property<long>("Id")
@@ -2231,6 +2276,14 @@ namespace Kasanie.Api.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
                         .WithMany()

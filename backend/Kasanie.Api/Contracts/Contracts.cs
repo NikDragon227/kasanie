@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Kasanie.Api.Domain;
 
 namespace Kasanie.Api.Contracts;
@@ -57,6 +58,7 @@ public sealed record TeamTrainingResultRequest(int PlayerId, int TeamTrainingExe
 public sealed record SaveTeamTrainingReviewRequest(List<TeamTrainingResultRequest> Results, string? Notes);
 public sealed record FeedbackCreateRequest(string? Category, string Message, string? ContactEmail, string PagePath, string? TechnicalContext);
 public sealed record FeedbackUpdateRequest(string? Status, string? Priority, string? ResolutionNote);
+public sealed record ProductAnalyticsEventRequest(string? Name, string? PagePath, string? SessionId, JsonElement? Properties);
 
 public static class Validation
 {
@@ -134,6 +136,17 @@ public static class Validation
         if (string.IsNullOrWhiteSpace(value.PagePath) || value.PagePath.Length > 300 || !value.PagePath.StartsWith('/')) errors["pagePath"] = ["Не удалось определить страницу обращения."];
         if (!string.IsNullOrWhiteSpace(value.ContactEmail) && (!new EmailAddressAttribute().IsValid(value.ContactEmail) || value.ContactEmail.Trim().Length > 254)) errors["contactEmail"] = ["Укажите корректный email для ответа."];
         if (value.TechnicalContext?.Length > 1500) errors["technicalContext"] = ["Технический контекст слишком длинный."];
+        return errors;
+    }
+
+    public static Dictionary<string, string[]> Analytics(ProductAnalyticsEventRequest value)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (!ProductAnalyticsEventNames.All.Contains(value.Name ?? string.Empty)) errors["name"] = ["Неизвестное аналитическое событие."];
+        if (string.IsNullOrWhiteSpace(value.PagePath) || value.PagePath.Length > 300 || !value.PagePath.StartsWith('/') || value.PagePath.Contains('?')) errors["pagePath"] = ["Укажите путь страницы без параметров."];
+        if (string.IsNullOrWhiteSpace(value.SessionId) || value.SessionId.Length > 80) errors["sessionId"] = ["Не удалось определить сессию."];
+        if (value.Properties is { ValueKind: not JsonValueKind.Object }) errors["properties"] = ["Свойства события должны быть объектом."];
+        if (value.Properties?.GetRawText().Length > 2000) errors["properties"] = ["Свойства события слишком длинные."];
         return errors;
     }
 }

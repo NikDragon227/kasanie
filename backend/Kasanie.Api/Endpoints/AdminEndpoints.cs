@@ -66,6 +66,20 @@ public static partial class EndpointMapping
                 .Where(x => x.Status != PublicActivityStatus.Draft && x.Status != PublicActivityStatus.Archived)
                 .Select(x => x.Venue.City).ToListAsync();
             var topCities = cityRows.Where(x => !string.IsNullOrWhiteSpace(x)).GroupBy(x => x).Select(x => new { city = x.Key, count = x.Count() }).OrderByDescending(x => x.count).ThenBy(x => x.city).Take(5).ToArray();
+            var analyticsEvents = await db.ProductAnalyticsEvents.AsNoTracking()
+                .Where(x => x.CreatedAt >= periodStart)
+                .Select(x => new { x.Name, x.SessionId })
+                .ToListAsync();
+            var sessionsFor = (string eventName) => analyticsEvents.Where(x => x.Name == eventName).Select(x => x.SessionId).Distinct().Count();
+            var funnel = new
+            {
+                homeVisits = sessionsFor(ProductAnalyticsEventNames.HomeViewed),
+                searches = sessionsFor(ProductAnalyticsEventNames.SearchSubmitted),
+                cardsOpened = sessionsFor(ProductAnalyticsEventNames.ActivityOpened),
+                joinStarted = sessionsFor(ProductAnalyticsEventNames.JoinStarted),
+                joinsCompleted = sessionsFor(ProductAnalyticsEventNames.JoinCompleted),
+                emptySearches = sessionsFor(ProductAnalyticsEventNames.SearchEmpty)
+            };
 
             return Results.Ok(new
             {
@@ -95,7 +109,8 @@ public static partial class EndpointMapping
                 roles,
                 trend,
                 activityTypes,
-                topCities
+                topCities,
+                funnel
             });
         });
 

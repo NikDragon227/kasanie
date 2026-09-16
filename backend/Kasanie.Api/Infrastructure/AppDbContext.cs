@@ -51,6 +51,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PublicActivityParticipant> PublicActivityParticipants => Set<PublicActivityParticipant>();
     public DbSet<PublicActivityParticipantReport> PublicActivityParticipantReports => Set<PublicActivityParticipantReport>();
     public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
+    public DbSet<ProductAnalyticsEvent> ProductAnalyticsEvents => Set<ProductAnalyticsEvent>();
     public DbSet<CoachNote> CoachNotes => Set<CoachNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -118,6 +119,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<FeedbackSubmission>().HasIndex(x => new { x.Status, x.Priority, x.CreatedAt });
         builder.Entity<FeedbackSubmission>().HasIndex(x => x.UserId).HasFilter("\"UserId\" IS NOT NULL");
         builder.Entity<FeedbackSubmission>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).IsRequired(false);
+
+        builder.Entity<ProductAnalyticsEvent>().Property(x => x.Name).HasMaxLength(80);
+        builder.Entity<ProductAnalyticsEvent>().Property(x => x.SessionId).HasMaxLength(80);
+        builder.Entity<ProductAnalyticsEvent>().Property(x => x.PagePath).HasMaxLength(300);
+        builder.Entity<ProductAnalyticsEvent>().Property(x => x.PropertiesJson).HasMaxLength(2000);
+        builder.Entity<ProductAnalyticsEvent>().HasIndex(x => new { x.CreatedAt, x.Name });
+        builder.Entity<ProductAnalyticsEvent>().HasIndex(x => new { x.SessionId, x.CreatedAt });
+        builder.Entity<ProductAnalyticsEvent>().HasIndex(x => x.UserId).HasFilter("\"UserId\" IS NOT NULL");
+        builder.Entity<ProductAnalyticsEvent>().HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UserId).IsRequired(false);
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);
         builder.Entity<PlayerProfile>().Property(x => x.Weight).HasPrecision(5, 1);

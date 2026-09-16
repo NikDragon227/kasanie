@@ -54,6 +54,7 @@ type AdminSummary = {
   schools: number; activeSchools: number; teams: number; activeTeams: number; publishedActivities: number; newActivities: number; upcomingActivities: number
   registrations: number; newRegistrations: number; completedTrainings: number; exercises: number; assessments: number; programs: number; auditEvents: number
   roles: { role: string; count: number }[]; trend: AdminTrendPoint[]; activityTypes: { type: string; count: number }[]; topCities: { city: string; count: number }[]
+  funnel: { homeVisits: number; searches: number; cardsOpened: number; joinStarted: number; joinsCompleted: number; emptySearches: number }
 }
 const roleNames: Record<string, string> = { Player: 'Игроки', Coach: 'Тренеры', Parent: 'Родители', Organizer: 'Организаторы', SchoolOwner: 'Владельцы школ', SchoolAdmin: 'Администраторы школ', Admin: 'Администраторы платформы' }
 const activityTypeNames: Record<string, string> = { Game: 'Игры', GroupTraining: 'Совместные тренировки', CoachTraining: 'Тренировки с тренером', OpenTeamTraining: 'Открытые тренировки команд', TrainingPartner: 'Поиск партнёра', PlayerRecruitment: 'Набор в команду', RecurringGroup: 'Регулярные группы', Tournament: 'Турниры', Trial: 'Просмотры', OpenPractice: 'Открытые занятия' }
@@ -64,6 +65,7 @@ export function AdminDashboard() {
   if (state.loading) return <PageLoader />
   if (state.error || !state.data) return <ErrorState message={state.error} retry={state.reload} />
   const data = state.data
+  const funnel = data.funnel ?? { homeVisits: 0, searches: 0, cardsOpened: 0, joinStarted: 0, joinsCompleted: 0, emptySearches: 0 }
   return <>
     <PageHeader eyebrow="Администрирование" title="Статистика платформы" actions={<div className="period-switch" aria-label="Период статистики">{[7, 30, 90].map(value => <button key={value} className={days === value ? 'active' : ''} onClick={() => setDays(value)}>{value} дней</button>)}</div>} />
     <p className="admin-dashboard-note">Основные показатели продукта и динамика за выбранный период. Данные обновляются при открытии страницы.</p>
@@ -78,6 +80,11 @@ export function AdminDashboard() {
       <StatCard label="Активные команды" value={data.activeTeams} detail={`из ${data.teams}`} />
       <StatCard label="Игроки / тренеры" value={`${data.players} / ${data.coaches}`} />
       <StatCard label="Завершено тренировок" value={data.completedTrainings} detail={`за ${days} дней`} />
+    </section>
+    <section className="card platform-funnel">
+      <div className="card-heading"><div><span className="eyebrow">Воронка поиска</span><h2>От визита до записи</h2></div><small>Уникальные сессии за {days} дней</small></div>
+      <div className="platform-funnel-steps"><span><b>{funnel.homeVisits}</b>Главная</span><i>→</i><span><b>{funnel.searches}</b>Поиск</span><i>→</i><span><b>{funnel.cardsOpened}</b>Карточка</span><i>→</i><span><b>{funnel.joinStarted}</b>Начали запись</span><i>→</i><span><b>{funnel.joinsCompleted}</b>Записались</span></div>
+      <p>{funnel.emptySearches} {funnel.emptySearches === 1 ? 'поиск без результатов' : 'поисков без результатов'} за период.</p>
     </section>
     <PlatformTrendChart points={data.trend} days={days} />
     <div className="content-grid platform-breakdowns">

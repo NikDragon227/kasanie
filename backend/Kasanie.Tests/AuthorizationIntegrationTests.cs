@@ -37,6 +37,11 @@ public sealed class AuthorizationIntegrationTests
             db.Teams.Add(new Team { Id = 10, SchoolId = 10, Name = "U17" });
             SeedPublicActivity(db, "organizer-a");
             db.PublicActivityParticipants.Add(new PublicActivityParticipant { PublicActivityId = 1, UserId = "recent-player", Status = PublicParticipantStatus.Confirmed, JoinedAt = DateTimeOffset.UtcNow.AddDays(-1) });
+            db.ProductAnalyticsEvents.AddRange(
+                new ProductAnalyticsEvent { Name = ProductAnalyticsEventNames.HomeViewed, SessionId = "session-a", PagePath = "/", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) },
+                new ProductAnalyticsEvent { Name = ProductAnalyticsEventNames.SearchSubmitted, SessionId = "session-a", PagePath = "/", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) },
+                new ProductAnalyticsEvent { Name = ProductAnalyticsEventNames.ActivityOpened, SessionId = "session-a", PagePath = "/", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) },
+                new ProductAnalyticsEvent { Name = ProductAnalyticsEventNames.JoinCompleted, SessionId = "session-a", PagePath = "/activities/test", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) });
         });
         using var client = factory.CreateClient();
 
@@ -55,6 +60,34 @@ public sealed class AuthorizationIntegrationTests
         Assert.Equal(1, root.GetProperty("newRegistrations").GetInt32());
         Assert.Equal(7, root.GetProperty("trend").GetArrayLength());
         Assert.Equal(Roles.Player, root.GetProperty("roles")[0].GetProperty("role").GetString());
+        Assert.Equal(1, root.GetProperty("funnel").GetProperty("homeVisits").GetInt32());
+        Assert.Equal(1, root.GetProperty("funnel").GetProperty("joinsCompleted").GetInt32());
+    }
+
+    [Fact]
+    public async Task PublicAnalytics_StoresOnlyKnownEvents()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var accepted = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/analytics/events", new
+        {
+            name = "search_submitted", pagePath = "/", sessionId = "analytics-session", properties = new { hasSport = true }
+        }, null, null, csrf));
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+
+        using var rejected = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/analytics/events", new
+        {
+            name = "anything_else", pagePath = "/", sessionId = "analytics-session", properties = new { }
+        }, null, null, csrf));
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await db.ProductAnalyticsEvents.SingleAsync();
+        Assert.Equal(ProductAnalyticsEventNames.SearchSubmitted, stored.Name);
+        Assert.Equal("analytics-session", stored.SessionId);
     }
 
     [Fact]

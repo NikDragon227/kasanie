@@ -668,6 +668,35 @@ public sealed class FeedbackSubmission
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public static class ProductAnalyticsEventNames
+{
+    public const string HomeViewed = "home_viewed";
+    public const string FilterChanged = "filter_changed";
+    public const string SearchSubmitted = "search_submitted";
+    public const string SearchEmpty = "search_empty";
+    public const string ActivityOpened = "activity_opened";
+    public const string JoinStarted = "join_started";
+    public const string JoinCompleted = "join_completed";
+    public const string ParticipationCancelled = "participation_cancelled";
+    public const string RegistrationStarted = "registration_started";
+    public const string RegistrationCompleted = "registration_completed";
+    public const string LoginCompleted = "login_completed";
+
+    public static readonly HashSet<string> All =
+    [HomeViewed, FilterChanged, SearchSubmitted, SearchEmpty, ActivityOpened, JoinStarted, JoinCompleted, ParticipationCancelled, RegistrationStarted, RegistrationCompleted, LoginCompleted];
+}
+
+public sealed class ProductAnalyticsEvent
+{
+    public long Id { get; set; }
+    public string? UserId { get; set; }
+    public required string Name { get; set; }
+    public required string SessionId { get; set; }
+    public required string PagePath { get; set; }
+    public string? PropertiesJson { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class CoachNote
 {
     public int Id { get; set; }
