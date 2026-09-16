@@ -19,7 +19,7 @@ public sealed class AuthorizationMetadataTests
     public void ProductAnalyticsDoesNotIntroduceRegionalAnalytics()
     {
         var source = File.ReadAllText(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs"));
-        Assert.Contains("ProductAnalyticsEventNames", source);
+        Assert.Contains("ProductAnalyticsEventRequest", source);
         Assert.DoesNotContain("Regional", source);
     }
 
