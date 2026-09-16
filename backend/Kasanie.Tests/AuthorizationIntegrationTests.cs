@@ -1930,9 +1930,12 @@ public sealed class AuthorizationIntegrationTests
         if (userId is not null) request.Headers.Add(TestAuthHandler.UserIdHeader, userId);
         if (role is not null) request.Headers.Add(TestAuthHandler.RoleHeader, role);
         using var response = await client.SendAsync(request);
-        var cookie = response.Headers.GetValues("Set-Cookie").Select(x => x.Split(';', 2)[0]).Single(x => x.StartsWith("Kasanie.Antiforgery=", StringComparison.Ordinal));
-        client.DefaultRequestHeaders.Remove("Cookie");
-        client.DefaultRequestHeaders.Add("Cookie", cookie);
+        if (response.Headers.TryGetValues("Set-Cookie", out var cookies))
+        {
+            var cookie = cookies.Select(x => x.Split(';', 2)[0]).Single(x => x.StartsWith("Kasanie.Antiforgery=", StringComparison.Ordinal));
+            client.DefaultRequestHeaders.Remove("Cookie");
+            client.DefaultRequestHeaders.Add("Cookie", cookie);
+        }
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return json.RootElement.GetProperty("token").GetString()!;
     }

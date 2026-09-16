@@ -16,9 +16,11 @@ public sealed class AuthorizationMetadataTests
     }
 
     [Fact]
-    public void RegionalAnalyticsSourceIsNotPartOfTheApi()
+    public void ProductAnalyticsDoesNotIntroduceRegionalAnalytics()
     {
-        Assert.False(File.Exists(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs")));
+        var source = File.ReadAllText(Path.Combine(ProjectRoot(), "Kasanie.Api", "Endpoints", "AnalyticsEndpoints.cs"));
+        Assert.Contains("ProductAnalyticsEventNames", source);
+        Assert.DoesNotContain("Regional", source);
     }
 
     [Fact]
