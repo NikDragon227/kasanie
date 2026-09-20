@@ -7,7 +7,7 @@ fail() { echo "Production preflight failed: $1" >&2; exit 1; }
 value() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
 
 test -f "$ENV_FILE" || fail ".env is missing"
-for KEY in POSTGRES_PASSWORD APP_DOMAIN APP_BASE_URL SMTP_HOST SMTP_USERNAME SMTP_PASSWORD SMTP_FROM; do
+for KEY in POSTGRES_PASSWORD APP_DOMAIN APP_BASE_URL SMTP_HOST SMTP_USERNAME SMTP_PASSWORD SMTP_FROM SMTP_SUPPORT_INBOX VITE_LEGAL_OPERATOR_NAME VITE_LEGAL_OPERATOR_ADDRESS VITE_PRIVACY_CONTACT VITE_SUPPORT_EMAIL; do
   VALUE=$(value "$KEY")
   test -n "$VALUE" || fail "$KEY must be set"
 done

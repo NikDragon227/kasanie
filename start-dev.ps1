@@ -2,7 +2,10 @@
 Set-Location -LiteralPath $PSScriptRoot
 
 function Test-DockerEngine {
-  & docker info *> $null
+  # `docker info` закономерно завершается с ненулевым кодом до старта Desktop.
+  # Запускаем его через cmd, чтобы PowerShell с ErrorActionPreference=Stop не
+  # превращал этот ожидаемый результат в исключение до запуска Docker Desktop.
+  & cmd.exe /d /c "docker info >nul 2>&1"
   return $LASTEXITCODE -eq 0
 }
 
@@ -17,7 +20,7 @@ if (-not (Test-DockerEngine)) {
   }
 
   Write-Host 'Docker Desktop не запущен. Запускаю и жду готовности...' -ForegroundColor Yellow
-  Start-Process -FilePath $dockerDesktopPath
+  Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
 
   $dockerReady = $false
   for ($attempt = 1; $attempt -le 45; $attempt++) {

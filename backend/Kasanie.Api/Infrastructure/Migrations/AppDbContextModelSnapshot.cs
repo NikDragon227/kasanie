@@ -76,6 +76,12 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("LastActiveAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("PrivacyPolicyAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PrivacyPolicyVersion")
+                        .HasColumnType("text");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -100,6 +106,12 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("SecurityStamp")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("TermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TermsVersion")
                         .HasColumnType("text");
 
                     b.Property<bool>("TwoFactorEnabled")

@@ -37,6 +37,12 @@ public sealed class ApplicationUser : IdentityUser
 {
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastActiveAt { get; set; }
+    // Фиксируем именно редакции документов, с которыми зарегистрировался пользователь.
+    // Это не заменяет юридический архив документов, но даёт проверяемую запись согласия.
+    public string? TermsVersion { get; set; }
+    public DateTimeOffset? TermsAcceptedAt { get; set; }
+    public string? PrivacyPolicyVersion { get; set; }
+    public DateTimeOffset? PrivacyPolicyAcceptedAt { get; set; }
 }
 
 public sealed class Municipality

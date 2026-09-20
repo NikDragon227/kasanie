@@ -13,6 +13,7 @@ public sealed class EmailOptions
     public string Password { get; init; } = string.Empty;
     public string From { get; init; } = "no-reply@kasanie.local";
     public string FromName { get; init; } = "Касание";
+    public string SupportInbox { get; init; } = string.Empty;
     public bool UseSsl { get; init; } = true;
 }
 

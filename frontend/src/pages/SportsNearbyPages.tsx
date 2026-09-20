@@ -5,6 +5,10 @@ import { useAuth } from '../auth'
 import { primaryRole, roleHome, roleLabel } from '../components'
 import { CityInput } from '../CityInput'
 import { analyticsEvents, trackPageView, trackProductEvent } from '../analytics'
+import { LEGAL_DOCUMENT_VERSION } from './LegalPages'
+import { LegalConsent } from './PublicPages'
+
+const supportEmail = import.meta.env.VITE_SUPPORT_EMAIL?.trim() || 'hello@prokasanie.ru'
 
 type Venue = { id: number; slug: string; name: string; city: string; district?: string; address: string; latitude: number; longitude: number; indoor: boolean; isVerified: boolean }
 type Activity = { id: number; slug: string; sportSlug: string; sport: string; eventType: string; gameFormat?: string; title: string; description: string; coverImageUrl?: string; organizerName: string; startAt: string; endAt: string; price: number; currency: string; skillLevel: string; minimumAge: number; maximumAge?: number; capacity: number; waitlistCapacity?: number; participantsCount: number; availablePlaces: number; waitlistAvailablePlaces: number; status: string; isRecurring: boolean; organizerParticipates: boolean; isCurrentUserOrganizer: boolean; equipmentRequirements?: string; rules?: string; cancellationPolicy?: string; venue: Venue }
@@ -507,7 +511,7 @@ export function OrganizerRegisterPage() {
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Organizer' })
     setPending(true)
     try {
-      await post('/api/auth/register-organizer', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), city: values.get('city') })
+      await post('/api/auth/register-organizer', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), city: values.get('city'), termsAccepted: values.get('termsAccepted') === 'on', privacyPolicyAccepted: values.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION })
       trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Organizer' })
       setDone(true)
     } catch (e) {
@@ -516,7 +520,7 @@ export function OrganizerRegisterPage() {
     } finally { setPending(false) }
   }
 
-  return <div className="nearby-page"><PublicHeader /><main className="organizer-signup">{done ? <section><span className="eyebrow">Почти готово</span><h1>Подтвердите email.</h1><p>Мы отправили ссылку. После подтверждения войдите и создайте первое событие.</p><Link className="button large" to="/login">Перейти ко входу</Link></section> : <section><div className="organizer-signup-copy"><h1>Создайте<br />активность.</h1></div><form className="organizer-signup-form" onSubmit={submit}><h2>Аккаунт организатора</h2><label>Как вас показывать участникам<input name="displayName" required maxLength={120} placeholder="Алексей или Команда на Московской" /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p>Уже есть аккаунт? <Link to="/login" state={{ from: '/organizer/activities' }}>Войти</Link></p></form></section>}</main></div>
+  return <div className="nearby-page"><PublicHeader /><main className="organizer-signup">{done ? <section><span className="eyebrow">Почти готово</span><h1>Подтвердите email.</h1><p>Мы отправили ссылку. После подтверждения войдите и создайте первое событие.</p><Link className="button large" to="/login">Перейти ко входу</Link></section> : <section><div className="organizer-signup-copy"><h1>Создайте<br />активность.</h1></div><form className="organizer-signup-form" onSubmit={submit}><h2>Аккаунт организатора</h2><label>Как вас показывать участникам<input name="displayName" required maxLength={120} placeholder="Алексей или Команда на Московской" /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p>Уже есть аккаунт? <Link to="/login" state={{ from: '/organizer/activities' }}>Войти</Link></p></form></section>}</main></div>
 }
 
 type SavedFilter = { id: string; name: string; query: string }
@@ -816,13 +820,13 @@ export function SportsNearbyPage() {
       <div className="nearby-footer-brand-copy">
         <Link className="brand" to="/" aria-label="Касание — главная"><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спорт рядом и развитие</small></span></Link>
         <p>Игры, тренировки, команды и спортивное развитие — в одном месте.</p>
-        <a className="nearby-footer-contact" href="mailto:hello@prokasanie.ru">hello@prokasanie.ru</a>
+        <a className="nearby-footer-contact" href={`mailto:${supportEmail}`}>{supportEmail}</a>
       </div>
       <nav aria-label="Разделы сайта">
         <div><b>О Касании</b><Link to="/">Главная</Link><Link to="/join">Выбрать направление</Link><Link to="/register-organizer">Организаторам и площадкам</Link></div>
         <div><b>Активности</b><Link to="/">Найти рядом</Link><Link to="/my/activities">Мои активности</Link><Link to="/register-organizer">Создать событие</Link></div>
         <div><b>Развитие</b><Link to="/register-coach">Для тренеров</Link><Link to="/register">Для игроков</Link><Link to="/register-parent">Для родителей</Link></div>
-        <div><b>Поддержка и документы</b><a href="mailto:hello@prokasanie.ru">Написать в поддержку</a><span>Пользовательское соглашение</span><span>Политика конфиденциальности</span><small>Документы готовятся к публикации</small></div>
+        <div><b>Поддержка и документы</b><a href={`mailto:${supportEmail}`}>Написать в поддержку</a><Link to="/documents/terms">Пользовательское соглашение</Link><Link to="/documents/privacy">Политика конфиденциальности</Link><Link to="/documents/organizer-rules">Правила для организаторов</Link></div>
       </nav>
     </div>
     <div className="nearby-footer-bottom"><span>© {new Date().getFullYear()} Касание</span><span>Спортивная платформа для людей и команд</span></div>

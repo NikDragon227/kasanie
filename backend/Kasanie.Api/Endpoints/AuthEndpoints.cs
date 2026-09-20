@@ -29,7 +29,7 @@ public static partial class EndpointMapping
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!AgePolicy.CanRegisterIndependently(request.DateOfBirth, DateOnly.FromDateTime(DateTime.UtcNow)))
                 return Results.UnprocessableEntity(new { code = "parent_required", message = "Игроку младше 14 лет профиль создаёт родитель в своём кабинете." });
-            var user = new ApplicationUser { Email = request.Email.Trim(), UserName = request.Email.Trim(), EmailConfirmed = false };
+            var user = NewRegisteredUser(request.Email, request.TermsAccepted, request.PrivacyPolicyAccepted, request.LegalVersion);
             var result = await users.CreateAsync(user, request.Password);
             if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
             await users.AddToRoleAsync(user, Roles.Player);
@@ -39,7 +39,7 @@ public static partial class EndpointMapping
                 PreferredPosition = "", DominantFoot = "", ExperienceLevel = ""
             });
             await db.SaveChangesAsync();
-            await audit.WriteAsync(user.Id, "registration", nameof(ApplicationUser), user.Id);
+            await audit.WriteAsync(user.Id, "registration", nameof(ApplicationUser), user.Id, $"legal:{request.LegalVersion}");
             await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
@@ -56,7 +56,7 @@ public static partial class EndpointMapping
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["city"] = ["Выберите город из подсказок."] });
 
             var normalizedEmail = request.Email.Trim();
-            var user = new ApplicationUser { Email = normalizedEmail, UserName = normalizedEmail, EmailConfirmed = false };
+            var user = NewRegisteredUser(normalizedEmail, request.TermsAccepted, request.PrivacyPolicyAccepted, request.LegalVersion);
             var result = await users.CreateAsync(user, request.Password);
             if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
             var roleResult = await users.AddToRoleAsync(user, Roles.Organizer);
@@ -73,7 +73,7 @@ public static partial class EndpointMapping
                 MunicipalityId = municipality.Id
             });
             await db.SaveChangesAsync();
-            await audit.WriteAsync(user.Id, "organizer_registration", nameof(ApplicationUser), user.Id);
+            await audit.WriteAsync(user.Id, "organizer_registration", nameof(ApplicationUser), user.Id, $"legal:{request.LegalVersion}");
             await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт организатора создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
@@ -86,7 +86,7 @@ public static partial class EndpointMapping
                 return Results.UnprocessableEntity(new { code = "adult_required", message = "Самостоятельная регистрация родителя или тренера доступна только с 18 лет." });
 
             var normalizedEmail = request.Email.Trim();
-            var user = new ApplicationUser { Email = normalizedEmail, UserName = normalizedEmail, EmailConfirmed = false };
+            var user = NewRegisteredUser(normalizedEmail, request.TermsAccepted, request.PrivacyPolicyAccepted, request.LegalVersion);
             var result = await users.CreateAsync(user, request.Password);
             if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = result.Errors.Select(x => x.Description).ToArray() });
             var roleResult = await users.AddToRoleAsync(user, request.Role);
@@ -102,7 +102,7 @@ public static partial class EndpointMapping
                 db.ParentProfiles.Add(new ParentProfile { UserId = user.Id });
 
             await db.SaveChangesAsync();
-            await audit.WriteAsync(user.Id, request.Role == Roles.Coach ? "coach_registration" : "parent_registration", nameof(ApplicationUser), user.Id);
+            await audit.WriteAsync(user.Id, request.Role == Roles.Coach ? "coach_registration" : "parent_registration", nameof(ApplicationUser), user.Id, $"legal:{request.LegalVersion}");
             await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");
@@ -226,6 +226,19 @@ public static partial class EndpointMapping
         var url = BuildUrl(configuration, $"/confirm-email?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}");
         var (subject, html, text) = EmailTemplates.ConfirmEmail(url);
         await TrySendAsync(emailSender, loggerFactory, user.Email!, subject, html, text);
+    }
+
+    private static ApplicationUser NewRegisteredUser(string email, bool termsAccepted, bool privacyPolicyAccepted, string legalVersion)
+    {
+        var acceptedAt = DateTimeOffset.UtcNow;
+        return new ApplicationUser
+        {
+            Email = email.Trim(), UserName = email.Trim(), EmailConfirmed = false,
+            TermsVersion = termsAccepted ? legalVersion : null,
+            TermsAcceptedAt = termsAccepted ? acceptedAt : null,
+            PrivacyPolicyVersion = privacyPolicyAccepted ? legalVersion : null,
+            PrivacyPolicyAcceptedAt = privacyPolicyAccepted ? acceptedAt : null
+        };
     }
 
     // Письмо-подтверждение/сброс не должно ронять запрос: аккаунт уже создан, а

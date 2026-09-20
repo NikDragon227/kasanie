@@ -32,6 +32,7 @@ services:
       Smtp__Username: ${SMTP_USERNAME:-}
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-no-reply@kasanie.local}
+      Smtp__SupportInbox: ${SMTP_SUPPORT_INBOX:-}
       Smtp__UseSsl: ${SMTP_USE_SSL:-true}
       YandexMaps__GeocoderApiKey: ${YANDEX_GEOCODER_API_KEY:-}
       Sentry__Dsn: ${SENTRY_DSN:-}
@@ -53,6 +54,10 @@ services:
       args:
         VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_LEGAL_OPERATOR_NAME: ${VITE_LEGAL_OPERATOR_NAME:-}
+        VITE_LEGAL_OPERATOR_ADDRESS: ${VITE_LEGAL_OPERATOR_ADDRESS:-}
+        VITE_PRIVACY_CONTACT: ${VITE_PRIVACY_CONTACT:-}
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
     ports:
       - "${HTTP_PORT:-80}:80"
     depends_on:

@@ -3,6 +3,7 @@ using Kasanie.Api.Contracts;
 using Kasanie.Api.Domain;
 using Kasanie.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Kasanie.Api.Endpoints;
 
@@ -11,7 +12,7 @@ public static partial class EndpointMapping
     private static void MapFeedback(this IEndpointRouteBuilder app)
     {
         var feedback = app.MapGroup("/api/feedback").WithTags("Feedback");
-        feedback.MapPost("", async (FeedbackCreateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        feedback.MapPost("", async (FeedbackCreateRequest request, ClaimsPrincipal principal, AppDbContext db, ITransactionalEmailSender emailSender, IOptions<EmailOptions> emailOptions, ILoggerFactory loggerFactory) =>
         {
             var errors = Validation.Feedback(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -28,6 +29,19 @@ public static partial class EndpointMapping
             };
             db.FeedbackSubmissions.Add(submission);
             await db.SaveChangesAsync();
+            var supportInbox = emailOptions.Value.SupportInbox.Trim();
+            if (!string.IsNullOrWhiteSpace(supportInbox))
+            {
+                try
+                {
+                    var (subject, html, text) = EmailTemplates.SupportFeedback(category.ToString(), submission.Message, submission.PagePath, submission.ContactEmail);
+                    await emailSender.SendAsync(supportInbox, subject, html, text);
+                }
+                catch (Exception exception)
+                {
+                    loggerFactory.CreateLogger("Kasanie.Api.Feedback.Email").LogError(exception, "Не удалось уведомить поддержку о feedback {FeedbackId}", submission.Id);
+                }
+            }
             return Results.Created($"/api/feedback/{submission.Id}", new { submission.Id, status = submission.Status.ToString() });
         }).RequireRateLimiting("public-feedback");
 

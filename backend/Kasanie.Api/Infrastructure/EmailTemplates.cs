@@ -95,4 +95,16 @@ public static class EmailTemplates
             "Если планы изменились, отмените участие заранее, чтобы место досталось другому.");
         return ("Освободилось место — Касание", html, text);
     }
+
+    public static (string Subject, string Html, string Text) SupportFeedback(string category, string message, string pagePath, string? contactEmail)
+    {
+        var recipientHint = string.IsNullOrWhiteSpace(contactEmail) ? "Контакт для ответа не оставлен." : $"Контакт для ответа: {contactEmail}";
+        var (html, text) = Action(
+            "Новое обращение из Касания",
+            $"Новое обращение: {category}",
+            $"{message}\n\nСтраница: {pagePath}\n{recipientHint}",
+            "Открыть очередь обратной связи", "https://prokasanie.ru/admin/feedback",
+            "Это внутреннее уведомление для команды Касания.");
+        return ($"Новое обращение · {category} — Касание", html, text);
+    }
 }

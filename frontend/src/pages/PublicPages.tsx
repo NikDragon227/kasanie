@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
 import { analyticsEvents, trackProductEvent } from '../analytics'
+import { LEGAL_DOCUMENT_VERSION } from './LegalPages'
 
 const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 const primaryRole = (roles: string[]) => ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer'].find(x => roles.includes(x)) ?? roles[0]
@@ -54,7 +55,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     trackProductEvent(analyticsEvents.registrationStarted, { role })
     setPending(true)
     try {
-      await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role })
+      await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role, termsAccepted: values.get('termsAccepted') === 'on', privacyPolicyAccepted: values.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION })
       trackProductEvent(analyticsEvents.registrationCompleted, { role })
       setDone(true)
     } catch (e) {
@@ -64,7 +65,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
   }
 
   if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите." portalRegistration><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
+  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
 }
 
 export function LandingPage() {
@@ -163,14 +164,18 @@ export function RegisterPage() {
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
     setPending(true)
-    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName') }); trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Player' }); setDone(true) }
+    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName'), termsAccepted: data.get('termsAccepted') === 'on', privacyPolicyAccepted: data.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION }); trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Player' }); setDone(true) }
     catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
       setError(fieldErrors.join(' ') || (e instanceof Error ? e.message : 'Регистрация не выполнена.'))
     } finally { setPending(false) }
   }
   if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title="Построй свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" autoComplete="given-name" required /></label><label>Фамилия<input name="lastName" autoComplete="family-name" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label className="full">Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
+  return <AuthFrame title="Построй свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" autoComplete="given-name" required /></label><label>Фамилия<input name="lastName" autoComplete="family-name" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label className="full">Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><div className="full"><LegalConsent /></div>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
+}
+
+export function LegalConsent() {
+  return <div className="legal-consent"><label><input name="termsAccepted" type="checkbox" required /> Принимаю <Link to="/documents/terms" target="_blank">пользовательское соглашение</Link></label><label><input name="privacyPolicyAccepted" type="checkbox" required /> Ознакомлен(а) с <Link to="/documents/privacy" target="_blank">политикой конфиденциальности</Link></label></div>
 }
 
 export function ForgotPasswordPage() {

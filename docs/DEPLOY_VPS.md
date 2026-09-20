@@ -29,6 +29,8 @@ chmod 600 .env
 
 В `.env` задайте уникальные `POSTGRES_PASSWORD`, одинаковый пароль внутри `ConnectionStrings__DefaultConnection`, `ASPNETCORE_ENVIRONMENT=Production`, `COOKIE_SECURE=true`, `APP_DOMAIN=kasanie.example.ru`, threshold аналитики. Для первого запуска задайте уникальные `BootstrapAdmin__Email` и случайный `BootstrapAdmin__Password` (16+ символов). Не копируйте development password в production и не включайте Development.
 
+Перед публичным запуском обязательны также `SMTP_SUPPORT_INBOX`, `VITE_SUPPORT_EMAIL`, `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS` и `VITE_PRIVACY_CONTACT`. Первый адрес получает уведомления о новых обращениях, `VITE_SUPPORT_EMAIL` публикуется в подвале, остальные `VITE_*` значения попадают в публичные документы при сборке frontend. Скрипт `preflight-production.sh` не даст продолжить, если они пустые.
+
 ## 4. DNS и HTTPS
 
 Направьте A/AAAA записи домена на VPS. До запуска production-конфига получите сертификат standalone (порт 80 должен быть свободен):
@@ -111,3 +113,9 @@ KASANIE_BASE_URL=https://kasanie.example.ru ./scripts/check-health.sh
 ```
 
 Запускайте её cron/systemd timer каждые 5 минут и направляйте ненулевой exit code в ваш мониторинг. Перед реальными данными настройте alert на HTTP health, срок TLS-сертификата, дисковое место, restart containers и неуспешный backup.
+
+Минимальный вариант без отдельного мониторинга: задайте на VPS в защищённом environment-файле `KASANIE_ALERT_WEBHOOK_URL` (webhook, принимающий JSON `{ "text": "…" }`) и запускайте `scripts/monitor-health.sh` каждые 5 минут. Скрипт передаёт только факт сбоя и URL, а логи остаются на VPS.
+
+```cron
+*/5 * * * * cd /opt/kasanie && . /etc/kasanie-monitor.env && KASANIE_BASE_URL=https://prokasanie.ru ./scripts/monitor-health.sh
+```

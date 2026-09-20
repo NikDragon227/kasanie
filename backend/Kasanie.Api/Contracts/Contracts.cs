@@ -4,9 +4,9 @@ using Kasanie.Api.Domain;
 
 namespace Kasanie.Api.Contracts;
 
-public sealed record RegisterRequest(string Email, string Password, DateOnly DateOfBirth, string FirstName, string LastName);
-public sealed record RegisterOrganizerRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string City);
-public sealed record RegisterPortalUserRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string Role);
+public sealed record RegisterRequest(string Email, string Password, DateOnly DateOfBirth, string FirstName, string LastName, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
+public sealed record RegisterOrganizerRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string City, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
+public sealed record RegisterPortalUserRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string Role, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record EmailRequest(string Email);
 public sealed record ConfirmEmailRequest(string UserId, string Token);
@@ -62,6 +62,15 @@ public sealed record ProductAnalyticsEventRequest(string? Name, string? PagePath
 
 public static class Validation
 {
+    public const string CurrentLegalVersion = "2026-09-20";
+
+    private static void LegalAcceptance(bool termsAccepted, bool privacyPolicyAccepted, string legalVersion, Dictionary<string, string[]> errors)
+    {
+        if (!termsAccepted) errors["termsAccepted"] = ["Для регистрации нужно принять пользовательское соглашение."];
+        if (!privacyPolicyAccepted) errors["privacyPolicyAccepted"] = ["Для регистрации нужно ознакомиться с политикой конфиденциальности."];
+        if (legalVersion != CurrentLegalVersion) errors["legalVersion"] = ["Обновите страницу и ознакомьтесь с актуальной редакцией документов."];
+    }
+
     public static Dictionary<string, string[]> Register(RegisterRequest value)
     {
         var errors = new Dictionary<string, string[]>();
@@ -69,6 +78,7 @@ public static class Validation
         if (string.IsNullOrEmpty(value.Password) || value.Password.Length < 8) errors["password"] = ["Пароль должен содержать не менее 8 символов."];
         if (string.IsNullOrWhiteSpace(value.FirstName)) errors["firstName"] = ["Укажите имя."];
         if (string.IsNullOrWhiteSpace(value.LastName)) errors["lastName"] = ["Укажите фамилию."];
+        LegalAcceptance(value.TermsAccepted, value.PrivacyPolicyAccepted, value.LegalVersion, errors);
         return errors;
     }
 
@@ -80,6 +90,7 @@ public static class Validation
         if (string.IsNullOrWhiteSpace(value.DisplayName)) errors["displayName"] = ["Укажите имя организатора."];
         else if (value.DisplayName.Trim().Length > 120) errors["displayName"] = ["Имя организатора не должно превышать 120 символов."];
         if (string.IsNullOrWhiteSpace(value.City)) errors["city"] = ["Укажите город."];
+        LegalAcceptance(value.TermsAccepted, value.PrivacyPolicyAccepted, value.LegalVersion, errors);
         return errors;
     }
 
@@ -91,6 +102,7 @@ public static class Validation
         if (string.IsNullOrWhiteSpace(value.DisplayName)) errors["displayName"] = ["Укажите имя и фамилию."];
         else if (value.DisplayName.Trim().Length > 120) errors["displayName"] = ["Имя не должно превышать 120 символов."];
         if (value.Role is not (Roles.Parent or Roles.Coach)) errors["role"] = ["Для самостоятельной регистрации доступны роли родителя и тренера."];
+        LegalAcceptance(value.TermsAccepted, value.PrivacyPolicyAccepted, value.LegalVersion, errors);
         return errors;
     }
 
