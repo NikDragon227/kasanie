@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Kasanie.Api.Contracts;
 using Kasanie.Api.Domain;
 using Kasanie.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
