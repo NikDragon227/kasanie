@@ -168,7 +168,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Kasanie-Test-2026!",
             dateOfBirth = "2008-05-12",
             firstName = "Новый",
-            lastName = "Игрок"
+            lastName = "Игрок",
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -194,13 +195,13 @@ public sealed class AuthorizationIntegrationTests
 
         using var first = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
         {
-            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Первый"
+            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Первый", termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
         using var duplicate = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
         {
-            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Второй"
+            email = "dup-player@example.test", password = "Kasanie-Test-2026!", dateOfBirth = "2005-01-01", firstName = "Иван", lastName = "Второй", termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
         var duplicateMessages = await AccountErrorsAsync(duplicate);
@@ -209,7 +210,7 @@ public sealed class AuthorizationIntegrationTests
 
         using var weakPassword = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register", new
         {
-            email = "weak-player@example.test", password = "weakpassword", dateOfBirth = "2005-01-01", firstName = "Пётр", lastName = "Слабый"
+            email = "weak-player@example.test", password = "weakpassword", dateOfBirth = "2005-01-01", firstName = "Пётр", lastName = "Слабый", termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
         Assert.Equal(HttpStatusCode.BadRequest, weakPassword.StatusCode);
         var weakMessages = await AccountErrorsAsync(weakPassword);
@@ -1005,7 +1006,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Organizer-2026!",
             dateOfBirth = "1990-05-12",
             displayName = "Футбол на Московской",
-            city = "Казань"
+            city = "Казань",
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -1044,7 +1046,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Organizer-2026!",
             dateOfBirth = "1988-03-04",
             displayName = "Организатор без письма",
-            city = "Самара"
+            city = "Самара",
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -1069,7 +1072,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Organizer-2026!",
             dateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-17).ToString("yyyy-MM-dd"),
             displayName = "Юный организатор",
-            city = "Казань"
+            city = "Казань",
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
@@ -1093,7 +1097,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Kasanie-2026!",
             dateOfBirth = "1990-05-12",
             displayName = "Алексей Клявин",
-            role
+            role,
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         var body = await response.Content.ReadAsStringAsync();
@@ -1123,7 +1128,8 @@ public sealed class AuthorizationIntegrationTests
             password = "Kasanie-2026!",
             dateOfBirth = "1990-05-12",
             displayName = "Fake Admin",
-            role = Roles.Admin
+            role = Roles.Admin,
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
         }, null, null, csrf));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
