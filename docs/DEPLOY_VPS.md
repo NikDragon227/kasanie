@@ -29,7 +29,7 @@ chmod 600 .env
 
 В `.env` задайте уникальные `POSTGRES_PASSWORD`, одинаковый пароль внутри `ConnectionStrings__DefaultConnection`, `ASPNETCORE_ENVIRONMENT=Production`, `COOKIE_SECURE=true`, `APP_DOMAIN=kasanie.example.ru`, threshold аналитики. Для первого запуска задайте уникальные `BootstrapAdmin__Email` и случайный `BootstrapAdmin__Password` (16+ символов). Не копируйте development password в production и не включайте Development.
 
-Перед публичным запуском обязательны также `SMTP_SUPPORT_INBOX`, `VITE_SUPPORT_EMAIL`, `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS` и `VITE_PRIVACY_CONTACT`. Первый адрес получает уведомления о новых обращениях, `VITE_SUPPORT_EMAIL` публикуется в подвале, остальные `VITE_*` значения попадают в публичные документы при сборке frontend. Скрипт `preflight-production.sh` не даст продолжить, если они пустые.
+Перед публичным запуском обязательны также `SMTP_SUPPORT_INBOX`, `VITE_SUPPORT_EMAIL`, `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS`, `VITE_LEGAL_OPERATOR_TAX_ID` и `VITE_PRIVACY_CONTACT`. Первый адрес получает уведомления о новых обращениях, `VITE_SUPPORT_EMAIL` публикуется в подвале, остальные `VITE_*` значения попадают в публичные документы при сборке frontend. Скрипт `preflight-production.sh` не даст продолжить, если они пустые.
 
 ## 4. DNS и HTTPS
 
