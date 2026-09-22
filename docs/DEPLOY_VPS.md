@@ -31,6 +31,8 @@ chmod 600 .env
 
 Перед публичным запуском обязательны также `SMTP_SUPPORT_INBOX`, `VITE_SUPPORT_EMAIL`, `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS`, `VITE_LEGAL_OPERATOR_TAX_ID` и `VITE_PRIVACY_CONTACT`. Первый адрес получает уведомления о новых обращениях, `VITE_SUPPORT_EMAIL` публикуется в подвале, остальные `VITE_*` значения попадают в публичные документы при сборке frontend. Скрипт `preflight-production.sh` не даст продолжить, если они пустые.
 
+Для Яндекс Метрики создайте счётчик для `https://prokasanie.ru` и укажите его номер в `VITE_YANDEX_METRIKA_ID`. Переменная необязательна: при пустом значении скрипт Метрики не загружается.
+
 ## 4. DNS и HTTPS
 
 Направьте A/AAAA записи домена на VPS. До запуска production-конфига получите сертификат standalone (порт 80 должен быть свободен):

@@ -1,4 +1,5 @@
 import { post } from './api'
+import { trackYandexMetricaGoal } from './metrica'
 
 export const analyticsEvents = {
   homeViewed: 'home_viewed',
@@ -37,6 +38,7 @@ export function trackProductEvent(name: AnalyticsEvent, properties: Properties =
   if (typeof window === 'undefined') return
   const safeProperties = Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined))
   void post('/api/analytics/events', { name, pagePath: window.location.pathname, sessionId: sessionId(), properties: safeProperties }).catch(() => undefined)
+  trackYandexMetricaGoal(name, safeProperties)
 }
 
 export function trackPageView(path = window.location.pathname) {
