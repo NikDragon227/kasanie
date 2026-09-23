@@ -121,3 +121,13 @@ KASANIE_BASE_URL=https://kasanie.example.ru ./scripts/check-health.sh
 ```cron
 */5 * * * * cd /opt/kasanie && . /etc/kasanie-monitor.env && KASANIE_BASE_URL=https://prokasanie.ru ./scripts/monitor-health.sh
 ```
+
+Предпочтительный вариант — systemd timer из репозитория. Создайте файл `/etc/kasanie-monitor.env`, доступный только root (`chmod 600`):
+
+```dotenv
+KASANIE_BASE_URL=https://prokasanie.ru
+# URL webhook вашего канала алертов (Make, Slack и аналогичные сервисы).
+KASANIE_ALERT_WEBHOOK_URL=
+```
+
+Затем на VPS выполните `sudo ./scripts/install-monitor-timer.sh`. Таймер запускает проверку каждые 5 минут и переживает перезагрузку сервера. Проверка `./scripts/launch-readiness.sh` дополнительно убеждается, что timer включён, healthchecks проходят, а при включённой Метрике CSP разрешает её загрузку.
