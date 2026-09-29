@@ -1,11 +1,13 @@
 #!/usr/bin/env sh
 # Запускается по cron/systemd timer на VPS. При сбое отправляет короткое
-# уведомление на webhook, если KASANIE_ALERT_WEBHOOK_URL задан в окружении.
+# уведомление на webhook или в Telegram при сбое healthcheck.
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BASE_URL=${KASANIE_BASE_URL:-https://prokasanie.ru}
 ALERT_WEBHOOK_URL=${KASANIE_ALERT_WEBHOOK_URL:-}
+TELEGRAM_BOT_TOKEN=${KASANIE_TELEGRAM_BOT_TOKEN:-}
+TELEGRAM_CHAT_ID=${KASANIE_TELEGRAM_CHAT_ID:-}
 OUTPUT_FILE=$(mktemp)
 trap 'rm -f "$OUTPUT_FILE"' EXIT
 
@@ -21,5 +23,15 @@ if [ -n "$ALERT_WEBHOOK_URL" ]; then
     -H 'Content-Type: application/json' \
     --data "{\"text\":\"Kasanie: health check failed for ${BASE_URL}. Check the VPS logs.\"}" \
     "$ALERT_WEBHOOK_URL" || true
+fi
+
+if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+  # Не передаём логи, персональные данные или конфигурацию — только факт сбоя.
+  curl --fail --silent --show-error --max-time 15 \
+    --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+    --data-urlencode "text=Kasanie: health check failed for ${BASE_URL}. Check the VPS logs." \
+    "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" || true
+elif [ -n "$TELEGRAM_BOT_TOKEN" ] || [ -n "$TELEGRAM_CHAT_ID" ]; then
+  echo "Telegram alerts require both KASANIE_TELEGRAM_BOT_TOKEN and KASANIE_TELEGRAM_CHAT_ID." >&2
 fi
 exit 1
