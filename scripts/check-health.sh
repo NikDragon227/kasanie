@@ -4,8 +4,8 @@ set -eu
 BASE_URL=${KASANIE_BASE_URL:-http://localhost}
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-for PATH in /health/live /health/ready; do
-  curl --fail --silent --show-error "$BASE_URL$PATH"
+for HEALTH_PATH in /health/live /health/ready; do
+  curl --fail --silent --show-error "$BASE_URL$HEALTH_PATH"
   echo
 done
 cd "$ROOT_DIR"
