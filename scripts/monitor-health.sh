@@ -6,6 +6,8 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BASE_URL=${KASANIE_BASE_URL:-https://prokasanie.ru}
 ALERT_WEBHOOK_URL=${KASANIE_ALERT_WEBHOOK_URL:-}
+TELEGRAM_RELAY_URL=${KASANIE_TELEGRAM_RELAY_URL:-}
+TELEGRAM_RELAY_SHARED_SECRET=${KASANIE_TELEGRAM_RELAY_SHARED_SECRET:-}
 TELEGRAM_BOT_TOKEN=${KASANIE_TELEGRAM_BOT_TOKEN:-}
 TELEGRAM_CHAT_ID=${KASANIE_TELEGRAM_CHAT_ID:-}
 OUTPUT_FILE=$(mktemp)
@@ -25,7 +27,17 @@ if [ -n "$ALERT_WEBHOOK_URL" ]; then
     "$ALERT_WEBHOOK_URL" || true
 fi
 
-if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+if [ -n "$TELEGRAM_RELAY_URL" ] && [ -n "$TELEGRAM_RELAY_SHARED_SECRET" ]; then
+  # Cloudflare Worker stores the BotFather token and chat ID as Worker Secrets.
+  # The VPS receives an unrelated, route-specific relay secret only.
+  curl --fail --silent --show-error --max-time 15 \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${TELEGRAM_RELAY_SHARED_SECRET}" \
+    --data "{\"text\":\"Kasanie: health check failed for ${BASE_URL}. Check the VPS logs.\"}" \
+    "${TELEGRAM_RELAY_URL%/}/v1/notify" || true
+elif [ -n "$TELEGRAM_RELAY_URL" ] || [ -n "$TELEGRAM_RELAY_SHARED_SECRET" ]; then
+  echo "Cloudflare Telegram relay requires both KASANIE_TELEGRAM_RELAY_URL and KASANIE_TELEGRAM_RELAY_SHARED_SECRET." >&2
+elif [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
   # Не передаём логи, персональные данные или конфигурацию — только факт сбоя.
   curl --fail --silent --show-error --max-time 15 \
     --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \

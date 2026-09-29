@@ -8,7 +8,17 @@ test -r "$ENV_FILE" || { echo "Monitor environment file is not readable: $ENV_FI
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 
-: "${KASANIE_TELEGRAM_BOT_TOKEN:?KASANIE_TELEGRAM_BOT_TOKEN must be set}"
+if [ -n "${KASANIE_TELEGRAM_RELAY_URL:-}" ] && [ -n "${KASANIE_TELEGRAM_RELAY_SHARED_SECRET:-}" ]; then
+  curl --fail --silent --show-error --max-time 15 \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${KASANIE_TELEGRAM_RELAY_SHARED_SECRET}" \
+    --data '{"text":"Kasanie: monitoring is connected. Test alert."}' \
+    "${KASANIE_TELEGRAM_RELAY_URL%/}/v1/notify"
+  echo "Telegram relay test alert sent."
+  exit 0
+fi
+
+: "${KASANIE_TELEGRAM_BOT_TOKEN:?Configure the Cloudflare relay or KASANIE_TELEGRAM_BOT_TOKEN}"
 : "${KASANIE_TELEGRAM_CHAT_ID:?KASANIE_TELEGRAM_CHAT_ID must be set}"
 
 curl --fail --silent --show-error --max-time 15 \
