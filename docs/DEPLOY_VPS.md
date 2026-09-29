@@ -132,6 +132,13 @@ KASANIE_ALERT_WEBHOOK_URL=
 # cloudflare_relay/. Токен бота и chat ID остаются в Cloudflare Secrets.
 KASANIE_TELEGRAM_RELAY_URL=
 KASANIE_TELEGRAM_RELAY_SHARED_SECRET=
+# Все пороги ниже необязательны: показаны значения по умолчанию.
+KASANIE_TLS_CERT_PATH=/opt/kasanie/certbot/certs/fullchain.pem
+KASANIE_TLS_MIN_REMAINING_DAYS=14
+KASANIE_DISK_PATH=/
+KASANIE_DISK_MAX_USED_PERCENT=85
+KASANIE_BACKUP_DIR=/opt/kasanie/backups
+KASANIE_BACKUP_MAX_AGE_HOURS=48
 # Устаревший прямой вариант Telegram. Используйте только если VPS действительно
 # может обратиться к api.telegram.org; не задавайте его вместе с relay-парой.
 KASANIE_TELEGRAM_BOT_TOKEN=
@@ -140,4 +147,4 @@ KASANIE_TELEGRAM_CHAT_ID=
 
 Для VPS, который не может обратиться к Telegram напрямую, разверните отдельный Worker по инструкции [cloudflare_relay/README.md](../cloudflare_relay/README.md) и задайте `KASANIE_TELEGRAM_RELAY_URL` и `KASANIE_TELEGRAM_RELAY_SHARED_SECRET`. Токен и chat ID в таком варианте хранятся только в Cloudflare Secrets. После успешного relay-теста удалите прямые `KASANIE_TELEGRAM_BOT_TOKEN` и `KASANIE_TELEGRAM_CHAT_ID` из VPS-файла. Тест отправляется вручную: `sudo ./scripts/send-monitor-test-alert.sh`.
 
-Затем на VPS выполните `sudo ./scripts/install-monitor-timer.sh`. Таймер запускает проверку каждые 5 минут и переживает перезагрузку сервера. Проверка `./scripts/launch-readiness.sh` дополнительно убеждается, что timer включён, healthchecks проходят, а при включённой Метрике CSP разрешает её загрузку.
+Затем на VPS выполните `sudo ./scripts/install-monitor-timer.sh`. Таймер запускает проверку каждые 5 минут и переживает перезагрузку сервера. Он проверяет `/health/live`, `/health/ready`, состояние контейнеров, срок локального TLS-сертификата, заполнение корневого диска и возраст последнего backup. Проверка `./scripts/launch-readiness.sh` дополнительно убеждается, что timer включён, healthchecks проходят, а при включённой Метрике CSP разрешает её загрузку.
