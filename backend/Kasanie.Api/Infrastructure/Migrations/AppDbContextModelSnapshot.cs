@@ -1695,6 +1695,73 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("TeamTrainingExercises");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CoachId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoachId");
+
+                    b.HasIndex("TeamId", "CoachId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("TeamTrainingTemplates");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ExerciseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamTrainingTemplateId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExerciseId");
+
+                    b.HasIndex("TeamTrainingTemplateId", "ExerciseId")
+                        .IsUnique();
+
+                    b.ToTable("TeamTrainingTemplateExercises");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.Property<int>("Id")
@@ -2551,6 +2618,44 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("TeamTraining");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.CoachProfile", "Coach")
+                        .WithMany()
+                        .HasForeignKey("CoachId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Coach");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.Exercise", "Exercise")
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.TeamTrainingTemplate", "TeamTrainingTemplate")
+                        .WithMany("Exercises")
+                        .HasForeignKey("TeamTrainingTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Exercise");
+
+                    b.Navigation("TeamTrainingTemplate");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.Team", "Team")
@@ -2795,6 +2900,11 @@ namespace Kasanie.Api.Infrastructure.Migrations
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingExercise", b =>
                 {
                     b.Navigation("PlayerResults");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.Navigation("Exercises");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
