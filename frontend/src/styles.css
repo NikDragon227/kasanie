@@ -1894,8 +1894,28 @@ small { color: var(--muted); }
 .app-shell .progress-track { background: #e2e8ef; }
 .app-shell .progress-track > span { background: linear-gradient(90deg, #0877ff, #69a8ff); }
 
+.coach-workday-intro { max-width: 680px; margin: -1.1rem 0 1.5rem; color: #6a6a6a; font-size: .9rem; line-height: 1.55; }
+.coach-workday-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.coach-day-focus { display: grid; align-content: start; min-height: 240px; gap: .35rem; }
+.coach-day-focus h2 { margin: 0; }
+.coach-day-focus p { color: #687480; }
+.coach-day-focus .button { width: fit-content; margin-top: auto; }
+.coach-day-meta { display: flex; flex-wrap: wrap; gap: .55rem; margin: .3rem 0 1rem; }
+.coach-day-meta span, .coach-workday-list > a > span { padding: .35rem .55rem; border-radius: 8px; background: #f1f5f9; color: #4d5b68; font-size: .73rem; font-weight: 700; }
+.coach-workday-list { display: grid; }
+.coach-workday-list > a { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 0; border-top: 1px solid #edf0f2; }
+.coach-workday-list > a:first-child { border-top: 0; padding-top: 0; }
+.coach-workday-list > a:last-child { padding-bottom: 0; }
+.coach-workday-list > a:hover b { color: #0877ff; }
+.coach-workday-list > a > div { min-width: 0; display: grid; gap: .2rem; }
+.coach-workday-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coach-workday-list .risk-high { background: #fff0ee; color: #b13b2e; }
+.coach-week-events { margin-top: 1rem; }
+
 @media (max-width: 760px) {
   .app-shell .sidebar { box-shadow: 0 3px 16px rgba(0, 0, 0, .08); }
+  .coach-workday-grid { grid-template-columns: 1fr; }
+  .coach-workday-list > a { align-items: flex-start; }
 }
 
 /* Official raster emblem without an embedded wordmark. */

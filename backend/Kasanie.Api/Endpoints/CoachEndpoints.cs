@@ -40,6 +40,98 @@ public static partial class EndpointMapping
                 .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).Select(x => new { x.TeamId, name = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
         });
 
+        coach.MapGet("/workday", async (ClaimsPrincipal user, AppDbContext db) =>
+        {
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTimeOffset.UtcNow;
+            var weekEnd = now.AddDays(7);
+            var assignedTeams = db.TeamCoaches
+                .Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
+                .Select(x => x.TeamId);
+
+            var nextTraining = await db.TeamTrainings.AsNoTracking()
+                .Where(x => assignedTeams.Contains(x.TeamId) && x.Status != TeamTrainingStatus.Completed && x.ScheduledAt >= now)
+                .OrderBy(x => x.ScheduledAt)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    x.Title,
+                    x.ScheduledAt,
+                    status = x.Status.ToString(),
+                    players = x.Attendances.Count,
+                    exercises = x.Exercises.Count
+                })
+                .FirstOrDefaultAsync();
+
+            var unfinished = await db.TeamTrainings.AsNoTracking()
+                .Where(x => assignedTeams.Contains(x.TeamId) && x.Status != TeamTrainingStatus.Completed && x.ScheduledAt < now)
+                .OrderBy(x => x.ScheduledAt)
+                .Take(5)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    x.Title,
+                    x.ScheduledAt,
+                    status = x.Status.ToString(),
+                    unresolvedAttendance = x.Attendances.Count(a => a.Status == AttendanceStatus.Unknown)
+                })
+                .ToListAsync();
+
+            var nextMatch = await db.TeamMatches.AsNoTracking()
+                .Where(x => assignedTeams.Contains(x.TeamId) && x.ScheduledAt >= now)
+                .OrderBy(x => x.ScheduledAt)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    x.Opponent,
+                    x.Competition,
+                    x.ScheduledAt,
+                    x.Venue
+                })
+                .FirstOrDefaultAsync();
+
+            var risks = await db.TeamInjuries.AsNoTracking()
+                .Where(x => assignedTeams.Contains(x.TeamId) && x.ClosedOn == null)
+                .OrderByDescending(x => x.RiskLevel)
+                .ThenBy(x => x.ExpectedReturnOn)
+                .Take(5)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    player = x.Player.FirstName + " " + x.Player.LastName,
+                    x.Type,
+                    x.Severity,
+                    x.RiskLevel,
+                    x.ExpectedReturnOn
+                })
+                .ToListAsync();
+
+            var upcomingEvents = await db.TeamScheduleEvents.AsNoTracking()
+                .Where(x => assignedTeams.Contains(x.TeamId) && x.StartsAt >= now && x.StartsAt < weekEnd)
+                .OrderBy(x => x.StartsAt)
+                .Take(5)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    x.Type,
+                    x.Title,
+                    x.StartsAt
+                })
+                .ToListAsync();
+
+            return Results.Ok(new { generatedAt = now, nextTraining, unfinished, nextMatch, risks, upcomingEvents });
+        });
+
         coach.MapGet("/teams/{teamId:int}/workspace", async (int teamId, ClaimsPrincipal user, AppDbContext db) =>
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);

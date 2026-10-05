@@ -7,11 +7,44 @@ import { CityInput } from '../CityInput'
 import { DevelopmentProfile } from '../DevelopmentProfile'
 
 type CoachPlayer = { id: number; firstName: string; lastName: string; preferredPosition: string; experienceLevel: string; lastActivity?: string; planCompletion: number }
+type CoachWorkday = {
+  nextTraining?: { id: number; teamId: number; team: string; title: string; scheduledAt: string; status: string; players: number; exercises: number }
+  unfinished: { id: number; teamId: number; team: string; title: string; scheduledAt: string; status: string; unresolvedAttendance: number }[]
+  nextMatch?: { id: number; teamId: number; team: string; opponent: string; competition?: string; scheduledAt: string; venue: string }
+  risks: { id: number; teamId: number; team: string; player: string; type: string; severity: string; riskLevel: number; expectedReturnOn?: string }[]
+  upcomingEvents: { id: number; teamId: number; team: string; type: string; title: string; startsAt: string }[]
+}
+
 export function CoachDashboard() {
-  const { data, loading, error, reload } = useApiData<CoachPlayer[]>('/api/coach/players?page=1&pageSize=100')
-  if (loading) return <PageLoader />; if (error || !data) return <ErrorState message={error} retry={reload} />
-  const active = data.filter(x => x.lastActivity).length
-  return <><PageHeader eyebrow="Кабинет тренера" title="Команда под контролем" actions={<Link className="button" to="/coach/players">Все игроки</Link>} /><section className="stat-grid"><StatCard label="Игроков" value={data.length} tone="accent" /><StatCard label="Активны за 7 дней" value={active} /><StatCard label="Среднее выполнение" value={`${data.length ? Math.round(data.reduce((a, x) => a + x.planCompletion, 0) / data.length) : 0}%`} /></section><section className="card"><div className="card-heading"><h2>Игроки, требующие внимания</h2></div>{data.slice().sort((a, b) => a.planCompletion - b.planCompletion).slice(0, 5).map(x => <PlayerRow key={x.id} player={x} />)}</section></>
+  const workday = useApiData<CoachWorkday>('/api/coach/workday')
+  if (workday.loading) return <PageLoader />; if (workday.error || !workday.data) return <ErrorState message={workday.error} retry={workday.reload} />
+  const data = workday.data
+  const teamLink = (teamId: number) => `/coach/teams?team=${teamId}`
+  return <>
+    <PageHeader eyebrow="Кабинет тренера" title="Мой рабочий день" actions={<Link className="button" to="/coach/trainings">Журнал тренировок</Link>} />
+    <p className="coach-workday-intro">Главное на сегодня: проведите занятие, закройте журнал и не пропустите риски по составу.</p>
+    <section className="stat-grid four coach-workday-stats">
+      <StatCard label="Незакрытый журнал" value={data.unfinished.length} tone={data.unfinished.length ? 'coral' : 'accent'} />
+      <StatCard label="Риски по игрокам" value={data.risks.length} tone={data.risks.length ? 'coral' : 'default'} />
+      <StatCard label="События на 7 дней" value={data.upcomingEvents.length} />
+      <StatCard label="Следующий матч" value={data.nextMatch ? new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(data.nextMatch.scheduledAt)) : '—'} />
+    </section>
+    <section className="coach-workday-grid">
+      <article className="card coach-day-focus">
+        <span className="eyebrow">Ближайшая тренировка</span>
+        {data.nextTraining ? <><h2>{data.nextTraining.title}</h2><p>{data.nextTraining.team} · {formatDate(data.nextTraining.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextTraining.players} игроков</span><span>{data.nextTraining.exercises} упражнений</span></div><Link className="button" to={`/coach/trainings/${data.nextTraining.id}`}>Открыть занятие</Link></> : <EmptyState title="Тренировка не запланирована"><Link className="button" to="/coach/trainings">Запланировать занятие</Link></EmptyState>}
+      </article>
+      <article className="card coach-day-focus">
+        <span className="eyebrow">Ближайший матч</span>
+        {data.nextMatch ? <><h2>— {data.nextMatch.opponent}</h2><p>{data.nextMatch.team} · {formatDate(data.nextMatch.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextMatch.competition || 'Матч'}</span><span>{data.nextMatch.venue}</span></div><Link className="button ghost" to={teamLink(data.nextMatch.teamId)}>Открыть команду</Link></> : <EmptyState title="Ближайшего матча нет"><Link className="button ghost" to="/coach/teams">Перейти к расписанию</Link></EmptyState>}
+      </article>
+    </section>
+    <section className="coach-workday-grid">
+      <article className="card"><div className="card-heading"><div><span className="eyebrow">Сначала закрыть</span><h2>Незавершённый журнал</h2></div><Link to="/coach/trainings">Все занятия →</Link></div>{data.unfinished.length ? <div className="coach-workday-list">{data.unfinished.map(item => <Link key={item.id} to={`/coach/trainings/${item.id}`}><div><b>{item.title}</b><small>{item.team} · {formatDate(item.scheduledAt)}</small></div><span>{item.unresolvedAttendance ? `${item.unresolvedAttendance} без отметки` : 'Завершить'}</span></Link>)}</div> : <EmptyState title="Всё закрыто">У прошедших занятий нет незавершённых действий.</EmptyState>}</article>
+      <article className="card"><div className="card-heading"><div><span className="eyebrow">Внимание</span><h2>Игроки и риски</h2></div><Link to="/coach/teams">Команды →</Link></div>{data.risks.length ? <div className="coach-workday-list">{data.risks.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.player}</b><small>{item.team} · {item.type} · {item.severity}</small></div><span className={item.riskLevel >= 7 ? 'risk-high' : ''}>риск {item.riskLevel}/10</span></Link>)}</div> : <EmptyState title="Активных рисков нет">Проверьте состав перед следующим занятием.</EmptyState>}</article>
+    </section>
+    {data.upcomingEvents.length > 0 && <section className="card coach-week-events"><div className="card-heading"><div><span className="eyebrow">Ближайшие 7 дней</span><h2>Расписание команды</h2></div></div><div className="coach-workday-list">{data.upcomingEvents.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.title}</b><small>{item.team} · {item.type}</small></div><span>{formatDate(item.startsAt)}</span></Link>)}</div></section>}
+  </>
 }
 
 export function CoachPlayersPage() {
