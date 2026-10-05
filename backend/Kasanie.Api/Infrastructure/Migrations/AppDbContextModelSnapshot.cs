@@ -76,12 +76,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("LastActiveAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTimeOffset?>("PrivacyPolicyAcceptedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PrivacyPolicyVersion")
-                        .HasColumnType("text");
-
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -104,6 +98,12 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PrivacyPolicyAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PrivacyPolicyVersion")
+                        .HasColumnType("text");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
@@ -435,6 +435,64 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("Exercises");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PagePath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TechnicalContext")
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.HasIndex("Status", "Priority", "CreatedAt");
+
+                    b.ToTable("FeedbackSubmissions");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.Municipality", b =>
                 {
                     b.Property<int>("Id")
@@ -599,6 +657,51 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("Players");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PagePath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PropertiesJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasFilter("\"UserId\" IS NOT NULL");
+
+                    b.HasIndex("CreatedAt", "Name");
+
+                    b.HasIndex("SessionId", "CreatedAt");
+
+                    b.ToTable("ProductAnalyticsEvents");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivity", b =>
                 {
                     b.Property<int>("Id")
@@ -612,6 +715,10 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     b.Property<int>("Capacity")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -636,10 +743,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<string>("GameFormat")
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
-
-                    b.Property<string>("CoverImageUrl")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("GenderPolicy")
                         .IsRequired()
@@ -795,109 +898,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasIndex("PublicActivityId", "Status", "JoinedAt");
 
                     b.ToTable("PublicActivityParticipants");
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<int>("Category")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("PagePath")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ResolutionNote")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TechnicalContext")
-                        .HasMaxLength(1500)
-                        .HasColumnType("character varying(1500)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Status", "Priority", "CreatedAt");
-
-                    b.HasIndex("UserId")
-                        .HasFilter("\"UserId\" IS NOT NULL");
-
-                    b.ToTable("FeedbackSubmissions");
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("PagePath")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("PropertiesJson")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("SessionId")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt", "Name");
-
-                    b.HasIndex("SessionId", "CreatedAt");
-
-                    b.HasIndex("UserId")
-                        .HasFilter("\"UserId\" IS NOT NULL");
-
-                    b.ToTable("ProductAnalyticsEvents");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivityParticipantReport", b =>
@@ -1695,73 +1695,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("TeamTrainingExercises");
                 });
 
-            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CoachId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<int>("TeamId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(180)
-                        .HasColumnType("character varying(180)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CoachId");
-
-                    b.HasIndex("TeamId", "CoachId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("TeamTrainingTemplates");
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ExerciseId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TeamTrainingTemplateId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExerciseId");
-
-                    b.HasIndex("TeamTrainingTemplateId", "ExerciseId")
-                        .IsUnique();
-
-                    b.ToTable("TeamTrainingTemplateExercises");
-                });
-
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.Property<int>("Id")
@@ -1830,6 +1763,73 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasIndex("PlayerId");
 
                     b.ToTable("TeamTrainingPlayerResults");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CoachId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoachId");
+
+                    b.HasIndex("TeamId", "CoachId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("TeamTrainingTemplates");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ExerciseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamTrainingTemplateId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExerciseId");
+
+                    b.HasIndex("TeamTrainingTemplateId", "ExerciseId")
+                        .IsUnique();
+
+                    b.ToTable("TeamTrainingTemplateExercises");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TrainingDay", b =>
@@ -2251,6 +2251,14 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.ParentPlayerLink", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.ParentProfile", "Parent")
@@ -2309,6 +2317,14 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivity", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.ApplicationUser", "Organizer")
@@ -2352,22 +2368,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Activity");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.FeedbackSubmission", b =>
-                {
-                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.ProductAnalyticsEvent", b =>
-                {
-                    b.HasOne("Kasanie.Api.Domain.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivityParticipantReport", b =>
@@ -2618,44 +2618,6 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("TeamTraining");
                 });
 
-            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
-                {
-                    b.HasOne("Kasanie.Api.Domain.CoachProfile", "Coach")
-                        .WithMany()
-                        .HasForeignKey("CoachId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
-                        .WithMany()
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Coach");
-
-                    b.Navigation("Team");
-                });
-
-            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
-                {
-                    b.HasOne("Kasanie.Api.Domain.Exercise", "Exercise")
-                        .WithMany()
-                        .HasForeignKey("ExerciseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Kasanie.Api.Domain.TeamTrainingTemplate", "TeamTrainingTemplate")
-                        .WithMany("Exercises")
-                        .HasForeignKey("TeamTrainingTemplateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Exercise");
-
-                    b.Navigation("TeamTrainingTemplate");
-                });
-
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.Team", "Team")
@@ -2703,6 +2665,44 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Player");
 
                     b.Navigation("TeamTrainingExercise");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.CoachProfile", "Coach")
+                        .WithMany()
+                        .HasForeignKey("CoachId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Coach");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplateExercise", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.Exercise", "Exercise")
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.TeamTrainingTemplate", "TeamTrainingTemplate")
+                        .WithMany("Exercises")
+                        .HasForeignKey("TeamTrainingTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Exercise");
+
+                    b.Navigation("TeamTrainingTemplate");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TrainingDay", b =>
@@ -2902,14 +2902,14 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("PlayerResults");
                 });
 
-            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
-                {
-                    b.Navigation("Exercises");
-                });
-
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.Navigation("Players");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
+                {
+                    b.Navigation("Exercises");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TrainingDay", b =>
