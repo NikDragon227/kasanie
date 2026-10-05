@@ -1911,11 +1911,25 @@ small { color: var(--muted); }
 .coach-workday-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .coach-workday-list .risk-high { background: #fff0ee; color: #b13b2e; }
 .coach-week-events { margin-top: 1rem; }
+.training-templates { margin-bottom: 1rem; }
+.training-templates .card-heading p { max-width: 570px; margin: .35rem 0 0; color: #6f7780; font-size: .82rem; line-height: 1.45; }
+.training-template-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: .8rem; }
+.training-template-list article { display: flex; justify-content: space-between; gap: .7rem; padding: 1rem; border: 1px solid #e2e8ef; border-radius: 12px; background: #fbfdff; }
+.training-template-list article > div:first-child { min-width: 0; display: grid; gap: .2rem; }
+.training-template-list small, .save-training-template small { display: block; color: #6f7780; font-size: .72rem; }
+.training-template-list p { margin: .35rem 0 0; overflow: hidden; color: #4a5661; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.training-template-list article > div:last-child { display: flex; align-items: start; gap: .35rem; }
+.template-delete { width: 34px; height: 34px; border: 1px solid #e2e8ef; border-radius: 9px; background: #fff; color: #8d99a4; font-size: 1.3rem; line-height: 1; cursor: pointer; }
+.template-delete:hover { border-color: #ffb8b0; background: #fff3f1; color: #c34232; }
+.save-training-template { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .7fr) auto; align-items: center; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid #e5e8eb; }
+.save-training-template > div { display: grid; gap: .2rem; }
+.save-training-template input { min-width: 0; min-height: 44px; padding: .65rem .75rem; border: 1px solid #d5d5d5; border-radius: 10px; background: #fff; color: #222; }
 
 @media (max-width: 760px) {
   .app-shell .sidebar { box-shadow: 0 3px 16px rgba(0, 0, 0, .08); }
   .coach-workday-grid { grid-template-columns: 1fr; }
   .coach-workday-list > a { align-items: flex-start; }
+  .save-training-template { grid-template-columns: 1fr; align-items: stretch; }
 }
 
 /* Official raster emblem without an embedded wordmark. */

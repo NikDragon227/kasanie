@@ -22,6 +22,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TeamScheduleEvent> TeamScheduleEvents => Set<TeamScheduleEvent>();
     public DbSet<TeamTraining> TeamTrainings => Set<TeamTraining>();
     public DbSet<TeamTrainingExercise> TeamTrainingExercises => Set<TeamTrainingExercise>();
+    public DbSet<TeamTrainingTemplate> TeamTrainingTemplates => Set<TeamTrainingTemplate>();
+    public DbSet<TeamTrainingTemplateExercise> TeamTrainingTemplateExercises => Set<TeamTrainingTemplateExercise>();
     public DbSet<TeamTrainingAttendance> TeamTrainingAttendances => Set<TeamTrainingAttendance>();
     public DbSet<TeamTrainingPlayerResult> TeamTrainingPlayerResults => Set<TeamTrainingPlayerResult>();
     public DbSet<PlayerProfile> Players => Set<PlayerProfile>();
@@ -72,6 +74,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TeamTrainingAttendance>().HasKey(x => new { x.TeamTrainingId, x.PlayerId });
         builder.Entity<TeamTrainingPlayerResult>().HasKey(x => new { x.TeamTrainingExerciseId, x.PlayerId });
         builder.Entity<TeamTrainingExercise>().HasIndex(x => new { x.TeamTrainingId, x.ExerciseId }).IsUnique();
+        builder.Entity<TeamTrainingTemplate>().Property(x => x.Name).HasMaxLength(120);
+        builder.Entity<TeamTrainingTemplate>().Property(x => x.Title).HasMaxLength(180);
+        builder.Entity<TeamTrainingTemplate>().HasIndex(x => new { x.TeamId, x.CoachId, x.Name }).IsUnique();
+        builder.Entity<TeamTrainingTemplateExercise>().HasIndex(x => new { x.TeamTrainingTemplateId, x.ExerciseId }).IsUnique();
         builder.Entity<TeamPlayer>().HasIndex(x => new { x.TeamId, x.ShirtNumber }).IsUnique().HasFilter("\"IsActive\" AND \"ShirtNumber\" IS NOT NULL");
         builder.Entity<TeamMessage>().HasIndex(x => new { x.TeamId, x.Channel, x.CreatedAt });
         builder.Entity<TeamInjury>().HasIndex(x => new { x.TeamId, x.Status });

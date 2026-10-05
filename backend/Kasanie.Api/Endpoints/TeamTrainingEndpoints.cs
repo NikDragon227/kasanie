@@ -12,6 +12,65 @@ public static partial class EndpointMapping
     {
         var journal = app.MapGroup("/api/coach/team-trainings").RequireAuthorization(Roles.Coach).WithTags("Team training journal");
 
+        journal.MapGet("/templates", async (ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Results.Ok(await db.TeamTrainingTemplates.AsNoTracking()
+                .Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
+                .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).ThenBy(x => x.Name)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    x.Name,
+                    x.Title,
+                    exercises = x.Exercises.OrderBy(e => e.SortOrder).Select(e => new { e.ExerciseId, e.Exercise.Name, e.Exercise.DurationMinutes })
+                })
+                .ToListAsync());
+        });
+
+        journal.MapPost("/templates", async (TeamTrainingTemplateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 120)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Укажите название шаблона до 120 символов."] });
+            if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 180)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["title"] = ["Укажите тему занятия до 180 символов."] });
+
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var coach = await db.TeamCoaches.Where(x => x.TeamId == request.TeamId && x.Team.IsActive && x.Team.School.IsActive && x.Coach.UserId == userId).Select(x => x.Coach).SingleOrDefaultAsync();
+            if (coach is null) return Results.Forbid();
+
+            var exerciseIds = request.ExerciseIds.Distinct().ToList();
+            if (exerciseIds.Count is < 1 or > 8)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["exerciseIds"] = ["Выберите от 1 до 8 упражнений."] });
+            var activeExerciseIds = await db.Exercises.Where(x => exerciseIds.Contains(x.Id) && x.IsActive).Select(x => x.Id).ToListAsync();
+            if (activeExerciseIds.Count != exerciseIds.Count)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["exerciseIds"] = ["Одно из упражнений недоступно."] });
+            if (await db.TeamTrainingTemplates.AnyAsync(x => x.TeamId == request.TeamId && x.CoachId == coach.Id && x.Name == request.Name.Trim()))
+                return Results.Conflict(new { message = "Шаблон с таким названием уже есть у этой команды." });
+
+            var template = new TeamTrainingTemplate { TeamId = request.TeamId, CoachId = coach.Id, Name = request.Name.Trim(), Title = request.Title.Trim() };
+            for (var i = 0; i < exerciseIds.Count; i++) template.Exercises.Add(new TeamTrainingTemplateExercise { ExerciseId = exerciseIds[i], SortOrder = i + 1 });
+            db.TeamTrainingTemplates.Add(template);
+            await db.SaveChangesAsync();
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_template_created", EntityType = nameof(TeamTrainingTemplate), EntityId = template.Id.ToString(), Details = $"team={request.TeamId}" });
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/coach/team-trainings/templates/{template.Id}", new { template.Id });
+        });
+
+        journal.MapDelete("/templates/{id:int}", async (int id, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var template = await db.TeamTrainingTemplates.Include(x => x.Exercises).SingleOrDefaultAsync(x => x.Id == id && x.Coach.UserId == userId);
+            if (template is null) return Results.NotFound();
+            db.TeamTrainingTemplateExercises.RemoveRange(template.Exercises);
+            db.TeamTrainingTemplates.Remove(template);
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_template_deleted", EntityType = nameof(TeamTrainingTemplate), EntityId = id.ToString() });
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         journal.MapGet("/", async (int? teamId, ClaimsPrincipal principal, AppDbContext db) =>
         {
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);

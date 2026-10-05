@@ -266,6 +266,30 @@ public sealed class TeamTrainingExercise
     public List<TeamTrainingPlayerResult> PlayerResults { get; set; } = [];
 }
 
+public sealed class TeamTrainingTemplate
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int CoachId { get; set; }
+    public CoachProfile Coach { get; set; } = null!;
+    public required string Name { get; set; }
+    public required string Title { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamTrainingTemplateExercise> Exercises { get; set; } = [];
+}
+
+public sealed class TeamTrainingTemplateExercise
+{
+    public int Id { get; set; }
+    public int TeamTrainingTemplateId { get; set; }
+    public TeamTrainingTemplate TeamTrainingTemplate { get; set; } = null!;
+    public int ExerciseId { get; set; }
+    public Exercise Exercise { get; set; } = null!;
+    public int SortOrder { get; set; }
+}
+
 public sealed class TeamTrainingAttendance
 {
     public int TeamTrainingId { get; set; }
