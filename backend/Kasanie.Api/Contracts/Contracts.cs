@@ -63,7 +63,7 @@ public sealed record ProductAnalyticsEventRequest(string? Name, string? PagePath
 
 public static class Validation
 {
-    public const string CurrentLegalVersion = "2026-09-20";
+    public const string CurrentLegalVersion = "2026-09-29";
 
     private static void LegalAcceptance(bool termsAccepted, bool privacyPolicyAccepted, string legalVersion, Dictionary<string, string[]> errors)
     {

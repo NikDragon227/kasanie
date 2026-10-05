@@ -2371,6 +2371,21 @@ small { color: var(--muted); }
 .legal-consent label { display: block; color: #56616d; font-size: .72rem; font-weight: 500; line-height: 1.45; }
 .legal-consent input { width: auto; min-height: 0; margin: 0 .45rem 0 0; vertical-align: middle; }
 .legal-consent a { color: #0877ff; font-weight: 700; }
+.legal-consent p { margin: 0; color: #56616d; font-size: .72rem; line-height: 1.5; }
+.legal-reopen { padding: 0; border: 0; background: transparent; color: #0877ff; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.legal-review-layer { position: fixed; z-index: 200; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(3, 11, 20, .62); backdrop-filter: blur(5px); }
+.legal-review-dialog { width: min(100%, 900px); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto auto auto minmax(250px, 1fr) auto; gap: .85rem; padding: clamp(1.25rem, 3vw, 2rem); overflow: hidden; border-radius: 22px; background: #fff; color: #161616; box-shadow: 0 24px 70px rgba(0, 0, 0, .3); }
+.legal-review-dialog > h2 { margin: 0; font: 800 clamp(1.35rem, 3vw, 2rem)/1.1 Manrope, sans-serif; letter-spacing: -.04em; }
+.legal-review-dialog > p { margin: 0; color: #65717d; font-size: .85rem; line-height: 1.5; }
+.legal-review-tabs { display: flex; gap: .5rem; padding: .3rem; border-radius: 12px; background: #f1f4f7; }
+.legal-review-tabs button { flex: 1; min-height: 40px; padding: .55rem .7rem; border: 0; border-radius: 9px; background: transparent; color: #6a7785; font: 750 .75rem/1.25 Manrope, sans-serif; cursor: pointer; }
+.legal-review-tabs button.active { background: #fff; color: #0877ff; box-shadow: 0 2px 8px rgba(12, 32, 54, .08); }
+.legal-review-tabs button:disabled { cursor: not-allowed; opacity: .55; }
+.legal-review-document { position: relative; min-height: 0; overflow: hidden; border: 1px solid #dfe6ec; border-radius: 14px; background: #f9fafb; }
+.legal-review-document iframe { display: block; width: 100%; height: 100%; min-height: 320px; border: 0; background: #fff; }
+.legal-scroll-hint { position: absolute; right: 16px; bottom: 16px; padding: .45rem .7rem; border-radius: 999px; background: #101828; color: #fff; font-size: .72rem; font-weight: 750; box-shadow: 0 8px 20px rgba(0, 0, 0, .2); pointer-events: none; }
+.legal-review-actions { min-height: 44px; display: flex; justify-content: flex-end; }
+.legal-review-actions .button { min-height: 44px; }
 .legal-page { width: min(920px, calc(100% - 40px)); margin: 0 auto; padding: clamp(2rem, 7vw, 5rem) 0; color: #17212b; }
 .legal-page > header { max-width: 700px; margin-bottom: 2rem; }
 .legal-page h1 { margin: .5rem 0; font: 800 clamp(2rem, 5vw, 3.6rem)/1.02 Manrope, sans-serif; letter-spacing: -.05em; }
@@ -2390,4 +2405,8 @@ small { color: var(--muted); }
   .feedback-form-actions { align-items: stretch; flex-direction: column; }
   .feedback-form-actions .button { width: 100%; }
   .feedback-admin-card form { grid-template-columns: 1fr; }
+  .legal-review-layer { padding: 0; align-items: end; }
+  .legal-review-dialog { width: 100%; max-height: calc(100vh - 8px); min-height: min(680px, calc(100vh - 8px)); border-radius: 20px 20px 0 0; }
+  .legal-review-tabs { flex-direction: column; }
+  .legal-review-document iframe { min-height: 260px; }
 }

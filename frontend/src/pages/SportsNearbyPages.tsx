@@ -495,6 +495,7 @@ export function OrganizerRegisterPage() {
   const [show, setShow] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [legalAccepted, setLegalAccepted] = useState(false)
 
   if (user) return <div className="nearby-page"><PublicHeader /><main className="organizer-signup"><section><span className="eyebrow">Вы уже вошли</span><h1>Можно создавать событие.</h1><Link className="button large" to="/organizer/activities">Перейти к моим событиям</Link></section></main></div>
 
@@ -506,6 +507,7 @@ export function OrganizerRegisterPage() {
     const currentDate = new Date()
     const eighteenthBirthday = new Date(birth.getFullYear() + 18, birth.getMonth(), birth.getDate())
     setError('')
+    if (!legalAccepted) return setError('Сначала ознакомьтесь с пользовательским соглашением и политикой конфиденциальности.')
     if (!dateOfBirth || Number.isNaN(birth.getTime()) || eighteenthBirthday > currentDate) return setError('Регистрация организатора доступна только с 18 лет.')
     if (String(values.get('password') ?? '').length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Organizer' })
@@ -520,7 +522,7 @@ export function OrganizerRegisterPage() {
     } finally { setPending(false) }
   }
 
-  return <div className="nearby-page"><PublicHeader /><main className="organizer-signup">{done ? <section><span className="eyebrow">Почти готово</span><h1>Подтвердите email.</h1><p>Мы отправили ссылку. После подтверждения войдите и создайте первое событие.</p><Link className="button large" to="/login">Перейти ко входу</Link></section> : <section><div className="organizer-signup-copy"><h1>Создайте<br />активность.</h1></div><form className="organizer-signup-form" onSubmit={submit}><h2>Аккаунт организатора</h2><label>Как вас показывать участникам<input name="displayName" required maxLength={120} placeholder="Алексей или Команда на Московской" /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p>Уже есть аккаунт? <Link to="/login" state={{ from: '/organizer/activities' }}>Войти</Link></p></form></section>}</main></div>
+  return <div className="nearby-page"><PublicHeader /><main className="organizer-signup">{done ? <section><span className="eyebrow">Почти готово</span><h1>Подтвердите email.</h1><p>Мы отправили ссылку. После подтверждения войдите и создайте первое событие.</p><Link className="button large" to="/login">Перейти ко входу</Link></section> : <section><div className="organizer-signup-copy"><h1>Создайте<br />активность.</h1></div><form className="organizer-signup-form" onSubmit={submit}><h2>Аккаунт организатора</h2><label>Как вас показывать участникам<input name="displayName" required maxLength={120} placeholder="Алексей или Команда на Московской" /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Город<CityInput required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent onAcceptanceChange={setLegalAccepted} />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending || !legalAccepted}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p>Уже есть аккаунт? <Link to="/login" state={{ from: '/organizer/activities' }}>Войти</Link></p></form></section>}</main></div>
 }
 
 type SavedFilter = { id: string; name: string; query: string }
