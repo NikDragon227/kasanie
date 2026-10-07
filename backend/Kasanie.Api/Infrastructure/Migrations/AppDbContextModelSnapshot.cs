@@ -1628,6 +1628,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<int?>("ScheduleSlotId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("ScheduledAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1646,6 +1649,10 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasIndex("CoachId");
 
                     b.HasIndex("TeamId");
+
+                    b.HasIndex("ScheduleSlotId", "ScheduledAt")
+                        .IsUnique()
+                        .HasFilter("\"ScheduleSlotId\" IS NOT NULL");
 
                     b.ToTable("TeamTrainings");
                 });
@@ -1763,6 +1770,50 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasIndex("PlayerId");
 
                     b.ToTable("TeamTrainingPlayerResults");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingScheduleSlot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CoachId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("StartsAtLocal")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamTrainingTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UtcOffsetMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoachId");
+
+                    b.HasIndex("TeamTrainingTemplateId");
+
+                    b.HasIndex("TeamId", "DayOfWeek", "StartsAtLocal")
+                        .IsUnique();
+
+                    b.ToTable("TeamTrainingScheduleSlots");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
@@ -2569,6 +2620,11 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Kasanie.Api.Domain.TeamTrainingScheduleSlot", "ScheduleSlot")
+                        .WithMany("Trainings")
+                        .HasForeignKey("ScheduleSlotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Kasanie.Api.Domain.Team", "Team")
                         .WithMany()
                         .HasForeignKey("TeamId")
@@ -2576,6 +2632,8 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Coach");
+
+                    b.Navigation("ScheduleSlot");
 
                     b.Navigation("Team");
                 });
@@ -2665,6 +2723,33 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Player");
 
                     b.Navigation("TeamTrainingExercise");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingScheduleSlot", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.CoachProfile", "Coach")
+                        .WithMany()
+                        .HasForeignKey("CoachId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.TeamTrainingTemplate", "TeamTrainingTemplate")
+                        .WithMany()
+                        .HasForeignKey("TeamTrainingTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Coach");
+
+                    b.Navigation("Team");
+
+                    b.Navigation("TeamTrainingTemplate");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>
@@ -2905,6 +2990,11 @@ namespace Kasanie.Api.Infrastructure.Migrations
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingGroup", b =>
                 {
                     b.Navigation("Players");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingScheduleSlot", b =>
+                {
+                    b.Navigation("Trainings");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingTemplate", b =>

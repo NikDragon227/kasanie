@@ -53,6 +53,8 @@ public sealed record TeamMatchRequest(string Opponent, string? Competition, Date
 public sealed record TeamTournamentRequest(string Name, DateOnly StartDate, DateOnly? EndDate, string Status, string? Placement, decimal EntryFee, decimal TravelCost, decimal AccommodationCost, decimal MealCost, decimal EquipmentCost, decimal OtherCost, decimal Income, string? SourceUrl = null, DateOnly? RegistrationDeadline = null);
 public sealed record CreateTeamTrainingRequest(int TeamId, string Title, DateTimeOffset ScheduledAt, List<int> ExerciseIds);
 public sealed record TeamTrainingTemplateRequest(int TeamId, string Name, string Title, List<int> ExerciseIds);
+public sealed record TeamTrainingScheduleSlotRequest(int DayOfWeek, TimeOnly StartsAtLocal);
+public sealed record TeamTrainingScheduleCreateRequest(int TeamId, int TemplateId, int UtcOffsetMinutes, List<TeamTrainingScheduleSlotRequest> Slots);
 public sealed record TeamAttendanceItemRequest(int PlayerId, string Status);
 public sealed record SaveTeamAttendanceRequest(List<TeamAttendanceItemRequest> Players);
 public sealed record TeamTrainingResultRequest(int PlayerId, int TeamTrainingExerciseId, bool IsCompleted, bool Understood);

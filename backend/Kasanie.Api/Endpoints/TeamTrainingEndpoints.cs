@@ -64,9 +64,98 @@ public static partial class EndpointMapping
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
             var template = await db.TeamTrainingTemplates.Include(x => x.Exercises).SingleOrDefaultAsync(x => x.Id == id && x.Coach.UserId == userId);
             if (template is null) return Results.NotFound();
+            if (await db.TeamTrainingScheduleSlots.AnyAsync(x => x.TeamTrainingTemplateId == id))
+                return Results.Conflict(new { message = "Этот шаблон используется в постоянном расписании. Сначала удалите правило расписания." });
             db.TeamTrainingTemplateExercises.RemoveRange(template.Exercises);
             db.TeamTrainingTemplates.Remove(template);
             db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_template_deleted", EntityType = nameof(TeamTrainingTemplate), EntityId = id.ToString() });
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        journal.MapGet("/schedules", async (ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Results.Ok(await db.TeamTrainingScheduleSlots.AsNoTracking()
+                .Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
+                .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).ThenBy(x => x.DayOfWeek).ThenBy(x => x.StartsAtLocal)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.TeamId,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    templateId = x.TeamTrainingTemplateId,
+                    template = x.TeamTrainingTemplate.Name,
+                    title = x.TeamTrainingTemplate.Title,
+                    x.DayOfWeek,
+                    x.StartsAtLocal
+                })
+                .ToListAsync());
+        });
+
+        journal.MapPost("/schedules", async (TeamTrainingScheduleCreateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (request.UtcOffsetMinutes is < -840 or > 840)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["utcOffsetMinutes"] = ["Некорректный часовой пояс."] });
+            var slots = request.Slots
+                .GroupBy(x => new { x.DayOfWeek, x.StartsAtLocal })
+                .Select(x => x.First())
+                .ToList();
+            if (slots.Count is < 1 or > 7 || slots.Any(x => x.DayOfWeek is < 1 or > 7))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["slots"] = ["Добавьте от одного до семи дней недели без повторов."] });
+
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var coach = await db.TeamCoaches.Where(x => x.TeamId == request.TeamId && x.Team.IsActive && x.Team.School.IsActive && x.Coach.UserId == userId).Select(x => x.Coach).SingleOrDefaultAsync();
+            if (coach is null) return Results.Forbid();
+            var template = await db.TeamTrainingTemplates.Include(x => x.Exercises).SingleOrDefaultAsync(x => x.Id == request.TemplateId && x.TeamId == request.TeamId && x.CoachId == coach.Id);
+            if (template is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["templateId"] = ["Выберите шаблон этой команды."] });
+            if (!await db.TeamPlayers.AnyAsync(x => x.TeamId == request.TeamId && x.IsActive))
+                return Results.UnprocessableEntity(new { message = "Сначала добавьте игроков в состав команды." });
+            if (await db.TeamTrainingScheduleSlots.AnyAsync(x => x.TeamId == request.TeamId && slots.Any(slot => slot.DayOfWeek == x.DayOfWeek && slot.StartsAtLocal == x.StartsAtLocal)))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["slots"] = ["На это время у команды уже есть постоянная тренировка."] });
+
+            var rules = slots.Select(x => new TeamTrainingScheduleSlot
+            {
+                TeamId = request.TeamId,
+                CoachId = coach.Id,
+                TeamTrainingTemplateId = template.Id,
+                TeamTrainingTemplate = template,
+                DayOfWeek = x.DayOfWeek,
+                StartsAtLocal = x.StartsAtLocal,
+                UtcOffsetMinutes = request.UtcOffsetMinutes
+            }).ToList();
+            db.TeamTrainingScheduleSlots.AddRange(rules);
+            await db.SaveChangesAsync();
+            var created = await GenerateScheduleTrainingsAsync(db, rules);
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_schedule_created", EntityType = nameof(TeamTrainingScheduleSlot), EntityId = string.Join(',', rules.Select(x => x.Id)), Details = $"team={request.TeamId};trainings={created}" });
+            await db.SaveChangesAsync();
+            return Results.Created("/api/coach/team-trainings/schedules", new { rules = rules.Select(x => x.Id), trainingsCreated = created });
+        });
+
+        journal.MapPost("/schedules/{id:int}/generate", async (int id, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var rule = await db.TeamTrainingScheduleSlots
+                .Include(x => x.TeamTrainingTemplate).ThenInclude(x => x.Exercises)
+                .SingleOrDefaultAsync(x => x.Id == id && x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive);
+            if (rule is null) return Results.NotFound();
+            var created = await GenerateScheduleTrainingsAsync(db, [rule]);
+            if (created > 0)
+            {
+                db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_schedule_generated", EntityType = nameof(TeamTrainingScheduleSlot), EntityId = id.ToString(), Details = $"trainings={created}" });
+                await db.SaveChangesAsync();
+            }
+            return Results.Ok(new { trainingsCreated = created });
+        });
+
+        journal.MapDelete("/schedules/{id:int}", async (int id, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            var rule = await db.TeamTrainingScheduleSlots.SingleOrDefaultAsync(x => x.Id == id && x.Coach.UserId == userId);
+            if (rule is null) return Results.NotFound();
+            await db.TeamTrainings.Where(x => x.ScheduleSlotId == id).ExecuteUpdateAsync(x => x.SetProperty(training => training.ScheduleSlotId, (int?)null));
+            db.TeamTrainingScheduleSlots.Remove(rule);
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "team_training_schedule_deleted", EntityType = nameof(TeamTrainingScheduleSlot), EntityId = id.ToString() });
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
@@ -194,4 +283,45 @@ public static partial class EndpointMapping
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         return db.TeamTrainings.AnyAsync(x => x.Id == trainingId && x.Team.IsActive && x.Team.School.IsActive && x.Team.TeamCoaches.Any(c => c.Coach.UserId == userId));
     }
+
+    private static async Task<int> GenerateScheduleTrainingsAsync(AppDbContext db, IEnumerable<TeamTrainingScheduleSlot> rules)
+    {
+        var created = 0;
+        foreach (var rule in rules)
+        {
+            var template = rule.TeamTrainingTemplate;
+            if (template.Exercises.Count == 0)
+            {
+                template = await db.TeamTrainingTemplates.Include(x => x.Exercises).SingleAsync(x => x.Id == rule.TeamTrainingTemplateId);
+            }
+            var playerIds = await db.TeamPlayers.Where(x => x.TeamId == rule.TeamId && x.IsActive).OrderBy(x => x.Player.LastName).Select(x => x.PlayerId).ToListAsync();
+            if (playerIds.Count == 0) continue;
+
+            var offset = TimeSpan.FromMinutes(rule.UtcOffsetMinutes);
+            var localToday = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(offset).DateTime);
+            var until = localToday.AddDays(28);
+            var existing = await db.TeamTrainings.Where(x => x.ScheduleSlotId == rule.Id && x.ScheduledAt >= Occurrence(rule, localToday) && x.ScheduledAt < Occurrence(rule, until)).Select(x => x.ScheduledAt).ToListAsync();
+            var existingTimes = existing.ToHashSet();
+            for (var date = NextOccurrence(localToday, rule.DayOfWeek); date < until; date = date.AddDays(7))
+            {
+                var scheduledAt = Occurrence(rule, date);
+                if (existingTimes.Contains(scheduledAt)) continue;
+                var training = new TeamTraining { TeamId = rule.TeamId, CoachId = rule.CoachId, ScheduleSlotId = rule.Id, Title = template.Title, ScheduledAt = scheduledAt };
+                for (var i = 0; i < template.Exercises.Count; i++) training.Exercises.Add(new TeamTrainingExercise { ExerciseId = template.Exercises.OrderBy(x => x.SortOrder).ElementAt(i).ExerciseId, SortOrder = i + 1 });
+                foreach (var playerId in playerIds) training.Attendances.Add(new TeamTrainingAttendance { PlayerId = playerId });
+                db.TeamTrainings.Add(training);
+                created++;
+            }
+        }
+        return created;
+    }
+
+    private static DateOnly NextOccurrence(DateOnly start, int isoDayOfWeek)
+    {
+        var currentIsoDay = (int)start.DayOfWeek == 0 ? 7 : (int)start.DayOfWeek;
+        return start.AddDays((isoDayOfWeek - currentIsoDay + 7) % 7);
+    }
+
+    private static DateTimeOffset Occurrence(TeamTrainingScheduleSlot rule, DateOnly date)
+        => new DateTimeOffset(date.ToDateTime(rule.StartsAtLocal), TimeSpan.FromMinutes(rule.UtcOffsetMinutes)).ToUniversalTime();
 }

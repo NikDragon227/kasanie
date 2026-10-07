@@ -244,6 +244,8 @@ public sealed class TeamTraining
     public Team Team { get; set; } = null!;
     public int CoachId { get; set; }
     public CoachProfile Coach { get; set; } = null!;
+    public int? ScheduleSlotId { get; set; }
+    public TeamTrainingScheduleSlot? ScheduleSlot { get; set; }
     public required string Title { get; set; }
     public DateTimeOffset ScheduledAt { get; set; }
     public TeamTrainingStatus Status { get; set; } = TeamTrainingStatus.Planned;
@@ -253,6 +255,24 @@ public sealed class TeamTraining
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<TeamTrainingExercise> Exercises { get; set; } = [];
     public List<TeamTrainingAttendance> Attendances { get; set; } = [];
+}
+
+public sealed class TeamTrainingScheduleSlot
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int CoachId { get; set; }
+    public CoachProfile Coach { get; set; } = null!;
+    public int TeamTrainingTemplateId { get; set; }
+    public TeamTrainingTemplate TeamTrainingTemplate { get; set; } = null!;
+    // ISO weekday: 1 — Monday, 7 — Sunday.
+    public int DayOfWeek { get; set; }
+    public TimeOnly StartsAtLocal { get; set; }
+    public int UtcOffsetMinutes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamTraining> Trainings { get; set; } = [];
 }
 
 public sealed class TeamTrainingExercise
