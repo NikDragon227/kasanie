@@ -186,8 +186,8 @@ export function LegalConsent({ onAcceptanceChange }: { onAcceptanceChange?: (acc
     onAcceptanceChange?.(terms && privacy)
   }
   return <div className="legal-consent">
-    <label><input name="termsAccepted" type="checkbox" checked={termsAccepted} onChange={event => updateAcceptance(event.target.checked, privacyAccepted)} required />Я принимаю <Link to="/documents/terms" target="_blank" rel="noreferrer">пользовательское соглашение</Link></label>
-    <label><input name="privacyPolicyAccepted" type="checkbox" checked={privacyAccepted} onChange={event => updateAcceptance(termsAccepted, event.target.checked)} required />Я ознакомлен(а) с <Link to="/documents/privacy" target="_blank" rel="noreferrer">политикой конфиденциальности</Link></label>
+    <label><input name="termsAccepted" type="checkbox" checked={termsAccepted} onChange={event => updateAcceptance(event.target.checked, privacyAccepted)} required /><span>Я принимаю <Link to="/documents/terms" target="_blank" rel="noreferrer">пользовательское соглашение</Link></span></label>
+    <label><input name="privacyPolicyAccepted" type="checkbox" checked={privacyAccepted} onChange={event => updateAcceptance(termsAccepted, event.target.checked)} required /><span>Я ознакомлен(а) с <Link to="/documents/privacy" target="_blank" rel="noreferrer">политикой конфиденциальности</Link></span></label>
   </div>
 }
 
