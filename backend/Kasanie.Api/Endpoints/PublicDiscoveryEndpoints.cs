@@ -636,6 +636,9 @@ public static partial class EndpointMapping
         if (sport is null) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
         var gameFormatError = ValidateGameFormat(sport.Slug, request.GameFormat);
         if (gameFormatError is not null) return Results.ValidationProblem(Error("gameFormat", gameFormatError));
+        var requiredCapacity = RequiredCapacityForFormat(sport.Slug, request.GameFormat);
+        if (requiredCapacity.HasValue && request.Capacity != requiredCapacity.Value)
+            return Results.ValidationProblem(Error("capacity", $"Для формата {request.GameFormat} укажите {requiredCapacity.Value} мест."));
         if (!await db.SportsVenues.AnyAsync(x => x.Id == request.VenueId && x.IsActive)) return Results.ValidationProblem(Error("venueId", "Площадка недоступна."));
         var item = new PublicActivity
         {
@@ -679,6 +682,9 @@ public static partial class EndpointMapping
         if (sport is null) return Results.ValidationProblem(Error("sportId", "Вид спорта недоступен."));
         var gameFormatError = ValidateGameFormat(sport.Slug, request.GameFormat);
         if (gameFormatError is not null) return Results.ValidationProblem(Error("gameFormat", gameFormatError));
+        var requiredCapacity = RequiredCapacityForFormat(sport.Slug, request.GameFormat);
+        if (requiredCapacity.HasValue && request.Capacity != requiredCapacity.Value)
+            return Results.ValidationProblem(Error("capacity", $"Для формата {request.GameFormat} укажите {requiredCapacity.Value} мест."));
         if (!await db.SportsVenues.AnyAsync(x => x.Id == request.VenueId && x.IsActive)) return Results.ValidationProblem(Error("venueId", "Площадка недоступна."));
         var organizerParticipation = item.Participants.SingleOrDefault(x => x.UserId == userId);
         var confirmedWithoutOrganizer = item.Participants.Count(x => x.UserId != userId &&
@@ -939,6 +945,21 @@ public static partial class EndpointMapping
             return string.IsNullOrWhiteSpace(gameFormat) ? null : "Для этого вида спорта формат игры не используется.";
         if (string.IsNullOrWhiteSpace(gameFormat)) return "Выберите формат игры.";
         return allowedFormats.Contains(gameFormat.Trim(), StringComparer.Ordinal) ? null : "Выбран недоступный формат игры.";
+    }
+
+    private static int? RequiredCapacityForFormat(string sportSlug, string? gameFormat)
+    {
+        if (string.IsNullOrWhiteSpace(gameFormat)) return null;
+        if (sportSlug.Equals("hockey", StringComparison.OrdinalIgnoreCase))
+        {
+            var hockeyParts = gameFormat.Split('+', StringSplitOptions.TrimEntries);
+            return hockeyParts.Length == 2 && int.TryParse(hockeyParts[0], out var players) && int.TryParse(hockeyParts[1], out var goalkeepers)
+                ? (players + goalkeepers) * 2 : null;
+        }
+        if (!new[] { "football", "basketball", "volleyball", "tennis", "badminton" }.Contains(sportSlug, StringComparer.OrdinalIgnoreCase)) return null;
+        var parts = gameFormat.Split('×', StringSplitOptions.TrimEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out var firstSide) && int.TryParse(parts[1], out var secondSide)
+            ? firstSide + secondSide : null;
     }
 
     private static async Task<bool> IsAdultAsync(ClaimsPrincipal principal, string userId, AppDbContext db)

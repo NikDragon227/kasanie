@@ -678,6 +678,21 @@ const gameFormatsBySport: Record<string, GameFormatOption[]> = {
   ],
 };
 
+const fixedCapacityForFormat = (sportSlug?: string, gameFormat?: string) => {
+  if (!sportSlug || !gameFormat) return null;
+  if (["football", "basketball", "volleyball", "tennis", "badminton"].includes(sportSlug)) {
+    const [left, right] = gameFormat.split("×").map(Number);
+    return Number.isFinite(left) && Number.isFinite(right) ? left + right : null;
+  }
+  if (sportSlug === "hockey") {
+    const [players, goalkeepers] = gameFormat.split("+").map(Number);
+    return Number.isFinite(players) && Number.isFinite(goalkeepers)
+      ? (players + goalkeepers) * 2
+      : null;
+  }
+  return null;
+};
+
 const formatGameFormat = (sportSlug: string, value?: string) =>
   value
     ? (gameFormatsBySport[sportSlug]?.find((option) => option.value === value)
@@ -2756,6 +2771,8 @@ export function OrganizerActivitiesPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
   const [selectedSportId, setSelectedSportId] = useState<number | null>(null);
+  const [gameFormat, setGameFormat] = useState("");
+  const [capacity, setCapacity] = useState(12);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [venueChoice, setVenueChoice] = useState("");
   const [meetingPoint, setMeetingPoint] = useState<Coordinates | null>(null);
@@ -2808,7 +2825,13 @@ export function OrganizerActivitiesPage() {
           discoverySportSlugs.has(sport.slug),
         );
         setSports(supportedSports);
-        setSelectedSportId(supportedSports[0]?.id ?? null);
+        const initialSport = supportedSports[0];
+        const initialFormat = initialSport
+          ? (gameFormatsBySport[initialSport.slug]?.[0]?.value ?? "")
+          : "";
+        setSelectedSportId(initialSport?.id ?? null);
+        setGameFormat(initialFormat);
+        setCapacity(fixedCapacityForFormat(initialSport?.slug, initialFormat) ?? 12);
         setVenues(venueItems);
         setActivities(activityItems);
         setVenueChoice(venueItems[0]?.id.toString() ?? "new-map");
@@ -2838,7 +2861,13 @@ export function OrganizerActivitiesPage() {
   const clearEditor = () => {
     setEditing(null);
     setTemplate(null);
-    setSelectedSportId(sports[0]?.id ?? null);
+    const initialSport = sports[0];
+    const initialFormat = initialSport
+      ? (gameFormatsBySport[initialSport.slug]?.[0]?.value ?? "")
+      : "";
+    setSelectedSportId(initialSport?.id ?? null);
+    setGameFormat(initialFormat);
+    setCapacity(fixedCapacityForFormat(initialSport?.slug, initialFormat) ?? 12);
     setMeetingPoint(null);
     setVenueDraft(emptyVenueDraft);
     setVenueChoice(venues[0]?.id.toString() ?? "new-map");
@@ -2865,9 +2894,10 @@ export function OrganizerActivitiesPage() {
   const startEditing = (activity: Activity) => {
     setEditing(activity);
     setTemplate(null);
-    setSelectedSportId(
-      sports.find((sport) => sport.slug === activity.sportSlug)?.id ?? null,
-    );
+    const activitySport = sports.find((sport) => sport.slug === activity.sportSlug);
+    setSelectedSportId(activitySport?.id ?? null);
+    setGameFormat(activity.gameFormat ?? "");
+    setCapacity(fixedCapacityForFormat(activity.sportSlug, activity.gameFormat) ?? activity.capacity);
     setVenueChoice(activity.venue.id.toString());
     setMeetingPoint(null);
     setVenueDraft(emptyVenueDraft);
@@ -2883,9 +2913,10 @@ export function OrganizerActivitiesPage() {
   const startRepeating = (activity: Activity) => {
     setEditing(null);
     setTemplate(activity);
-    setSelectedSportId(
-      sports.find((sport) => sport.slug === activity.sportSlug)?.id ?? null,
-    );
+    const activitySport = sports.find((sport) => sport.slug === activity.sportSlug);
+    setSelectedSportId(activitySport?.id ?? null);
+    setGameFormat(activity.gameFormat ?? "");
+    setCapacity(fixedCapacityForFormat(activity.sportSlug, activity.gameFormat) ?? activity.capacity);
     setVenueChoice(activity.venue.id.toString());
     setMeetingPoint(null);
     setVenueDraft(emptyVenueDraft);
@@ -2955,7 +2986,7 @@ export function OrganizerActivitiesPage() {
         description: String(values.get("description") ?? ""),
         startAt: startAt.toISOString(),
         endAt: new Date(startAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
-        capacity: Number(values.get("capacity")),
+        capacity,
         waitlistCapacity: Number(values.get("waitlistCapacity") ?? 0),
         price: Number(values.get("price")),
         skillLevel: String(values.get("skillLevel") ?? "Любой"),
@@ -3201,6 +3232,7 @@ export function OrganizerActivitiesPage() {
   const availableGameFormats = selectedSport
     ? (gameFormatsBySport[selectedSport.slug] ?? [])
     : [];
+  const fixedCapacity = fixedCapacityForFormat(selectedSport?.slug, gameFormat);
   const source = editing ?? template;
   const existingCover =
     editing && !removeCover ? editing.coverImageUrl : undefined;
@@ -3352,9 +3384,19 @@ export function OrganizerActivitiesPage() {
                     name="sportId"
                     required
                     value={selectedSportId ?? ""}
-                    onChange={(event) =>
-                      setSelectedSportId(Number(event.target.value))
-                    }
+                    onChange={(event) => {
+                      const sport = sports.find(
+                        (item) => item.id === Number(event.target.value),
+                      );
+                      const nextFormat = sport
+                        ? (gameFormatsBySport[sport.slug]?.[0]?.value ?? "")
+                        : "";
+                      setSelectedSportId(sport?.id ?? null);
+                      setGameFormat(nextFormat);
+                      setCapacity(
+                        fixedCapacityForFormat(sport?.slug, nextFormat) ?? 12,
+                      );
+                    }}
                   >
                     {sports.map((sport) => (
                       <option key={sport.id} value={sport.id}>
@@ -3370,14 +3412,21 @@ export function OrganizerActivitiesPage() {
                       key={`${selectedSport?.slug}-${editing?.id ?? (template ? `t${template.id}` : "new")}`}
                       name="gameFormat"
                       required
-                      defaultValue={
-                        source?.gameFormat &&
+                      value={
                         availableGameFormats.some(
-                          (option) => option.value === source.gameFormat,
+                          (option) => option.value === gameFormat,
                         )
-                          ? source.gameFormat
+                          ? gameFormat
                           : availableGameFormats[0].value
                       }
+                      onChange={(event) => {
+                        setGameFormat(event.target.value);
+                        const nextCapacity = fixedCapacityForFormat(
+                          selectedSport?.slug,
+                          event.target.value,
+                        );
+                        if (nextCapacity) setCapacity(nextCapacity);
+                      }}
                     >
                       {availableGameFormats.map((format) => (
                         <option key={format.value} value={format.value}>
@@ -3631,15 +3680,25 @@ export function OrganizerActivitiesPage() {
                   />
                 </label>
                 <label>
-                  Количество мест, включая организатора
+                  {fixedCapacity
+                    ? `Количество мест для ${gameFormat}`
+                    : "Количество мест, включая организатора"}
                   <input
                     name="capacity"
                     type="number"
-                    min="2"
+                    min={fixedCapacity ?? 2}
                     max="500"
-                    defaultValue={source?.capacity ?? 12}
+                    value={capacity}
+                    readOnly={fixedCapacity !== null}
+                    onChange={(event) => setCapacity(Number(event.target.value))}
                     required
                   />
+                  {fixedCapacity && (
+                    <small>
+                      Формат рассчитан на {fixedCapacity} участников. Если вы
+                      участвуете сами, займёте одно из этих мест.
+                    </small>
+                  )}
                 </label>
                 <label>
                   Размер листа ожидания
