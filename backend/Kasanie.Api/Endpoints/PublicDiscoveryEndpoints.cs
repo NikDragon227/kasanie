@@ -140,7 +140,8 @@ public static partial class EndpointMapping
         if (!PublicDiscoveryEnabled(configuration)) return Results.NotFound();
         var query = db.PublicActivities.AsNoTracking().Include(x => x.Sport).Include(x => x.Venue).Include(x => x.Participants)
             .Where(x => x.Visibility == PublicActivityVisibility.Public &&
-                (x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full) && x.EndAt > DateTimeOffset.UtcNow);
+                (x.Status == PublicActivityStatus.Published || x.Status == PublicActivityStatus.Full) &&
+                (x.IsRecurring || x.EndAt > DateTimeOffset.UtcNow));
 
         if (!string.IsNullOrWhiteSpace(sport)) query = query.Where(x => x.Sport.Slug == sport.Trim().ToLower());
         if (!string.IsNullOrWhiteSpace(gameFormat)) query = query.Where(x => x.GameFormat == gameFormat.Trim());
@@ -447,7 +448,7 @@ public static partial class EndpointMapping
         var activity = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id);
         if (activity is null || activity.Visibility != PublicActivityVisibility.Public) return Results.NotFound();
         if (activity.OrganizerId == userId) return Results.Conflict(new { message = "Вы организатор этого события. Своё участие можно включить или выключить при редактировании события." });
-        if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || activity.StartAt <= DateTimeOffset.UtcNow)
+        if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || (!activity.IsRecurring && activity.StartAt <= DateTimeOffset.UtcNow))
             return Results.Conflict(new { message = "Запись на это событие недоступна." });
         if (activity.RegistrationDeadline.HasValue && activity.RegistrationDeadline < DateTimeOffset.UtcNow)
             return Results.Conflict(new { message = "Срок регистрации завершён." });
@@ -495,7 +496,7 @@ public static partial class EndpointMapping
             : null;
         var activity = await db.PublicActivities.Include(x => x.Participants).SingleOrDefaultAsync(x => x.Id == id);
         if (activity is null || activity.Visibility != PublicActivityVisibility.Public) return Results.NotFound();
-        if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || activity.StartAt <= DateTimeOffset.UtcNow)
+        if (activity.Status is not (PublicActivityStatus.Published or PublicActivityStatus.Full) || (!activity.IsRecurring && activity.StartAt <= DateTimeOffset.UtcNow))
             return Results.Conflict(new { message = "Запись на это событие недоступна." });
         if (activity.RegistrationDeadline.HasValue && activity.RegistrationDeadline < DateTimeOffset.UtcNow)
             return Results.Conflict(new { message = "Срок регистрации завершён." });
@@ -644,7 +645,7 @@ public static partial class EndpointMapping
             Price = request.Price, SkillLevel = request.SkillLevel.Trim(), MinimumAge = Math.Max(18, request.MinimumAge),
             MaximumAge = request.MaximumAge, EquipmentRequirements = CleanPublicField(request.EquipmentRequirements), Rules = CleanPublicField(request.Rules),
             CancellationPolicy = CleanPublicField(request.CancellationPolicy), RegistrationDeadline = request.RegistrationDeadline,
-            IsRecurring = request.IsRecurring, RecurrenceRule = CleanPublicField(request.RecurrenceRule)
+            IsRecurring = request.IsRecurring, RecurrenceRule = SerializeSchedule(request.Schedule)
         };
         if (request.OrganizerParticipates)
         {
@@ -718,7 +719,7 @@ public static partial class EndpointMapping
         item.Capacity = request.Capacity; item.WaitlistCapacity = request.WaitlistCapacity; item.Price = request.Price;
         item.SkillLevel = request.SkillLevel.Trim(); item.MinimumAge = Math.Max(18, request.MinimumAge); item.MaximumAge = request.MaximumAge;
         item.EquipmentRequirements = CleanPublicField(request.EquipmentRequirements); item.Rules = CleanPublicField(request.Rules); item.CancellationPolicy = CleanPublicField(request.CancellationPolicy);
-        item.RegistrationDeadline = request.RegistrationDeadline; item.IsRecurring = request.IsRecurring; item.RecurrenceRule = CleanPublicField(request.RecurrenceRule);
+        item.RegistrationDeadline = request.RegistrationDeadline; item.IsRecurring = request.IsRecurring; item.RecurrenceRule = SerializeSchedule(request.Schedule);
         if (item.Status is PublicActivityStatus.Published or PublicActivityStatus.Full)
         {
             var confirmed = item.Participants.Count(x => x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended);
@@ -828,7 +829,7 @@ public static partial class EndpointMapping
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var item = await db.PublicActivities.SingleOrDefaultAsync(x => x.Id == id && x.OrganizerId == userId);
         if (item is null) return Results.Forbid();
-        if (item.StartAt <= DateTimeOffset.UtcNow || item.EndAt <= item.StartAt) return Results.Conflict(new { message = "Проверьте дату и время события." });
+        if ((!item.IsRecurring && item.StartAt <= DateTimeOffset.UtcNow) || item.EndAt <= item.StartAt) return Results.Conflict(new { message = "Проверьте дату и время события." });
         item.Status = PublicActivityStatus.Published; item.PublishedAt ??= DateTimeOffset.UtcNow; item.Version++; item.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
         await audit.WriteAsync(userId, "public_activity_published", nameof(PublicActivity), id.ToString());
@@ -894,7 +895,7 @@ public static partial class EndpointMapping
             activity.Title, activity.Description, activity.CoverImageUrl, organizerName ?? "Организатор", activity.StartAt, activity.EndAt, activity.Price, activity.Currency, activity.SkillLevel,
             activity.MinimumAge, activity.MaximumAge, activity.Capacity, activity.WaitlistCapacity, confirmed, Math.Max(0, activity.Capacity - confirmed),
             Math.Max(0, activity.WaitlistCapacity - waitlisted),
-            activity.Status.ToString(), activity.IsRecurring, activity.Participants.Any(x => x.UserId == activity.OrganizerId && x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended), activity.OrganizerId == currentUserId, activity.EquipmentRequirements, activity.Rules, activity.CancellationPolicy,
+            activity.Status.ToString(), activity.IsRecurring, ParseSchedule(activity.RecurrenceRule), activity.Participants.Any(x => x.UserId == activity.OrganizerId && x.Status is PublicParticipantStatus.Confirmed or PublicParticipantStatus.Attended), activity.OrganizerId == currentUserId, activity.EquipmentRequirements, activity.Rules, activity.CancellationPolicy,
             new PublicVenueDto(activity.Venue.Id, activity.Venue.Slug, activity.Venue.Name, activity.Venue.City, activity.Venue.District,
                 activity.Venue.Address, activity.Venue.Latitude, activity.Venue.Longitude, activity.Venue.Indoor, activity.Venue.IsVerified));
     }
@@ -913,13 +914,22 @@ public static partial class EndpointMapping
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 120) errors["title"] = ["Укажите название до 120 символов."];
         if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 4000) errors["description"] = ["Добавьте описание до 4000 символов."];
         if (string.IsNullOrWhiteSpace(request.SkillLevel) || request.SkillLevel.Trim().Length > 80) errors["skillLevel"] = ["Укажите уровень участников до 80 символов."];
-        if (request.StartAt <= DateTimeOffset.UtcNow) errors["startAt"] = ["Начало должно быть в будущем."];
+        if (!request.IsRecurring && request.StartAt <= DateTimeOffset.UtcNow) errors["startAt"] = ["Начало должно быть в будущем."];
         if (request.EndAt <= request.StartAt) errors["endAt"] = ["Окончание должно быть позже начала."];
         if (request.Capacity is < 2 or > 500) errors["capacity"] = ["Количество участников должно быть от 2 до 500."];
         if (request.WaitlistCapacity is < 0 or > 500) errors["waitlistCapacity"] = ["Некорректный размер листа ожидания."];
         if (request.Price < 0) errors["price"] = ["Цена не может быть отрицательной."];
         if (request.MaximumAge.HasValue && request.MaximumAge < Math.Max(18, request.MinimumAge)) errors["maximumAge"] = ["Максимальный возраст меньше минимального."];
         if (request.RegistrationDeadline.HasValue && request.RegistrationDeadline >= request.StartAt) errors["registrationDeadline"] = ["Регистрация должна закрываться до начала."];
+        if (request.IsRecurring)
+        {
+            var schedule = request.Schedule ?? [];
+            if (schedule.Count is < 1 or > 7) errors["schedule"] = ["Добавьте от одного до семи дней расписания."];
+            else if (schedule.Any(slot => slot.DayOfWeek is < 0 or > 6 || !TimeOnly.TryParseExact(slot.StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)))
+                errors["schedule"] = ["Для каждого дня укажите корректное время."];
+            else if (schedule.Select(slot => slot.DayOfWeek).Distinct().Count() != schedule.Count)
+                errors["schedule"] = ["Каждый день недели можно указать только один раз."];
+        }
         return errors;
     }
 
@@ -1043,10 +1053,36 @@ public static partial class EndpointMapping
     private static bool MatchesLocalStart(PublicActivity activity, DateOnly? date, TimeOnly? time)
     {
         if (!date.HasValue && !time.HasValue) return true;
+        var schedule = ParseSchedule(activity.RecurrenceRule);
+        if (activity.IsRecurring && schedule.Count > 0)
+        {
+            var candidates = schedule.AsEnumerable();
+            if (date.HasValue) candidates = candidates.Where(slot => slot.DayOfWeek == (int)date.Value.DayOfWeek);
+            if (time.HasValue) candidates = candidates.Where(slot => TimeOnly.TryParseExact(slot.StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startTime) && startTime >= time.Value);
+            return candidates.Any();
+        }
         var localStart = LocalStart(activity);
         if (date.HasValue && DateOnly.FromDateTime(localStart.DateTime) != date.Value) return false;
         return !time.HasValue || TimeOnly.FromDateTime(localStart.DateTime) >= time.Value;
     }
+
+    private static IReadOnlyList<RecurringScheduleSlot> ParseSchedule(string? recurrenceRule)
+    {
+        if (string.IsNullOrWhiteSpace(recurrenceRule)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<List<RecurringScheduleSlot>>(recurrenceRule) is { Count: > 0 } schedule
+                ? schedule.Where(slot => slot.DayOfWeek is >= 0 and <= 6 && TimeOnly.TryParseExact(slot.StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    .OrderBy(slot => slot.DayOfWeek).ToArray()
+                : [];
+        }
+        catch (JsonException) { return []; }
+    }
+
+    private static string? SerializeSchedule(IReadOnlyList<RecurringScheduleSlot>? schedule) =>
+        schedule is { Count: > 0 }
+            ? JsonSerializer.Serialize(schedule.OrderBy(slot => slot.DayOfWeek).Select(slot => new RecurringScheduleSlot(slot.DayOfWeek, slot.StartTime.Trim())).ToArray())
+            : null;
 
     private static DateTimeOffset LocalStart(PublicActivity activity)
     {
@@ -1103,14 +1139,15 @@ public static partial class EndpointMapping
 
     public sealed record PublicVenueDto(int Id, string Slug, string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, bool IsVerified);
     public sealed record PublicVenueRequest(string Name, string City, string? District, string Address, double Latitude, double Longitude, bool Indoor, string? Region);
+    public sealed record RecurringScheduleSlot(int DayOfWeek, string StartTime);
     public sealed record PublicActivityDto(int Id, string Slug, string SportSlug, string Sport, string EventType, string? GameFormat, string Title, string Description, string? CoverImageUrl, string OrganizerName,
         DateTimeOffset StartAt, DateTimeOffset EndAt, decimal Price, string Currency, string SkillLevel, int MinimumAge, int? MaximumAge,
-        int Capacity, int WaitlistCapacity, int ParticipantsCount, int AvailablePlaces, int WaitlistAvailablePlaces, string Status, bool IsRecurring, bool OrganizerParticipates, bool IsCurrentUserOrganizer, string? EquipmentRequirements,
+        int Capacity, int WaitlistCapacity, int ParticipantsCount, int AvailablePlaces, int WaitlistAvailablePlaces, string Status, bool IsRecurring, IReadOnlyList<RecurringScheduleSlot> Schedule, bool OrganizerParticipates, bool IsCurrentUserOrganizer, string? EquipmentRequirements,
         string? Rules, string? CancellationPolicy, PublicVenueDto Venue);
     public sealed record PublicActivityRequest(int SportId, int VenueId, PublicActivityType EventType, string? GameFormat, string Title, string Description,
         DateTimeOffset StartAt, DateTimeOffset EndAt, int Capacity, int WaitlistCapacity, decimal Price, string SkillLevel,
         int MinimumAge, int? MaximumAge, string? EquipmentRequirements, string? Rules, string? CancellationPolicy,
-        DateTimeOffset? RegistrationDeadline, bool IsRecurring, string? RecurrenceRule, bool OrganizerParticipates);
+        DateTimeOffset? RegistrationDeadline, bool IsRecurring, string? RecurrenceRule, bool OrganizerParticipates, IReadOnlyList<RecurringScheduleSlot>? Schedule = null);
     public sealed record GuestJoinRequest(string? Name, string? Contact, bool AdultConfirmed);
     public sealed record AddParticipantRequest(string? Name, string? Contact);
     public sealed record GuestParticipationDto(string GuestName, string Status, DateTimeOffset JoinedAt, DateTimeOffset? CancelledAt, PublicActivityDto Activity);

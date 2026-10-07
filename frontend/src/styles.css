@@ -888,6 +888,15 @@ small { color: var(--muted); }
 .organizer-form textarea { min-height: 125px; resize: vertical; }
 .organizer-form > .button { margin-top: 1rem; }
 .organizer-form .success-message, .organizer-form .form-error { margin-top: .8rem; }
+.organizer-schedule { display: grid; gap: .7rem; grid-column: 1 / -1; }
+.organizer-recurring-toggle { grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: .7rem; padding: .85rem .95rem; border: 1px solid #ffffff2e; border-radius: 14px; background: #ffffff0b; cursor: pointer; }
+.organizer-recurring-toggle input { width: 16px; min-width: 16px; min-height: 16px; height: 16px; margin: 0; padding: 0; accent-color: #0877ff; }
+.organizer-recurring-toggle span { display: grid; gap: .12rem; }.organizer-recurring-toggle b { color: #fff; font-size: .8rem; }.organizer-recurring-toggle small { color: #b9c7c4; font-size: .7rem; font-weight: 500; }
+.organizer-start-at { max-width: 360px; }
+.recurring-schedule-editor { display: grid; gap: .55rem; padding: .9rem .95rem; border: 1px solid #ffffff2e; border-radius: 14px; background: #ffffff0b; }
+.recurring-schedule-head { display: grid; gap: .15rem; }.recurring-schedule-head b { color: #fff; font-size: .8rem; }.recurring-schedule-head small { color: #b9c7c4; font-size: .7rem; }
+.recurring-schedule-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px auto; gap: .55rem; align-items: center; }
+.recurring-schedule-row select, .recurring-schedule-row input { min-height: 42px; }.recurring-schedule-add, .recurring-schedule-remove { width: fit-content; min-height: 38px; }
 .new-venue-fields { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; padding: 1rem; border: 1px solid #d8ded7; border-radius: 18px; background: #f8f7f1; }
 .new-venue-fields label { color: var(--ink); }
 .new-venue-fields > .venue-indoor { display: flex; align-items: center; align-self: end; min-height: 46px; }
@@ -959,6 +968,7 @@ small { color: var(--muted); }
 .my-activities-list { display: grid; gap: .8rem; }.my-activities-list > article { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: 20px; background: #fffdf7; }.my-activity-date { display: grid; place-items: center; padding: .8rem; border-radius: 14px; background: #173d35; color: #fff; text-transform: uppercase; }.my-activity-date b { font: 800 1.7rem Unbounded, sans-serif; }.my-activity-date span { font-size: .65rem; }.my-activity-main h2 { margin: .4rem 0; }.my-activity-main p { margin: 0 0 .25rem; color: #435854; }.my-activity-main small { color: var(--muted); }.my-activity-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
 @media (max-width: 800px) { .organizer-signup { width: min(100% - 1.5rem, 1180px); padding: 2.5rem 0; }.organizer-signup > section { grid-template-columns: 1fr; }.organizer-signup h1 { font-size: clamp(2.35rem, 12vw, 4.5rem); } }
 @media (max-width: 600px) { .organizer-page { width: min(100% - 1rem, 1500px); padding-top: 2rem; }.organizer-form .form-grid, .new-venue-fields, .coordinate-fallback > div, .location-search { grid-template-columns: 1fr; }.organizer-form label.full, .new-venue-fields { grid-column: auto; }.location-picker, .location-picker-wrap, .coordinate-fallback { grid-column: 1; }.participant-counts { grid-template-columns: 1fr 1fr; }.participant-list article, .participants-manager-head { align-items: stretch; flex-direction: column; }.participant-remove { justify-content: flex-start; }.my-activities-page { width: min(100% - 1rem, 1180px); padding-top: 2rem; }.my-activities-list > article { grid-template-columns: 64px 1fr; }.my-activity-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 600px) { .recurring-schedule-row { grid-template-columns: minmax(0, 1fr) 116px; }.recurring-schedule-remove { grid-column: 1 / -1; } }
 
 /* Entry point: two clear product paths */
 .nearby-results-actions { display: flex; align-items: center; gap: 1rem; }
@@ -1719,6 +1729,9 @@ small { color: var(--muted); }
 .nearby-page:not(.search-discovery) .guest-join-form input,
 .nearby-page:not(.search-discovery) .participant-add input { border-color: #d5d5d5; background: #fff; color: #222; color-scheme: light; }
 .nearby-page:not(.search-discovery) .organizer-form label { color: #30343a; }
+.nearby-page:not(.search-discovery) .organizer-recurring-toggle, .nearby-page:not(.search-discovery) .recurring-schedule-editor { border-color: #e1e1e1; background: #fafafa; }
+.nearby-page:not(.search-discovery) .organizer-recurring-toggle b, .nearby-page:not(.search-discovery) .recurring-schedule-head b { color: #222; }
+.nearby-page:not(.search-discovery) .organizer-recurring-toggle small, .nearby-page:not(.search-discovery) .recurring-schedule-head small { color: #686868; }
 .nearby-page:not(.search-discovery) .organizer-signup-form input {
   min-height: 52px;
   padding: .85rem 1rem;
