@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
@@ -51,7 +51,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     const now = new Date()
     const adultAt = new Date(birth.getFullYear() + 18, birth.getMonth(), birth.getDate())
     setError('')
-    if (!legalAccepted) return setError('Сначала ознакомьтесь с пользовательским соглашением и политикой конфиденциальности.')
+    if (!legalAccepted) return setError('Подтвердите согласие с пользовательским соглашением и политикой конфиденциальности.')
     if (!dateOfBirth || Number.isNaN(birth.getTime()) || adultAt > now) return setError('Самостоятельная регистрация доступна с 18 лет.')
     if (String(values.get('password') ?? '').length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     trackProductEvent(analyticsEvents.registrationStarted, { role })
@@ -162,7 +162,7 @@ export function RegisterPage() {
   const [error, setError] = useState(''); const [done, setDone] = useState(false); const [show, setShow] = useState(false); const [pending, setPending] = useState(false); const [legalAccepted, setLegalAccepted] = useState(false)
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); const data = new FormData(event.currentTarget); const birth = String(data.get('dateOfBirth')); const age = new Date().getFullYear() - new Date(birth).getFullYear()
-    if (!legalAccepted) return setError('Сначала ознакомьтесь с пользовательским соглашением и политикой конфиденциальности.')
+    if (!legalAccepted) return setError('Подтвердите согласие с пользовательским соглашением и политикой конфиденциальности.')
     if (!birth || age < 14) return setError('Игроку младше 14 лет профиль создаёт родитель из своего кабинета.')
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
@@ -178,35 +178,17 @@ export function RegisterPage() {
 }
 
 export function LegalConsent({ onAcceptanceChange }: { onAcceptanceChange?: (accepted: boolean) => void }) {
-  const [open, setOpen] = useState(true)
-  const [active, setActive] = useState<'terms' | 'privacy'>('terms')
-  const [readTerms, setReadTerms] = useState(false)
-  const [readPrivacy, setReadPrivacy] = useState(false)
-  const [accepted, setAccepted] = useState(false)
-  const frame = useRef<HTMLIFrameElement>(null)
-  const isRead = active === 'terms' ? readTerms : readPrivacy
-  const bothRead = readTerms && readPrivacy
-  const markCurrentAsRead = () => {
-    if (active === 'terms') { setReadTerms(true); setActive('privacy') }
-    else setReadPrivacy(true)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const updateAcceptance = (terms: boolean, privacy: boolean) => {
+    setTermsAccepted(terms)
+    setPrivacyAccepted(privacy)
+    onAcceptanceChange?.(terms && privacy)
   }
-  const checkDocumentEnd = () => {
-    const doc = frame.current?.contentDocument
-    const root = doc?.documentElement
-    if (!root) return
-    if (root.scrollTop + root.clientHeight >= root.scrollHeight - 12) markCurrentAsRead()
-  }
-  const onFrameLoad = () => {
-    const contentWindow = frame.current?.contentWindow
-    contentWindow?.addEventListener('scroll', checkDocumentEnd, { passive: true })
-    checkDocumentEnd()
-  }
-  const accept = () => {
-    setAccepted(true)
-    setOpen(false)
-    onAcceptanceChange?.(true)
-  }
-  return <div className="legal-consent"><input name="termsAccepted" type="hidden" value={accepted ? 'on' : ''} /><input name="privacyPolicyAccepted" type="hidden" value={accepted ? 'on' : ''} />{accepted ? <p>✓ Вы ознакомились с пользовательским соглашением и политикой конфиденциальности версии {LEGAL_DOCUMENT_VERSION}. <button type="button" className="legal-reopen" onClick={() => setOpen(true)}>Открыть документы</button></p> : <p>Перед регистрацией необходимо ознакомиться с пользовательским соглашением и политикой конфиденциальности.</p>}{open && <div className="legal-review-layer" role="dialog" aria-modal="true" aria-labelledby="legal-review-title"><section className="legal-review-dialog"><span className="eyebrow">Перед регистрацией</span><h2 id="legal-review-title">Ознакомьтесь, пожалуйста, с документами</h2><p>Пролистайте каждый документ до конца. После этого появится подтверждение регистрации.</p><div className="legal-review-tabs"><button type="button" className={active === 'terms' ? 'active' : ''} onClick={() => readTerms && setActive('terms')}>Пользовательское соглашение {readTerms && '✓'}</button><button type="button" className={active === 'privacy' ? 'active' : ''} disabled={!readTerms} onClick={() => readTerms && setActive('privacy')}>Политика конфиденциальности {readPrivacy && '✓'}</button></div><div className="legal-review-document"><iframe ref={frame} key={active} src={active === 'terms' ? '/documents/terms' : '/documents/privacy'} title={active === 'terms' ? 'Пользовательское соглашение' : 'Политика конфиденциальности'} onLoad={onFrameLoad} />{!isRead && <div className="legal-scroll-hint">Пролистайте документ до конца ↓</div>}</div><div className="legal-review-actions">{active === 'terms' && <button className="button ghost" type="button" disabled={!readTerms} onClick={() => setActive('privacy')}>К политике конфиденциальности</button>}{active === 'privacy' && <button className="button" type="button" disabled={!bothRead} onClick={accept}>Я прочитал(а) документы и принимаю их</button>}</div></section></div>}</div>
+  return <div className="legal-consent">
+    <label><input name="termsAccepted" type="checkbox" checked={termsAccepted} onChange={event => updateAcceptance(event.target.checked, privacyAccepted)} required />Я принимаю <Link to="/documents/terms" target="_blank" rel="noreferrer">пользовательское соглашение</Link></label>
+    <label><input name="privacyPolicyAccepted" type="checkbox" checked={privacyAccepted} onChange={event => updateAcceptance(termsAccepted, event.target.checked)} required />Я ознакомлен(а) с <Link to="/documents/privacy" target="_blank" rel="noreferrer">политикой конфиденциальности</Link></label>
+  </div>
 }
 
 export function ForgotPasswordPage() {
