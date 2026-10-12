@@ -65,6 +65,52 @@ public static partial class EndpointMapping
             return Results.Ok(PlayerDto(player));
         });
 
+        playerApi.MapGet("/team-invitations", async (ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
+        {
+            var player = await access.OwnPlayerAsync(user);
+            if (player is null) return Results.NotFound();
+            return Results.Ok(await db.TeamInvitations.AsNoTracking()
+                .Where(x => x.PlayerId == player.Id && x.Status == TeamInvitationStatus.Pending && x.Team.IsActive && x.Team.School.IsActive)
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new
+                {
+                    x.Id,
+                    team = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name,
+                    school = x.Team.School.Name,
+                    coach = x.InvitedByCoach.DisplayName,
+                    x.CreatedAt
+                })
+                .ToListAsync());
+        });
+
+        playerApi.MapPost("/team-invitations/{id:int}/respond", async (int id, TeamInvitationResponseRequest request, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
+        {
+            var player = await access.OwnPlayerAsync(user);
+            if (player is null) return Results.NotFound();
+            var invitation = await db.TeamInvitations.Include(x => x.Team).SingleOrDefaultAsync(x => x.Id == id && x.PlayerId == player.Id && x.Status == TeamInvitationStatus.Pending);
+            if (invitation is null) return Results.NotFound();
+
+            if (!request.Accept)
+            {
+                invitation.Status = TeamInvitationStatus.Declined;
+                invitation.RespondedAt = DateTimeOffset.UtcNow;
+                db.AuditLogs.Add(new AuditLog { UserId = user.FindFirstValue(ClaimTypes.NameIdentifier), EventType = "team_invitation_declined", EntityType = nameof(TeamInvitation), EntityId = id.ToString() });
+                await db.SaveChangesAsync();
+                return Results.NoContent();
+            }
+
+            if (await db.TeamPlayers.AnyAsync(x => x.PlayerId == player.Id && x.IsActive && x.Team.SchoolId != invitation.Team.SchoolId))
+                return Results.Conflict(new { message = "Вы уже состоите в команде другой школы." });
+            var membership = await db.TeamPlayers.SingleOrDefaultAsync(x => x.TeamId == invitation.TeamId && x.PlayerId == player.Id);
+            if (membership is null) db.TeamPlayers.Add(new TeamPlayer { TeamId = invitation.TeamId, PlayerId = player.Id });
+            else { membership.IsActive = true; membership.LeftAt = null; }
+            invitation.Status = TeamInvitationStatus.Accepted;
+            invitation.RespondedAt = DateTimeOffset.UtcNow;
+            db.AuditLogs.Add(new AuditLog { UserId = user.FindFirstValue(ClaimTypes.NameIdentifier), EventType = "team_invitation_accepted", EntityType = nameof(TeamInvitation), EntityId = id.ToString(), Details = $"team={invitation.TeamId}" });
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         var assessments = app.MapGroup("/api/assessments").RequireAuthorization(Roles.Player).WithTags("Assessments");
         assessments.MapGet("/current", async (ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {

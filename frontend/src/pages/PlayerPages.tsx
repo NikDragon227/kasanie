@@ -11,11 +11,25 @@ type Exercise = { trainingExerciseId: number; exerciseId: number; name: string; 
 type Day = { id: number; plannedDate: string; title: string; session?: { id: number; status: string; completedAt?: string }; exercises: Exercise[] }
 type Plan = { id: number; weekStart: string; status: string; generationReason: string; days: Day[] }
 type Dashboard = { profile: Profile; level: number; weakestSkills: { key: string; name: string; score: number }[]; weeklyCompletion: number; nextWorkout?: { id: number; title: string; plannedDate: string; duration: number }; plan?: Plan; achievements: { name: string; description: string; awardedAt: string }[]; skills?: Skills }
+type TeamInvitation = { id: number; createdAt: string; team: string; school: string; coach: string }
 
 export function PlayerDashboard() {
   const { data, loading, error, reload } = useApiData<Dashboard>('/api/player/dashboard')
+  const invitations = useApiData<TeamInvitation[]>('/api/player/team-invitations')
+  const [invitationMessage, setInvitationMessage] = useState('')
+  const respondToInvitation = async (invitationId: number, accept: boolean) => {
+    setInvitationMessage('')
+    try {
+      await post(`/api/player/team-invitations/${invitationId}/respond`, { accept })
+      setInvitationMessage(accept ? 'Вы добавлены в состав команды.' : 'Приглашение отклонено.')
+      await Promise.all([invitations.reload(), reload()])
+    } catch (e) {
+      setInvitationMessage(e instanceof Error ? e.message : 'Не удалось обработать приглашение.')
+    }
+  }
   if (loading) return <PageLoader />; if (error || !data) return <ErrorState message={error} retry={reload} />
   return <><PageHeader eyebrow="Личный кабинет" title={`Привет, ${data.profile.firstName}!`} actions={<Link className="button" to="/player/training">Открыть план</Link>} />
+    {invitations.data?.length ? <section className="card team-invitation-card"><div className="card-heading"><div><span className="eyebrow">Приглашение в команду</span><h2>Тренер ждёт вашего ответа</h2></div></div><div className="team-invitation-list">{invitations.data.map(invitation => <article key={invitation.id}><div><strong>{invitation.team}</strong><small>{invitation.school} · приглашает {invitation.coach}</small></div><div className="team-invitation-actions"><button className="button" onClick={() => void respondToInvitation(invitation.id, true)}>Вступить в команду</button><button className="button ghost" onClick={() => void respondToInvitation(invitation.id, false)}>Отклонить</button></div></article>)}</div>{invitationMessage && <p className={invitationMessage.startsWith('Не удалось') ? 'error-message' : 'success-message'} role="status">{invitationMessage}</p>}</section> : null}
     <section className="dashboard-hero"><div><span className="eyebrow">Эта неделя</span><h2>{data.nextWorkout ? data.nextWorkout.title : 'Пора составить план'}</h2><p>{data.nextWorkout ? `${formatDate(data.nextWorkout.plannedDate)} · ${data.nextWorkout.duration} минут` : 'Пройдите тестирование, чтобы получить персональную неделю.'}</p>{data.nextWorkout ? <Link className="button large" to="/player/training">К тренировке →</Link> : <Link className="button large" to="/player/assessment">Начать тестирование →</Link>}</div><div className="completion-ring" style={{ '--value': `${data.weeklyCompletion * 3.6}deg` } as React.CSSProperties}><strong>{data.weeklyCompletion}%</strong><span>плана</span></div></section>
     <section className="stat-grid"><StatCard label="Текущий уровень" value={Math.round(data.level)} detail="из 100" tone="accent" /><StatCard label="Фокус развития" value={data.weakestSkills[0]?.name ?? 'Нужен тест'} detail={data.weakestSkills[0] ? `${data.weakestSkills[0].score} / 100` : undefined} /><StatCard label="Тренировок в плане" value={data.plan?.days.length ?? 0} detail="на текущую неделю" /></section>
     <div className="content-grid"><section className="card"><div className="card-heading"><div><span className="eyebrow">Баланс игрока</span><h2>Шесть навыков</h2></div><Link to="/player/progress">История →</Link></div>{data.skills ? <RadarChart values={data.skills} /> : <EmptyState title="Ещё нет результатов"><Link to="/player/assessment">Пройти тесты</Link></EmptyState>}</section>

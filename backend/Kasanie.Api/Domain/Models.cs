@@ -17,6 +17,7 @@ public static class Roles
 public enum SkillCategory { Speed, Endurance, BallControl, Passing, Shooting, Agility }
 public enum ScoringDirection { HigherIsBetter, LowerIsBetter }
 public enum LinkStatus { Pending, Active, Suspended }
+public enum TeamInvitationStatus { Pending, Accepted, Declined, Cancelled }
 public enum PlanStatus { Active, Completed, Archived }
 public enum SessionStatus { Planned, InProgress, Completed }
 public enum SchoolMembershipRole { Owner, Administrator, Coach }
@@ -108,6 +109,7 @@ public sealed class Team
     public List<TeamMessage> Messages { get; set; } = [];
     public List<TeamInjury> Injuries { get; set; } = [];
     public List<TeamScheduleEvent> ScheduleEvents { get; set; } = [];
+    public List<TeamInvitation> Invitations { get; set; } = [];
 }
 
 public sealed class TeamTrainingGroup
@@ -192,6 +194,20 @@ public sealed class TeamPlayer
     public bool IsActive { get; set; } = true;
     public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LeftAt { get; set; }
+}
+
+public sealed class TeamInvitation
+{
+    public int Id { get; set; }
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public int InvitedByCoachId { get; set; }
+    public CoachProfile InvitedByCoach { get; set; } = null!;
+    public TeamInvitationStatus Status { get; set; } = TeamInvitationStatus.Pending;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RespondedAt { get; set; }
 }
 
 public sealed class TeamMessage
@@ -348,6 +364,8 @@ public sealed class PlayerProfile
     public decimal? Weight { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamPlayer> TeamPlayers { get; set; } = [];
+    public List<TeamInvitation> TeamInvitations { get; set; } = [];
 }
 
 public sealed class ParentProfile

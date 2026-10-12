@@ -17,7 +17,7 @@ public static partial class EndpointMapping
             var now = DateTimeOffset.UtcNow;
             var players = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new
             {
-                x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.PreferredPosition, x.ShirtNumber,
+                x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.Gender, x.Player.PreferredPosition, x.Player.DominantFoot, x.Player.ExperienceLevel, isRegistered = x.Player.UserId != null, x.ShirtNumber,
                 x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan,
                 completedTrainings = db.TeamTrainingPlayerResults.Count(r => r.PlayerId == x.PlayerId && r.TeamTrainingExercise.TeamTraining.TeamId == teamId && r.IsCompleted),
                 attendance = db.TeamTrainingAttendances.Count(a => a.PlayerId == x.PlayerId && a.TeamTraining.TeamId == teamId && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late)),
@@ -29,10 +29,15 @@ public static partial class EndpointMapping
             var matches = await db.TeamMatches.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.ScheduledAt).Select(x => new { x.Id, x.Opponent, x.Competition, x.ScheduledAt, x.Venue, x.Status, x.GoalsFor, x.GoalsAgainst }).ToListAsync();
             var tournaments = await db.TeamTournaments.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.StartDate).Select(x => new { x.Id, x.Name, x.StartDate, x.EndDate, x.Status, x.SourceUrl, x.RegistrationDeadline }).ToListAsync();
             var trainings = await db.TeamTrainings.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.ScheduledAt).Take(30).Select(x => new { x.Id, x.Title, x.ScheduledAt, status = x.Status.ToString(), players = x.Attendances.Count, present = x.Attendances.Count(a => a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late) }).ToListAsync();
+            var invitations = await db.TeamInvitations.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.CreatedAt).Take(30).Select(x => new
+            {
+                x.Id, x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.PreferredPosition, x.Player.DominantFoot,
+                status = x.Status.ToString(), x.CreatedAt, x.RespondedAt
+            }).ToListAsync();
             return Results.Ok(new
             {
                 team = new { team.Id, name = (team.AgeGroup ?? "") + (team.AgeGroup == null ? "" : " — ") + team.Name, team.Season, team.TrainingCycleStage, team.CycleStart, team.CycleEnd, team.TacticFormation, team.TacticNotes, team.TacticPlanJson, team.SetPiecesJson, team.OpponentInstructions, team.OpponentReportUrl, team.OpponentReportNotes, team.CodeOfConduct, school = team.School.Name },
-                players, messages, injuries, events, matches, tournaments, trainings,
+                players, invitations, messages, injuries, events, matches, tournaments, trainings,
                 summary = new { activeInjuries = injuries.Count(x => x.Status != "Закрыта"), highRiskPlayers = injuries.Where(x => x.Status != "Закрыта" && x.RiskLevel >= 70).Select(x => x.PlayerId).Distinct().Count(), nextMatch = matches.FirstOrDefault(x => x.ScheduledAt >= now), reminders = events.Count(x => x.StartsAt >= now && x.StartsAt <= now.AddDays(7)) }
             });
         });
@@ -53,6 +58,71 @@ public static partial class EndpointMapping
             if (request.ShirtNumber.HasValue && await db.TeamPlayers.AnyAsync(x => x.TeamId == teamId && x.PlayerId != playerId && x.IsActive && x.ShirtNumber == request.ShirtNumber)) return Results.Conflict(new { message = "Этот номер уже занят в составе." });
             item.ShirtNumber = request.ShirtNumber; item.TournamentRegistrationStatus = request.TournamentRegistrationStatus.Trim(); item.CurrentSeasonPlan = request.CurrentSeasonPlan.Trim(); item.NextSeasonPlan = request.NextSeasonPlan.Trim(); item.TwoYearPlan = request.TwoYearPlan.Trim();
             await SaveCoachAudit(db, principal, "coach_team_player_planned", nameof(TeamPlayer), $"{teamId}:{playerId}"); return Results.NoContent();
+        });
+
+        coach.MapPost("/teams/{teamId:int}/players", async (int teamId, CoachTeamPlayerCreateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId) is null) return Results.Forbid();
+            var errors = CoachPlayerErrors(request.FirstName, request.LastName, request.DateOfBirth, request.PreferredPosition, request.DominantFoot, request.ExperienceLevel, request.ShirtNumber);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            if (request.ShirtNumber.HasValue && await db.TeamPlayers.AnyAsync(x => x.TeamId == teamId && x.IsActive && x.ShirtNumber == request.ShirtNumber))
+                return Results.Conflict(new { message = "Этот номер уже занят в составе." });
+
+            var player = new PlayerProfile
+            {
+                FirstName = request.FirstName.Trim(), LastName = request.LastName.Trim(), DateOfBirth = request.DateOfBirth,
+                Gender = Clean(request.Gender), PreferredPosition = request.PreferredPosition.Trim(), DominantFoot = request.DominantFoot.Trim(), ExperienceLevel = request.ExperienceLevel.Trim()
+            };
+            db.Players.Add(player);
+            db.TeamPlayers.Add(new TeamPlayer { TeamId = teamId, Player = player, ShirtNumber = request.ShirtNumber });
+            await db.SaveChangesAsync();
+            db.AuditLogs.Add(new AuditLog { UserId = principal.FindFirstValue(ClaimTypes.NameIdentifier), EventType = "coach_team_player_created", EntityType = nameof(PlayerProfile), EntityId = player.Id.ToString(), Details = $"team={teamId}" });
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/coach/teams/{teamId}/players/{player.Id}", new { player.Id });
+        });
+
+        coach.MapGet("/teams/{teamId:int}/registered-players", async (int teamId, string? search, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var team = await AssignedTeam(db, principal, teamId, false);
+            if (team is null) return Results.Forbid();
+            if (string.IsNullOrWhiteSpace(search) || search.Trim().Length < 2) return Results.Ok(Array.Empty<object>());
+            var term = search.Trim().ToLower();
+            return Results.Ok(await db.Players.AsNoTracking()
+                .Where(x => x.UserId != null && (x.FirstName + " " + x.LastName).ToLower().Contains(term) && !x.TeamPlayers.Any(link => link.TeamId == teamId && link.IsActive) && !x.TeamPlayers.Any(link => link.IsActive && link.Team.SchoolId != team.SchoolId) && !x.TeamInvitations.Any(invitation => invitation.TeamId == teamId && invitation.Status == TeamInvitationStatus.Pending))
+                .OrderBy(x => x.LastName).ThenBy(x => x.FirstName).Take(12)
+                .Select(x => new { x.Id, x.FirstName, x.LastName, x.DateOfBirth, x.Gender, x.PreferredPosition, x.DominantFoot, x.ExperienceLevel })
+                .ToListAsync());
+        });
+
+        coach.MapPost("/teams/{teamId:int}/invitations", async (int teamId, TeamInvitationRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            var team = await AssignedTeam(db, principal, teamId, false);
+            if (team is null) return Results.Forbid();
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var coachProfile = await db.CoachProfiles.SingleAsync(x => x.UserId == userId);
+            var player = await db.Players.SingleOrDefaultAsync(x => x.Id == request.PlayerId && x.UserId != null);
+            if (player is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["playerId"] = ["Игрок должен иметь подтверждённый личный кабинет."] });
+            if (await db.TeamPlayers.AnyAsync(x => x.TeamId == teamId && x.PlayerId == player.Id && x.IsActive)) return Results.Conflict(new { message = "Этот игрок уже в составе." });
+            if (await db.TeamPlayers.AnyAsync(x => x.PlayerId == player.Id && x.IsActive && x.Team.SchoolId != team.SchoolId)) return Results.Conflict(new { message = "Игрок уже состоит в другой школе." });
+
+            var invitation = await db.TeamInvitations.SingleOrDefaultAsync(x => x.TeamId == teamId && x.PlayerId == player.Id);
+            if (invitation is not null && invitation.Status == TeamInvitationStatus.Pending) return Results.Conflict(new { message = "Приглашение уже ожидает ответа игрока." });
+            if (invitation is null) { invitation = new TeamInvitation { TeamId = teamId, PlayerId = player.Id, InvitedByCoachId = coachProfile.Id }; db.TeamInvitations.Add(invitation); }
+            else { invitation.InvitedByCoachId = coachProfile.Id; invitation.Status = TeamInvitationStatus.Pending; invitation.CreatedAt = DateTimeOffset.UtcNow; invitation.RespondedAt = null; }
+            await db.SaveChangesAsync();
+            db.AuditLogs.Add(new AuditLog { UserId = userId, EventType = "coach_team_invitation_sent", EntityType = nameof(TeamInvitation), EntityId = invitation.Id.ToString(), Details = $"team={teamId};player={player.Id}" });
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/coach/teams/{teamId}/invitations/{invitation.Id}", new { invitation.Id });
+        });
+
+        coach.MapDelete("/teams/{teamId:int}/invitations/{invitationId:int}", async (int teamId, int invitationId, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var invitation = await db.TeamInvitations.SingleOrDefaultAsync(x => x.Id == invitationId && x.TeamId == teamId && x.Status == TeamInvitationStatus.Pending);
+            if (invitation is null) return Results.NotFound();
+            invitation.Status = TeamInvitationStatus.Cancelled; invitation.RespondedAt = DateTimeOffset.UtcNow;
+            await SaveCoachAudit(db, principal, "coach_team_invitation_cancelled", nameof(TeamInvitation), invitationId.ToString());
+            return Results.NoContent();
         });
 
         coach.MapPut("/teams/{teamId:int}/collective", async (int teamId, TeamCollectiveRequest request, ClaimsPrincipal principal, AppDbContext db) =>
@@ -100,5 +170,16 @@ public static partial class EndpointMapping
     private static async Task SaveCoachAudit(AppDbContext db, ClaimsPrincipal principal, string eventType, string entityType, string entityId)
     {
         db.AuditLogs.Add(new AuditLog { UserId = principal.FindFirstValue(ClaimTypes.NameIdentifier), EventType = eventType, EntityType = entityType, EntityId = entityId }); await db.SaveChangesAsync();
+    }
+
+    private static Dictionary<string, string[]> CoachPlayerErrors(string firstName, string lastName, DateOnly dateOfBirth, string position, string foot, string level, int? shirtNumber)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(firstName) || firstName.Trim().Length > 80) errors["firstName"] = ["Укажите имя до 80 символов."];
+        if (string.IsNullOrWhiteSpace(lastName) || lastName.Trim().Length > 80) errors["lastName"] = ["Укажите фамилию до 80 символов."];
+        if (dateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow) || dateOfBirth < new DateOnly(1900, 1, 1)) errors["dateOfBirth"] = ["Укажите корректную дату рождения."];
+        if (string.IsNullOrWhiteSpace(position) || string.IsNullOrWhiteSpace(foot) || string.IsNullOrWhiteSpace(level)) errors["profile"] = ["Заполните игровую позицию, ведущую ногу и уровень."];
+        if (shirtNumber is < 1 or > 99) errors["shirtNumber"] = ["Номер должен быть от 1 до 99."];
+        return errors;
     }
 }

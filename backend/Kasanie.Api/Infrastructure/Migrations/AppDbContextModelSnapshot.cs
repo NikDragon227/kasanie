@@ -1366,6 +1366,44 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.ToTable("TeamInjuries");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("InvitedByCoachId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitedByCoachId");
+
+                    b.HasIndex("TeamId", "PlayerId")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId", "Status", "CreatedAt");
+
+                    b.ToTable("TeamInvitations");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.TeamMatch", b =>
                 {
                     b.Property<int>("Id")
@@ -2541,6 +2579,33 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Team");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamInvitation", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.CoachProfile", "InvitedByCoach")
+                        .WithMany()
+                        .HasForeignKey("InvitedByCoachId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.PlayerProfile", "Player")
+                        .WithMany("TeamInvitations")
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
+                        .WithMany("Invitations")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InvitedByCoach");
+
+                    b.Navigation("Player");
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.TeamMatch", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.Team", "Team")
@@ -2574,7 +2639,7 @@ namespace Kasanie.Api.Infrastructure.Migrations
             modelBuilder.Entity("Kasanie.Api.Domain.TeamPlayer", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.PlayerProfile", "Player")
-                        .WithMany()
+                        .WithMany("TeamPlayers")
                         .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -2951,6 +3016,13 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Results");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.PlayerProfile", b =>
+                {
+                    b.Navigation("TeamInvitations");
+
+                    b.Navigation("TeamPlayers");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.PublicActivity", b =>
                 {
                     b.Navigation("Participants");
@@ -2959,6 +3031,8 @@ namespace Kasanie.Api.Infrastructure.Migrations
             modelBuilder.Entity("Kasanie.Api.Domain.Team", b =>
                 {
                     b.Navigation("Injuries");
+
+                    b.Navigation("Invitations");
 
                     b.Navigation("Matches");
 

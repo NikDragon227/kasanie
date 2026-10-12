@@ -132,7 +132,10 @@ describe('critical workflows', () => {
 
   it('shows a loading state and then dashboard data', async () => {
     let resolve!: (value: Response) => void
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(r => { resolve = r }))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(input => {
+      if (String(input) === '/api/player/team-invitations') return json([])
+      return new Promise<Response>(r => { resolve = r })
+    })
     render(<MemoryRouter><PlayerDashboard /></MemoryRouter>)
     expect(screen.getByRole('status')).toHaveTextContent('Загрузка')
     resolve(new Response(JSON.stringify({ profile: { firstName: 'Артём' }, level: 72, weakestSkills: [{ name: 'Контроль', score: 48 }], weeklyCompletion: 50, achievements: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
