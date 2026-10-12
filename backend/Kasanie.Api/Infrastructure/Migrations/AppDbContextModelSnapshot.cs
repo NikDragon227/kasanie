@@ -1510,6 +1510,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .HasPrecision(3, 2)
                         .HasColumnType("numeric(3,2)");
 
+                    b.Property<int>("CleanSheets")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CurrentSeasonPlan")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1535,6 +1538,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     b.Property<int?>("ShirtNumber")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SquadRoleOverride")
+                        .HasColumnType("text");
 
                     b.Property<string>("TournamentRegistrationStatus")
                         .IsRequired()

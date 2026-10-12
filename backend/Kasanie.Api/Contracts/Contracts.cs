@@ -48,6 +48,7 @@ public sealed record TeamTacticRequest(string? Formation, string? Notes, string?
 public sealed record TeamCycleRequest(string Stage, DateOnly? StartsOn, DateOnly? EndsOn);
 public sealed record TeamPlayerManagementRequest(int? ShirtNumber, string TournamentRegistrationStatus, string CurrentSeasonPlan, string NextSeasonPlan, string TwoYearPlan);
 public sealed record TeamCaptainRequest(int? PlayerId);
+public sealed record TeamPlayerSquadRoleRequest(string? Role);
 public sealed record TeamTournamentRegistrationSettingsRequest(int? MaxRosterSize, string? Requirements);
 public sealed record TeamTournamentRegistrationsRequest(List<int> PlayerIds);
 public sealed record TeamMessageRequest(string Channel, string Text);

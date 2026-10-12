@@ -203,7 +203,9 @@ public sealed class TeamPlayer
     public int Appearances { get; set; }
     public int Goals { get; set; }
     public int Assists { get; set; }
+    public int CleanSheets { get; set; }
     public decimal? AverageRating { get; set; }
+    public string? SquadRoleOverride { get; set; }
     public string TournamentRegistrationStatus { get; set; } = "Не заявлен";
     public string CurrentSeasonPlan { get; set; } = "Основной состав";
     public string NextSeasonPlan { get; set; } = "Оценить развитие";

@@ -16,15 +16,22 @@ public static partial class EndpointMapping
             if (team is null) return Results.Forbid();
             var now = DateTimeOffset.UtcNow;
             var coachName = await db.TeamCoaches.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.IsHeadCoach).ThenBy(x => x.CreatedAt).Select(x => x.Coach.DisplayName).FirstOrDefaultAsync();
-            var players = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new
+            var playerRows = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new
             {
                 x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.Gender, x.Player.PreferredPosition, x.Player.DominantFoot, x.Player.ExperienceLevel, isRegistered = x.Player.UserId != null, x.ShirtNumber,
-                x.Player.Height, x.Player.Weight, x.Player.Citizenship, x.Player.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.AverageRating,
+                x.Player.Height, x.Player.Weight, x.Player.Citizenship, x.Player.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
                 x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan,
                 completedTrainings = db.TeamTrainingPlayerResults.Count(r => r.PlayerId == x.PlayerId && r.TeamTrainingExercise.TeamTraining.TeamId == teamId && r.IsCompleted),
                 attendance = db.TeamTrainingAttendances.Count(a => a.PlayerId == x.PlayerId && a.TeamTraining.TeamId == teamId && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late)),
                 activeInjury = db.TeamInjuries.Any(i => i.PlayerId == x.PlayerId && i.TeamId == teamId && i.Status != "Закрыта")
             }).ToListAsync();
+            var players = playerRows.Select(x => new
+            {
+                x.PlayerId, x.FirstName, x.LastName, x.DateOfBirth, x.Gender, x.PreferredPosition, x.DominantFoot, x.ExperienceLevel, x.isRegistered, x.ShirtNumber,
+                x.Height, x.Weight, x.Citizenship, x.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
+                autoSquadRole = ResolveAutomaticSquadRole(x.PreferredPosition, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating),
+                x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan, x.completedTrainings, x.attendance, x.activeInjury
+            }).ToList();
             var messages = await db.TeamMessages.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, channel = x.Channel.ToString(), author = x.AuthorUser.Email, x.Text, x.CreatedAt }).ToListAsync();
             var injuries = await db.TeamInjuries.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.StartedOn).Select(x => new { x.Id, x.PlayerId, player = x.Player.FirstName + " " + x.Player.LastName, x.Type, x.Severity, x.Status, x.RiskLevel, x.StartedOn, x.ExpectedReturnOn, x.ClosedOn, x.Notes }).ToListAsync();
             var events = await db.TeamScheduleEvents.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.StartsAt).Select(x => new { x.Id, x.Type, x.Title, x.StartsAt, x.ReminderAt, x.Notes }).ToListAsync();
@@ -72,6 +79,19 @@ public static partial class EndpointMapping
             await db.SaveChangesAsync();
             if (captain is not null) captain.IsCaptain = true;
             await SaveCoachAudit(db, principal, "coach_team_captain_updated", nameof(TeamPlayer), $"{teamId}:{request.PlayerId}");
+            return Results.NoContent();
+        });
+
+        coach.MapPut("/teams/{teamId:int}/players/{playerId:int}/squad-role", async (int teamId, int playerId, TeamPlayerSquadRoleRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var role = Clean(request.Role);
+            var allowedRoles = new[] { "Важный игрок", "Ротация", "Глубина состава", "Развитие" };
+            if (role is not null && !allowedRoles.Contains(role)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Выберите роль из списка или автоматический расчёт."] });
+            var player = await db.TeamPlayers.SingleOrDefaultAsync(x => x.TeamId == teamId && x.PlayerId == playerId && x.IsActive);
+            if (player is null) return Results.NotFound();
+            player.SquadRoleOverride = role;
+            await SaveCoachAudit(db, principal, "coach_team_player_role_updated", nameof(TeamPlayer), $"{teamId}:{playerId}");
             return Results.NoContent();
         });
 
@@ -210,6 +230,19 @@ public static partial class EndpointMapping
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var query = tracked ? db.Teams : db.Teams.AsNoTracking();
         return await query.Include(x => x.School).SingleOrDefaultAsync(x => x.Id == teamId && x.IsActive && x.School.IsActive && x.TeamCoaches.Any(c => c.Coach.UserId == userId));
+    }
+
+    private static string ResolveAutomaticSquadRole(string position, int appearances, int goals, int assists, int cleanSheets, decimal? averageRating)
+    {
+        var score = Math.Min(35, appearances * 5) + Math.Max(0, Math.Min(35, ((averageRating ?? 5m) - 5m) * 15m));
+        score += position switch
+        {
+            "Нападающий" => Math.Min(30, goals * 10),
+            "Полузащитник" => Math.Min(30, assists * 10),
+            "Защитник" or "Вратарь" => Math.Min(30, cleanSheets * 10),
+            _ => 0
+        };
+        return score >= 55 ? "Важный игрок" : score >= 25 ? "Ротация" : "Развитие";
     }
 
     private static async Task SaveCoachAudit(AppDbContext db, ClaimsPrincipal principal, string eventType, string entityType, string entityId)
