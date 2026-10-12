@@ -1117,6 +1117,41 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task CoachOwnerRegistration_CreatesSchoolAndKeepsBothCabinetsAvailable()
+    {
+        await using var factory = new TestApplicationFactory();
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client);
+
+        using var response = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/auth/register-portal-user", new
+        {
+            email = "coach-owner@example.test",
+            password = "Kasanie-2026!",
+            dateOfBirth = "1990-05-12",
+            displayName = "Алексей Владелец",
+            role = Roles.Coach,
+            isSchoolOwner = true,
+            schoolName = "Школа Алексея",
+            schoolCity = "Казань",
+            termsAccepted = true, privacyPolicyAccepted = true, legalVersion = Validation.CurrentLegalVersion
+        }, null, null, csrf));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await users.FindByEmailAsync("coach-owner@example.test");
+        Assert.NotNull(user);
+        Assert.True(await users.IsInRoleAsync(user!, Roles.Coach));
+        Assert.True(await users.IsInRoleAsync(user, Roles.SchoolOwner));
+        var school = await db.Schools.SingleAsync(x => x.Name == "Школа Алексея");
+        Assert.Equal("Казань", school.City);
+        Assert.Equal("coach-owner@example.test", school.ContactEmail);
+        Assert.True(await db.CoachProfiles.AnyAsync(x => x.UserId == user.Id && x.DisplayName == "Алексей Владелец"));
+        Assert.True(await db.SchoolMemberships.AnyAsync(x => x.SchoolId == school.Id && x.UserId == user.Id && x.Role == SchoolMembershipRole.Owner));
+    }
+
+    [Fact]
     public async Task PublicRegistration_DoesNotAllowPrivilegedRoleSelection()
     {
         await using var factory = new TestApplicationFactory();

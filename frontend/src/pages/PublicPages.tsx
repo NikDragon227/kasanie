@@ -41,6 +41,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
   const [show, setShow] = useState(false)
   const [pending, setPending] = useState(false)
   const [legalAccepted, setLegalAccepted] = useState(false)
+  const [isSchoolOwner, setIsSchoolOwner] = useState(false)
   const roleName = role === 'Coach' ? 'тренера' : 'родителя'
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -57,7 +58,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     trackProductEvent(analyticsEvents.registrationStarted, { role })
     setPending(true)
     try {
-      await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role, termsAccepted: values.get('termsAccepted') === 'on', privacyPolicyAccepted: values.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION })
+      await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role, isSchoolOwner, schoolName: isSchoolOwner ? values.get('schoolName') : null, schoolCity: isSchoolOwner ? values.get('schoolCity') : null, termsAccepted: values.get('termsAccepted') === 'on', privacyPolicyAccepted: values.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION })
       trackProductEvent(analyticsEvents.registrationCompleted, { role })
       setDone(true)
     } catch (e) {
@@ -66,8 +67,8 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     } finally { setPending(false) }
   }
 
-  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите." portalRegistration><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
-  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'После регистрации школа сможет назначить вам команду.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent onAcceptanceChange={setLegalAccepted} />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending || !legalAccepted}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
+  if (done) return <AuthFrame title="Профиль создан" subtitle={isSchoolOwner ? 'Школа создана. Подтвердите email по ссылке из письма, затем войдите в единый кабинет.' : 'Подтвердите email по ссылке из письма, затем войдите.'} portalRegistration><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
+  return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'Ведите команды сами или отметьте, что вы владелец школы — тогда получите полный кабинет управления.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label>{role === 'Coach' && <><label className="checkbox full"><input name="isSchoolOwner" type="checkbox" checked={isSchoolOwner} onChange={event => setIsSchoolOwner(event.target.checked)} /><span>Я владелец школы и буду управлять ею сам</span></label>{isSchoolOwner && <><label>Название школы<input name="schoolName" maxLength={160} required /></label><label>Город <small>необязательно</small><input name="schoolCity" maxLength={120} /></label><p className="full owner-registration-note">Создадим школу и единый кабинет: команды, игроки, тренеры, настройки школы и ваш тренерский раздел.</p></>}</>}<LegalConsent onAcceptanceChange={setLegalAccepted} />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending || !legalAccepted}>{pending ? 'Создаём…' : isSchoolOwner ? 'Создать школу и кабинет' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
 }
 
 export function LandingPage() {

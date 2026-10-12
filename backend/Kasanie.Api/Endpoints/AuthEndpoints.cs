@@ -96,13 +96,38 @@ public static partial class EndpointMapping
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = roleResult.Errors.Select(x => x.Description).ToArray() });
             }
 
+            if (request.IsSchoolOwner)
+            {
+                var ownerRoleResult = await users.AddToRoleAsync(user, Roles.SchoolOwner);
+                if (!ownerRoleResult.Succeeded)
+                {
+                    await users.DeleteAsync(user);
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["account"] = ownerRoleResult.Errors.Select(x => x.Description).ToArray() });
+                }
+            }
+
             if (request.Role == Roles.Coach)
+            {
                 db.CoachProfiles.Add(new CoachProfile { UserId = user.Id, DisplayName = request.DisplayName.Trim() });
+                if (request.IsSchoolOwner)
+                {
+                    var school = new School
+                    {
+                        Name = request.SchoolName!.Trim(),
+                        Slug = await UniqueSlugAsync(db, request.SchoolName!),
+                        City = Clean(request.SchoolCity),
+                        ContactEmail = normalizedEmail
+                    };
+                    db.Schools.Add(school);
+                    db.SchoolMemberships.Add(new SchoolMembership { School = school, UserId = user.Id, Role = SchoolMembershipRole.Owner });
+                }
+            }
             else
                 db.ParentProfiles.Add(new ParentProfile { UserId = user.Id });
 
             await db.SaveChangesAsync();
-            await audit.WriteAsync(user.Id, request.Role == Roles.Coach ? "coach_registration" : "parent_registration", nameof(ApplicationUser), user.Id, $"legal:{request.LegalVersion}");
+            var auditEvent = request.IsSchoolOwner ? "coach_school_owner_registration" : request.Role == Roles.Coach ? "coach_registration" : "parent_registration";
+            await audit.WriteAsync(user.Id, auditEvent, nameof(ApplicationUser), user.Id, $"legal:{request.LegalVersion}");
             await SendConfirmationAsync(user, users, emailSender, configuration, loggerFactory);
             return Results.Created("/api/me", new { message = "Аккаунт создан. Подтвердите email по ссылке из письма." });
         }).RequireRateLimiting("login");

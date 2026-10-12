@@ -21,7 +21,7 @@ public static partial class EndpointMapping
             x.Id, x.Name, x.Slug, x.City, x.ContactEmail, x.Phone, x.IsActive, x.CreatedAt,
             ownerEmail = db.SchoolMemberships.Where(m => m.SchoolId == x.Id && m.Role == SchoolMembershipRole.Owner && m.IsActive).Select(m => m.User.Email).FirstOrDefault(),
             teams = db.Teams.Count(t => t.SchoolId == x.Id && t.IsActive),
-            coaches = db.SchoolMemberships.Count(m => m.SchoolId == x.Id && m.Role == SchoolMembershipRole.Coach && m.IsActive),
+            coaches = db.SchoolMemberships.Count(m => m.SchoolId == x.Id && m.IsActive && (m.Role == SchoolMembershipRole.Coach || m.Role == SchoolMembershipRole.Owner && db.CoachProfiles.Any(c => c.UserId == m.UserId))),
             players = db.TeamPlayers.Where(p => p.Team.SchoolId == x.Id && p.IsActive).Select(p => p.PlayerId).Distinct().Count()
         }).ToListAsync()));
 
@@ -104,7 +104,7 @@ public static partial class EndpointMapping
             {
                 item.Id, item.Name, item.Slug, item.City, item.ContactEmail, item.Phone, item.LogoUrl, item.IsActive,
                 teams = teamSummaries.Count,
-                coaches = await db.SchoolMemberships.CountAsync(m => m.SchoolId == schoolId && m.Role == SchoolMembershipRole.Coach && m.IsActive),
+                coaches = await db.SchoolMemberships.CountAsync(m => m.SchoolId == schoolId && m.IsActive && (m.Role == SchoolMembershipRole.Coach || m.Role == SchoolMembershipRole.Owner && db.CoachProfiles.Any(c => c.UserId == m.UserId))),
                 players = await db.TeamPlayers.Where(p => p.Team.SchoolId == schoolId && p.IsActive).Select(p => p.PlayerId).Distinct().CountAsync(),
                 trainingsThisWeek = await db.TeamTrainings.CountAsync(t => t.Team.SchoolId == schoolId && t.ScheduledAt >= weekStart && t.Status == TeamTrainingStatus.Completed),
                 unfinishedTrainings = await db.TeamTrainings.CountAsync(t => t.Team.SchoolId == schoolId && t.ScheduledAt < now && t.Status != TeamTrainingStatus.Completed),
@@ -246,7 +246,7 @@ public static partial class EndpointMapping
         portal.MapGet("/{schoolId:int}/coaches", async (int schoolId, ClaimsPrincipal principal, AppDbContext db) =>
         {
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
-            return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.SchoolId == schoolId && x.Role == SchoolMembershipRole.Coach).OrderBy(x => x.User.Email).Select(x => new
+            return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.SchoolId == schoolId && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner && db.CoachProfiles.Any(c => c.UserId == x.UserId))).OrderBy(x => x.User.Email).Select(x => new
             {
                 x.UserId, x.User.Email, x.IsActive,
                 coachId = db.CoachProfiles.Where(c => c.UserId == x.UserId).Select(c => (int?)c.Id).FirstOrDefault(),
@@ -267,7 +267,7 @@ public static partial class EndpointMapping
                 var result = await users.CreateAsync(user);
                 if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = result.Errors.Select(x => x.Description).ToArray() });
             }
-            if (await db.SchoolMemberships.AnyAsync(x => x.SchoolId != schoolId && x.UserId == user.Id && x.Role == SchoolMembershipRole.Coach && x.IsActive))
+            if (await db.SchoolMemberships.AnyAsync(x => x.SchoolId != schoolId && x.UserId == user.Id && x.IsActive && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner)))
                 return Results.Conflict(new { message = "Этот тренер уже состоит в другой школе." });
             if (!await users.IsInRoleAsync(user, Roles.Coach)) await users.AddToRoleAsync(user, Roles.Coach);
             var profile = await db.CoachProfiles.SingleOrDefaultAsync(x => x.UserId == user.Id);
@@ -275,7 +275,7 @@ public static partial class EndpointMapping
             else profile.DisplayName = request.DisplayName.Trim();
             var membership = await db.SchoolMemberships.SingleOrDefaultAsync(x => x.SchoolId == schoolId && x.UserId == user.Id);
             if (membership is null) db.SchoolMemberships.Add(new SchoolMembership { SchoolId = schoolId, UserId = user.Id, Role = SchoolMembershipRole.Coach });
-            else { membership.Role = SchoolMembershipRole.Coach; membership.IsActive = true; }
+            else { if (membership.Role != SchoolMembershipRole.Owner) membership.Role = SchoolMembershipRole.Coach; membership.IsActive = true; }
             await db.SaveChangesAsync(); await AddAudit(db, principal, "school_coach_invited", nameof(SchoolMembership), $"{schoolId}:{user.Id}");
             string? inviteUrl = null; DateTimeOffset? expiresAt = null;
             if (created || !await users.HasPasswordAsync(user))
@@ -291,7 +291,7 @@ public static partial class EndpointMapping
         {
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             if (!await db.Teams.AnyAsync(x => x.Id == teamId && x.SchoolId == schoolId)) return Results.NotFound();
-            if (!await db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.IsActive && x.Role == SchoolMembershipRole.Coach && x.UserId == db.CoachProfiles.Where(c => c.Id == request.CoachId).Select(c => c.UserId).FirstOrDefault())) return Results.ValidationProblem(new Dictionary<string, string[]> { ["coachId"] = ["Тренер не состоит в этой школе."] });
+            if (!await CoachBelongsToSchoolAsync(db, schoolId, request.CoachId)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["coachId"] = ["Тренер не состоит в этой школе."] });
             if (request.IsHeadCoach)
             {
                 var oldHeads = await db.TeamCoaches.Where(x => x.TeamId == teamId && x.IsHeadCoach).ToListAsync();
@@ -360,7 +360,7 @@ public static partial class EndpointMapping
     }
 
     private static Task<bool> CoachBelongsToSchoolAsync(AppDbContext db, int schoolId, int coachId) =>
-        db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.IsActive && x.Role == SchoolMembershipRole.Coach && x.UserId == db.CoachProfiles.Where(c => c.Id == coachId).Select(c => c.UserId).FirstOrDefault());
+        db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.IsActive && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner) && x.UserId == db.CoachProfiles.Where(c => c.Id == coachId).Select(c => c.UserId).FirstOrDefault());
 
     private static Dictionary<string, string[]> SchoolErrors(string name, string ownerEmail)
     {

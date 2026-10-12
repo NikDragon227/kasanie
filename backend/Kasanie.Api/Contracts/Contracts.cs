@@ -6,7 +6,7 @@ namespace Kasanie.Api.Contracts;
 
 public sealed record RegisterRequest(string Email, string Password, DateOnly DateOfBirth, string FirstName, string LastName, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
 public sealed record RegisterOrganizerRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string City, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
-public sealed record RegisterPortalUserRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string Role, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion);
+public sealed record RegisterPortalUserRequest(string Email, string Password, DateOnly DateOfBirth, string DisplayName, string Role, bool TermsAccepted, bool PrivacyPolicyAccepted, string LegalVersion, bool IsSchoolOwner = false, string? SchoolName = null, string? SchoolCity = null);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record EmailRequest(string Email);
 public sealed record ConfirmEmailRequest(string UserId, string Token);
@@ -108,6 +108,9 @@ public static class Validation
         if (string.IsNullOrWhiteSpace(value.DisplayName)) errors["displayName"] = ["Укажите имя и фамилию."];
         else if (value.DisplayName.Trim().Length > 120) errors["displayName"] = ["Имя не должно превышать 120 символов."];
         if (value.Role is not (Roles.Parent or Roles.Coach)) errors["role"] = ["Для самостоятельной регистрации доступны роли родителя и тренера."];
+        if (value.IsSchoolOwner && value.Role != Roles.Coach) errors["isSchoolOwner"] = ["Владельцем школы может зарегистрироваться только тренер."];
+        if (value.IsSchoolOwner && (string.IsNullOrWhiteSpace(value.SchoolName) || value.SchoolName.Trim().Length > 160)) errors["schoolName"] = ["Укажите название школы до 160 символов."];
+        if (value.SchoolCity?.Trim().Length > 120) errors["schoolCity"] = ["Название города не должно превышать 120 символов."];
         LegalAcceptance(value.TermsAccepted, value.PrivacyPolicyAccepted, value.LegalVersion, errors);
         return errors;
     }
