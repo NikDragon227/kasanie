@@ -84,8 +84,8 @@ describe('critical workflows', () => {
     expect(screen.getByText('Оценка навыков, персональные тренировки и связь с тренером — всё в одном месте.')).toBeInTheDocument()
     expect(screen.queryByText('Система развития игрока')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Дата рождения')).toBeInTheDocument()
-    if (role === 'Coach') expect(screen.getByLabelText('Я владелец школы и буду управлять ею сам')).toBeInTheDocument()
-    else expect(screen.queryByLabelText('Я владелец школы и буду управлять ею сам')).not.toBeInTheDocument()
+    if (role === 'Coach') expect(screen.getByText('Ведите команды и управляйте школой, к которой вы прикреплены.')).toBeInTheDocument()
+    else expect(screen.queryByText('Ведите команды и управляйте школой, к которой вы прикреплены.')).not.toBeInTheDocument()
   })
 
   it('searches a city and submits only its name', async () => {

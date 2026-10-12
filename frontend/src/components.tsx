@@ -8,14 +8,14 @@ const navigation: Record<string, { to: string; label: string; icon: string }[]> 
     { to: '/player', label: 'Главная', icon: '⌂' }, { to: '/player/assessment', label: 'Тестирование', icon: '◎' },
     { to: '/player/training', label: 'Тренировки', icon: '▶' }, { to: '/player/progress', label: 'Прогресс', icon: '↗' }, { to: '/player/profile', label: 'Профиль', icon: '◉' },
   ],
-  Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/teams', label: 'Команды', icon: '▦' }, { to: '/coach/trainings', label: 'Журнал', icon: '✓' }, { to: '/coach/players', label: 'Игроки', icon: '◉' }],
+  Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/teams', label: 'Мои команды', icon: '▦' }, { to: '/coach/trainings', label: 'Журнал', icon: '✓' }, { to: '/coach/players', label: 'Мои игроки', icon: '◉' }, { to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Все команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Все игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки школы', icon: '◇' }],
   Parent: [{ to: '/parent', label: 'Мои дети', icon: '⌂' }],
   SchoolOwner: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
   SchoolAdmin: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
   Admin: [{ to: '/admin', label: 'Статистика', icon: '↗' }, { to: '/admin/feedback', label: 'Обращения', icon: '✦' }, { to: '/admin/schools', label: 'Школы', icon: '▦' }, { to: '/admin/exercises', label: 'Упражнения', icon: '◆' }, { to: '/admin/assessments', label: 'Тесты', icon: '◎' }, { to: '/admin/programs', label: 'Программы', icon: '▤' }, { to: '/admin/municipalities', label: 'Города', icon: '⌖' }, { to: '/admin/users', label: 'Пользователи', icon: '◉' }],
 }
 
-const rolePriority = ['Admin', 'SchoolOwner', 'SchoolAdmin', 'Coach', 'Parent', 'Player', 'Organizer']
+const rolePriority = ['Admin', 'Coach', 'SchoolOwner', 'SchoolAdmin', 'Parent', 'Player', 'Organizer']
 export const primaryRole = (roles: string[]) => rolePriority.find(x => roles.includes(x)) ?? roles[0] ?? ''
 
 export function RoleGuard({ role }: { role: string | string[] }) {

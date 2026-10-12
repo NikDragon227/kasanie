@@ -70,11 +70,11 @@ public static partial class EndpointMapping
             return Results.NoContent();
         });
 
-        var portal = app.MapGroup("/api/school").RequireAuthorization(policy => policy.RequireRole(Roles.SchoolOwner, Roles.SchoolAdmin)).WithTags("School portal");
+        var portal = app.MapGroup("/api/school").RequireAuthorization(policy => policy.RequireRole(Roles.SchoolOwner, Roles.SchoolAdmin, Roles.Coach)).WithTags("School portal");
         portal.MapGet("/memberships", async (ClaimsPrincipal principal, AppDbContext db) =>
         {
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.UserId == userId && x.IsActive && x.School.IsActive && x.Role != SchoolMembershipRole.Coach)
+            return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.UserId == userId && x.IsActive && x.School.IsActive)
                 .OrderBy(x => x.School.Name).Select(x => new { x.SchoolId, x.School.Name, role = x.Role.ToString() }).ToListAsync());
         });
 
@@ -356,7 +356,7 @@ public static partial class EndpointMapping
     private static Task<bool> CanManageSchoolAsync(AppDbContext db, ClaimsPrincipal principal, int schoolId)
     {
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.UserId == userId && x.IsActive && x.School.IsActive && x.Role != SchoolMembershipRole.Coach);
+        return db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.UserId == userId && x.IsActive && x.School.IsActive);
     }
 
     private static Task<bool> CoachBelongsToSchoolAsync(AppDbContext db, int schoolId, int coachId) =>

@@ -453,6 +453,31 @@ public sealed class AuthorizationIntegrationTests
     }
 
     [Fact]
+    public async Task Coach_WithActiveSchoolMembership_CanManageTheirSchoolDuringPilot()
+    {
+        await using var factory = new TestApplicationFactory();
+        await factory.SeedAsync(db =>
+        {
+            db.Schools.Add(new School { Id = 1, Name = "School A", Slug = "school-a" });
+            db.SchoolMemberships.Add(new SchoolMembership { SchoolId = 1, UserId = "coach-a", Role = SchoolMembershipRole.Coach });
+        });
+
+        using var client = factory.CreateClient();
+        var csrf = await CsrfAsync(client, "coach-a", Roles.Coach);
+        using var memberships = await client.SendAsync(Get("/api/school/memberships", "coach-a", Roles.Coach));
+        using var create = await client.SendAsync(JsonRequest(HttpMethod.Post, "/api/school/1/teams", new
+        {
+            name = "Команда тренера",
+            ageGroup = "U14",
+            season = "2026/27",
+            isActive = true
+        }, "coach-a", Roles.Coach, csrf));
+
+        Assert.Equal(HttpStatusCode.OK, memberships.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+    }
+
+    [Fact]
     public async Task SchoolOwner_CannotOpenAnotherSchoolsTeamWorkspace()
     {
         await using var factory = new TestApplicationFactory();
