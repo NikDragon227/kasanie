@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-type Player = { playerId: number; firstName: string; lastName: string; preferredPosition: string; shirtNumber?: number }
+type Player = { playerId: number; firstName: string; lastName: string; dateOfBirth: string; preferredPosition: string; shirtNumber?: number; isCaptain: boolean }
 type Team = { tacticFormation?: string; tacticNotes?: string; tacticPlanJson?: string; setPiecesJson?: string; opponentInstructions?: string }
 type Props = { data: { team: Team; players: Player[] }; save: (value: unknown) => void }
 type Slot = { id: string; x: number; y: number; label: string }
@@ -8,6 +8,7 @@ type Lineup = Record<string, number>
 type RoleAssignments = Record<string, number[]>
 type CornerPlans = Record<'attack' | 'defence', Lineup>
 type CornerLayouts = Record<'attack' | 'defence', Slot[]>
+type TacticPhase = 'withBall' | 'transition' | 'withoutBall'
 const CUSTOM_FORMATION = 'Своя схема'
 
 const formations: Record<string, Slot[]> = {
@@ -42,6 +43,33 @@ function asSlots(value: unknown): Slot[] {
   return value.filter((item): item is Slot => Boolean(item) && typeof item === 'object' && typeof (item as Slot).id === 'string' && typeof (item as Slot).x === 'number' && typeof (item as Slot).y === 'number' && typeof (item as Slot).label === 'string')
 }
 
+function asPhaseNotes(value: unknown): Record<TacticPhase, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { withBall: '', transition: '', withoutBall: '' }
+  const notes = value as Record<string, unknown>
+  return {
+    withBall: typeof notes.withBall === 'string' ? notes.withBall : '',
+    transition: typeof notes.transition === 'string' ? notes.transition : '',
+    withoutBall: typeof notes.withoutBall === 'string' ? notes.withoutBall : ''
+  }
+}
+
+function playerAge(dateOfBirth: string) {
+  const date = new Date(dateOfBirth)
+  if (Number.isNaN(date.getTime())) return '—'
+  const now = new Date()
+  let age = now.getFullYear() - date.getFullYear()
+  const beforeBirthday = now.getMonth() < date.getMonth() || now.getMonth() === date.getMonth() && now.getDate() < date.getDate()
+  if (beforeBirthday) age -= 1
+  return String(age)
+}
+
+const positionOrder = ['Вратарь', 'Защитник', 'Полузащитник', 'Нападающий']
+const phaseCopy: Record<TacticPhase, { title: string; hint: string }> = {
+  withBall: { title: 'С мячом', hint: 'Как строим атаку и создаём моменты.' },
+  transition: { title: 'Переход мяча', hint: 'Действия сразу после отбора или потери.' },
+  withoutBall: { title: 'Без мяча', hint: 'Оборона, прессинг и защита ворот.' }
+}
+
 export function TacticsWorkspace({ data, save }: Props) {
   const initialPlan = useMemo(() => parseJson<unknown>(data.team.tacticPlanJson, {}), [data.team.tacticPlanJson])
   const initialSetPieces = useMemo(() => parseJson<unknown>(data.team.setPiecesJson, {}), [data.team.setPiecesJson])
@@ -53,7 +81,14 @@ export function TacticsWorkspace({ data, save }: Props) {
     const saved = asSlots(storedPlan.customSlots)
     return saved.length || storedPlan.formation !== CUSTOM_FORMATION ? saved : formations['4-3-3'].map(position => ({ ...position }))
   })
-  const [roles, setRoles] = useState<RoleAssignments>(() => asRoleAssignments(storedSetPieces.roles ?? initialSetPieces))
+  const [roles, setRoles] = useState<RoleAssignments>(() => {
+    const saved = asRoleAssignments(storedSetPieces.roles ?? initialSetPieces)
+    if (!saved.captain?.length) {
+      const captain = data.players.find(player => player.isCaptain)
+      if (captain) saved.captain = [captain.playerId]
+    }
+    return saved
+  })
   const [corners, setCorners] = useState<CornerPlans>(() => ({ attack: asLineup(storedSetPieces.corners && typeof storedSetPieces.corners === 'object' ? (storedSetPieces.corners as Record<string, unknown>).attack : {}), defence: asLineup(storedSetPieces.corners && typeof storedSetPieces.corners === 'object' ? (storedSetPieces.corners as Record<string, unknown>).defence : {}) }))
   const [cornerLayouts, setCornerLayouts] = useState<CornerLayouts>(() => {
     const saved = storedSetPieces.cornerLayouts && typeof storedSetPieces.cornerLayouts === 'object' ? storedSetPieces.cornerLayouts as Record<string, unknown> : {}
@@ -61,10 +96,15 @@ export function TacticsWorkspace({ data, save }: Props) {
     const defence = asSlots(saved.defence)
     return { attack: attack.length ? attack : cornerSlots.attack.map(position => ({ ...position })), defence: defence.length ? defence : cornerSlots.defence.map(position => ({ ...position })) }
   })
+  const [activeTab, setActiveTab] = useState<'lineup' | 'standards' | 'captain' | 'match'>('lineup')
+  const [standardsTab, setStandardsTab] = useState<'performers' | 'corners' | 'freeKicks' | 'throws'>('performers')
   const [cornerMode, setCornerMode] = useState<'attack' | 'defence'>('attack')
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
-  const [validationMessage, setValidationMessage] = useState<string | null>(null)
+  const [phaseNotes, setPhaseNotes] = useState<Record<TacticPhase, string>>(() => asPhaseNotes(storedPlan.phases))
+  const [gamePlan, setGamePlan] = useState(() => data.team.tacticNotes ?? '')
+  const [opponentInstructions, setOpponentInstructions] = useState(() => data.team.opponentInstructions ?? '')
   const playerById = (id?: number) => data.players.find(player => player.playerId === id)
+  const sortedPlayers = [...data.players].sort((left, right) => (positionOrder.indexOf(left.preferredPosition) - positionOrder.indexOf(right.preferredPosition)) || left.lastName.localeCompare(right.lastName, 'ru'))
   const currentSlots = formation === CUSTOM_FORMATION && customSlots.length ? customSlots : formations[formation] ?? formations['4-3-3']
   const assign = (set: React.Dispatch<React.SetStateAction<Lineup>>, slotId: string, playerId: number) => set(current => ({ ...Object.fromEntries(Object.entries(current).filter(([id, value]) => id !== slotId && value !== playerId)), [slotId]: playerId }))
   const selectFormation = (next: string) => {
@@ -117,28 +157,45 @@ export function TacticsWorkspace({ data, save }: Props) {
   }
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!corners.attack.taker || !corners.defence.taker) {
-      setValidationMessage('Назначьте подающего для углового в атаке и обороне перед сохранением.')
-      return
-    }
-    setValidationMessage(null)
-    const form = new FormData(event.currentTarget)
-    save({ formation, notes: form.get('notes'), planJson: JSON.stringify({ formation, lineup, customSlots: formation === CUSTOM_FORMATION ? customSlots : undefined }), setPiecesJson: JSON.stringify({ roles, corners, cornerLayouts }), opponentInstructions: form.get('opponentInstructions') })
+    save({ formation, notes: gamePlan, planJson: JSON.stringify({ formation, lineup, customSlots: formation === CUSTOM_FORMATION ? customSlots : undefined, phases: phaseNotes }), setPiecesJson: JSON.stringify({ roles, corners, cornerLayouts }), opponentInstructions })
   }
 
   return <form className="tactics-workspace" onSubmit={submit}>
-    <section className="tactics-command">
-      <article className="card tactical-pitch" onDragOver={event => formation === CUSTOM_FORMATION && event.preventDefault()} onDrop={moveCustomToken}><div className="pitch-toolbar"><div><span className="eyebrow">Стартовый состав</span><h2>{formation}</h2></div><label>Схема<select value={formation} onChange={event => selectFormation(event.target.value)}>{Object.keys(formations).map(item => <option key={item}>{item}</option>)}<option>{CUSTOM_FORMATION}</option></select></label></div>{formation === CUSTOM_FORMATION && <p className="custom-formation-note">Своя схема: перетаскивайте фишки с игроками в любую точку поля.</p>}<Pitch slots={currentSlots} lineup={lineup} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('lineup', slotId, event)} onClick={slotId => () => clickSlot('lineup', slotId)} /></article>
-      <aside className="card tactic-squad"><div className="card-heading"><div><h2>Игроки</h2><p>Выберите игрока и нажмите на фишку — либо перетащите его на поле.</p></div></div>{data.players.map(player => <button type="button" draggable key={player.playerId} className={selectedPlayerId === player.playerId ? 'active' : ''} onClick={() => setSelectedPlayerId(current => current === player.playerId ? null : player.playerId)} onDragStart={event => event.dataTransfer.setData('playerId', String(player.playerId))}><b>{player.shirtNumber || '—'}</b><span><strong>{player.lastName}</strong><small>{player.firstName} · {player.preferredPosition}</small></span></button>)}</aside>
-    </section>
+    <nav className="tactic-tabs" aria-label="Разделы тактики">
+      <button type="button" className={activeTab === 'lineup' ? 'active' : ''} onClick={() => setActiveTab('lineup')}>Расстановка</button>
+      <button type="button" className={activeTab === 'standards' ? 'active' : ''} onClick={() => setActiveTab('standards')}>Стандарты</button>
+      <button type="button" className={activeTab === 'captain' ? 'active' : ''} onClick={() => setActiveTab('captain')}>Капитан</button>
+      <button type="button" className={activeTab === 'match' ? 'active' : ''} onClick={() => setActiveTab('match')}>План на игру</button>
+    </nav>
 
-    <section className="set-piece-layout">
-      <article className="card set-piece-board"><div className="card-heading"><div><span className="eyebrow">Угловые</span><h2>Расстановка на стандарт</h2></div><div className="segment-control"><button type="button" className={cornerMode === 'attack' ? 'active' : ''} onClick={() => setCornerMode('attack')}>Атака</button><button type="button" className={cornerMode === 'defence' ? 'active' : ''} onClick={() => setCornerMode('defence')}>Оборона</button></div></div><p>На поле все 11 игроков. Перетаскивайте любые фишки; «Подающий» обязателен для сохранения.</p><div className="tactical-pitch set-piece-pitch" onDragOver={event => event.preventDefault()} onDrop={moveCornerToken}><Pitch slots={cornerLayouts[cornerMode]} lineup={corners[cornerMode]} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('corner', slotId, event)} onClick={slotId => () => clickSlot('corner', slotId)} /></div>{validationMessage && <p className="error-message">{validationMessage}</p>}</article>
-      <details className="card role-panel"><summary><span><span className="eyebrow">Роли и исполнители</span><strong>Капитан, стандарты и ауты</strong></span><span>⌄</span></summary><p>Для штрафных, угловых и аутов можно назначить до двух исполнителей на каждую сторону.</p><div className="role-grid">{roleDefinitions.map(([id, label, max]) => <RoleAssignment key={id} label={label} max={max} players={data.players} selected={roles[id] ?? []} playerById={playerById} onAssign={playerId => assignRole(id, playerId, max)} onRemove={playerId => removeRole(id, playerId)} />)}</div></details>
-    </section>
+    {activeTab === 'lineup' && <section className="tactics-command">
+      <article className="card tactical-pitch" onDragOver={event => formation === CUSTOM_FORMATION && event.preventDefault()} onDrop={moveCustomToken}>
+        <div className="pitch-toolbar"><div><span className="eyebrow">Стартовый состав</span><h2>{formation}</h2></div><label>Схема<select value={formation} onChange={event => selectFormation(event.target.value)}>{Object.keys(formations).map(item => <option key={item}>{item}</option>)}<option>{CUSTOM_FORMATION}</option></select></label></div>
+        {formation === CUSTOM_FORMATION && <p className="custom-formation-note">Своя схема: перетаскивайте фишки с игроками в любую точку поля.</p>}
+        <Pitch slots={currentSlots} lineup={lineup} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('lineup', slotId, event)} onClick={slotId => () => clickSlot('lineup', slotId)} />
+      </article>
+      <aside className="card tactic-squad"><div className="card-heading"><div><h2>Игроки</h2><p>Нажмите на игрока и фишку или перетащите его на поле.</p></div><span className="count-chip">{data.players.length}</span></div>{sortedPlayers.map(player => <button type="button" draggable key={player.playerId} className={selectedPlayerId === player.playerId ? 'active' : ''} onClick={() => setSelectedPlayerId(current => current === player.playerId ? null : player.playerId)} onDragStart={event => event.dataTransfer.setData('playerId', String(player.playerId))}><b>{player.shirtNumber || '—'}</b><span><strong>{player.lastName}</strong><small>{player.firstName} · {player.preferredPosition} · {playerAge(player.dateOfBirth)} лет</small></span></button>)}</aside>
+      <aside className="card phase-notes"><div className="card-heading"><div><span className="eyebrow">Тактические акценты</span><h2>Модель игры</h2></div></div>{(Object.keys(phaseCopy) as TacticPhase[]).map(phase => <label key={phase}><strong>{phaseCopy[phase].title}</strong><small>{phaseCopy[phase].hint}</small><textarea value={phaseNotes[phase]} onChange={event => setPhaseNotes(current => ({ ...current, [phase]: event.target.value }))} placeholder="Добавить установку…" /></label>)}</aside>
+    </section>}
 
-    <section className="card tactic-settings"><label>План на игру<textarea name="notes" defaultValue={data.team.tacticNotes} placeholder="Принципы игры, приоритеты и замены." /></label><label>Инструкции по сопернику<textarea name="opponentInstructions" defaultValue={data.team.opponentInstructions} placeholder="Кого и где прессингуем, слабые зоны соперника." /></label><button className="button">Сохранить тактику</button></section>
+    {activeTab === 'standards' && <section className="standards-workspace">
+      <nav className="segment-control tactic-subtabs" aria-label="Разделы стандартов"><button type="button" className={standardsTab === 'performers' ? 'active' : ''} onClick={() => setStandardsTab('performers')}>Исполнители</button><button type="button" className={standardsTab === 'corners' ? 'active' : ''} onClick={() => setStandardsTab('corners')}>Угловые</button><button type="button" className={standardsTab === 'freeKicks' ? 'active' : ''} onClick={() => setStandardsTab('freeKicks')}>Штрафные</button><button type="button" className={standardsTab === 'throws' ? 'active' : ''} onClick={() => setStandardsTab('throws')}>Ауты</button></nav>
+      {standardsTab === 'performers' && <article className="card role-panel expanded"><div><span className="eyebrow">Исполнители стандартов</span><h2>Кто подаёт и бьёт</h2><p>Назначьте до двух игроков на каждую сторону.</p></div><div className="role-grid">{roleDefinitions.filter(([id]) => id !== 'captain').map(([id, label, max]) => <RoleAssignment key={id} label={label} max={max} players={sortedPlayers} selected={roles[id] ?? []} playerById={playerById} onAssign={playerId => assignRole(id, playerId, max)} onRemove={playerId => removeRole(id, playerId)} />)}</div></article>}
+      {standardsTab === 'corners' && <article className="card set-piece-board"><div className="card-heading"><div><span className="eyebrow">Угловые</span><h2>Расстановка на стандарт</h2></div><div className="segment-control"><button type="button" className={cornerMode === 'attack' ? 'active' : ''} onClick={() => setCornerMode('attack')}>Атака</button><button type="button" className={cornerMode === 'defence' ? 'active' : ''} onClick={() => setCornerMode('defence')}>Оборона</button></div></div><p>Перетащите фишки на нужные позиции. Если не назначить подающего, этот стандарт останется черновиком.</p><div className="tactical-pitch set-piece-pitch" onDragOver={event => event.preventDefault()} onDrop={moveCornerToken}><Pitch slots={cornerLayouts[cornerMode]} lineup={corners[cornerMode]} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('corner', slotId, event)} onClick={slotId => () => clickSlot('corner', slotId)} /></div></article>}
+      {standardsTab === 'freeKicks' && <StandardRoles title="Штрафные" subtitle="Исполнители штрафных" roles={roleDefinitions.filter(([id]) => id.startsWith('freeKick'))} players={sortedPlayers} selected={roles} playerById={playerById} onAssign={assignRole} onRemove={removeRole} />}
+      {standardsTab === 'throws' && <StandardRoles title="Ауты" subtitle="Исполнители аутов" roles={roleDefinitions.filter(([id]) => id.startsWith('throw'))} players={sortedPlayers} selected={roles} playerById={playerById} onAssign={assignRole} onRemove={removeRole} />}
+    </section>}
+
+    {activeTab === 'captain' && <section className="card captain-workspace"><div><span className="eyebrow">Лидер команды</span><h2>Капитан</h2><p>Капитан выводится в состав и может быть изменён перед матчем.</p></div><RoleAssignment label="Капитан команды" max={1} players={sortedPlayers} selected={roles.captain ?? []} playerById={playerById} onAssign={playerId => assignRole('captain', playerId, 1)} onRemove={playerId => removeRole('captain', playerId)} /></section>}
+
+    {activeTab === 'match' && <section className="card tactic-settings"><label>План на игру<textarea value={gamePlan} onChange={event => setGamePlan(event.target.value)} placeholder="Принципы игры, приоритеты и замены." /></label><label>Инструкции по сопернику<textarea value={opponentInstructions} onChange={event => setOpponentInstructions(event.target.value)} placeholder="Кого и где прессингуем, слабые зоны соперника." /></label></section>}
+
+    <div className="tactics-save-bar"><span>Изменения сохраняются одной кнопкой.</span><button className="button">Сохранить тактику</button></div>
   </form>
+}
+
+function StandardRoles({ title, subtitle, roles, players, selected, playerById, onAssign, onRemove }: { title: string; subtitle: string; roles: readonly (readonly [string, string, number])[]; players: Player[]; selected: RoleAssignments; playerById: (id?: number) => Player | undefined; onAssign: (roleId: string, playerId: number, max: number) => void; onRemove: (roleId: string, playerId: number) => void }) {
+  return <article className="card role-panel expanded"><div><span className="eyebrow">{title}</span><h2>{subtitle}</h2></div><div className="role-grid">{roles.map(([id, label, max]) => <RoleAssignment key={id} label={label} max={max} players={players} selected={selected[id] ?? []} playerById={playerById} onAssign={playerId => onAssign(id, playerId, max)} onRemove={playerId => onRemove(id, playerId)} />)}</div></article>
 }
 
 function Pitch({ slots, lineup, playerById, selectedPlayerId, onDrop, onClick }: { slots: Slot[]; lineup: Lineup; playerById: (id?: number) => Player | undefined; selectedPlayerId: number | null; onDrop: (slotId: string) => (event: React.DragEvent<HTMLButtonElement>) => void; onClick: (slotId: string) => () => void }) {
