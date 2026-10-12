@@ -35,24 +35,21 @@ export function CoachTeamsPage() {
       setParams(next, { replace: true })
     }
   }, [activeTeams, params, setParams])
-  useEffect(() => {
-    if (params.get('view') === 'planning' && center.data) requestAnimationFrame(() => document.querySelector('.squad-planner')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }, [center.data, params])
   if (teams.loading) return <PageLoader />
   if (teams.error || !teams.data) return <ErrorState message={teams.error} retry={teams.reload} />
   if (!activeTeams.length) return <><PageHeader eyebrow="Кабинет тренера" title="Мои команды" /><section className="card"><EmptyState title="Составы не назначены">Владелец школы должен назначить вас тренером состава.</EmptyState></section></>
   return <><PageHeader title="Кабинет тренера" actions={<Link className="button" to="/coach/trainings">Журнал тренировок →</Link>} />
     <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { const next = new URLSearchParams(params); next.set('team', e.target.value); next.delete('view'); setParams(next) }}>{activeTeams.map(x => <option value={x.teamId} key={x.teamId}>{x.name}</option>)}</select></label>{center.data && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
     {notice && <p className={notice.ok ? 'success-message' : 'error-message'}>{notice.text}</p>}
-    {center.loading ? <PageLoader /> : center.error || !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} reload={center.reload} setNotice={setNotice} />}
+    {center.loading ? <PageLoader /> : center.error || !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} plannerMode={params.get('view') === 'planning'} reload={center.reload} setNotice={setNotice} />}
   </>
 }
 
-function CoachCommandCenter({ data, tab, reload, setNotice }: { data: CommandCenter; tab: Tab; reload: () => Promise<void>; setNotice: (x: Notice) => void }) {
+function CoachCommandCenter({ data, tab, plannerMode, reload, setNotice }: { data: CommandCenter; tab: Tab; plannerMode: boolean; reload: () => Promise<void>; setNotice: (x: Notice) => void }) {
   const run = async (action: () => Promise<unknown>, ok: string) => { setNotice(null); try { await action(); setNotice({ text: ok, ok: true }); await reload(); return true } catch (e) { setNotice({ text: e instanceof Error ? e.message : 'Не удалось сохранить данные.', ok: false }); return false } }
   if (tab === 'overview') return <Overview data={data} />
   if (tab === 'chat') return <Inbox data={data} send={(channel, text) => run(() => post(`/api/coach/teams/${data.team.id}/messages`, { channel, text }), 'Сообщение отправлено.')} />
-  if (tab === 'squad') return <Squad data={data} run={run} />
+  if (tab === 'squad') return plannerMode ? <SquadPlanner data={data} save={(player, value) => run(() => put(`/api/coach/teams/${data.team.id}/players/${player.playerId}`, value), 'План состава сохранён.')} /> : <Squad data={data} run={run} />
   if (tab === 'collective') return <Collective data={data} save={codeOfConduct => run(() => put(`/api/coach/teams/${data.team.id}/collective`, { codeOfConduct }), 'Кодекс команды сохранён.')} />
   if (tab === 'tactics') return <TacticsWorkspace data={data} save={value => run(() => put(`/api/coach/teams/${data.team.id}/tactics`, value), 'Тактический план сохранён и доступен владельцу школы.')} />
   if (tab === 'analytics') return <Analytics data={data} save={(sourceUrl, notes) => run(() => put(`/api/coach/teams/${data.team.id}/opponent-report`, { sourceUrl, notes }), 'Отчёт о сопернике сохранён.')} />
@@ -78,6 +75,30 @@ function NewsFeed() {
 }
 
 function Communication({ data, send }: { data: CommandCenter; send: (c: string, t: string) => void }) { const [channel, setChannel] = useState('Owner'); const messages = data.messages.filter(x => x.channel === channel); return <section className="communication-layout"><aside className="card chat-channels">{[['Owner', 'Владелец школы'], ['Team', 'Команда'], ['Parents', 'Родители']].map(([id, label]) => <button key={id} className={channel === id ? 'active' : ''} onClick={() => setChannel(id)}><span>{label}</span><small>{data.messages.filter(x => x.channel === id).length} сообщений</small></button>)}</aside><article className="card chat-room"><div className="card-heading"><h2>{channel === 'Owner' ? 'Чат с владельцем' : channel === 'Team' ? 'Чат команды' : 'Объявления родителям'}</h2></div><div className="message-list">{messages.length ? [...messages].reverse().map(x => <div key={x.id}><b>{x.author}</b><p>{x.text}</p><time>{formatDate(x.createdAt)}</time></div>) : <EmptyState title="Сообщений пока нет" />}</div><form onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get('text')); if (text.trim()) { send(channel, text); form.reset() } }}><textarea name="text" maxLength={2000} placeholder="Напишите сообщение…" required /><button className="button">Отправить</button></form></article></section> }
+
+type PlanSeason = 'current' | 'next' | 'future'
+const plannerSeasons: { id: PlanSeason; label: string; field: keyof Pick<Player, 'currentSeasonPlan' | 'nextSeasonPlan' | 'twoYearPlan'> }[] = [
+  { id: 'current', label: 'Текущий сезон', field: 'currentSeasonPlan' },
+  { id: 'next', label: 'Следующий сезон', field: 'nextSeasonPlan' },
+  { id: 'future', label: 'Сезон после следующего', field: 'twoYearPlan' }
+]
+const plannerPositions = ['Вратари', 'Защитники', 'Полузащитники', 'Нападающие']
+const plannerPosition = (value: string) => value === 'Вратарь' ? 'Вратари' : value === 'Защитник' ? 'Защитники' : value === 'Полузащитник' ? 'Полузащитники' : 'Нападающие'
+const plannerRole = (player: Player, plan: string) => playerAge(player.dateOfBirth) <= 22 ? 'growth' : /основ|важн/i.test(plan) ? 'important' : 'depth'
+
+function SquadPlanner({ data, save }: { data: CommandCenter; save: (player: Player, value: unknown) => void }) {
+  const [season, setSeason] = useState<PlanSeason>('current'); const [sort, setSort] = useState<'position' | 'age' | 'name'>('position')
+  const activeSeason = plannerSeasons.find(item => item.id === season)!
+  const updatePlan = (player: Player, value: string) => save(player, { shirtNumber: player.shirtNumber ?? null, tournamentRegistrationStatus: player.tournamentRegistrationStatus, currentSeasonPlan: activeSeason.field === 'currentSeasonPlan' ? value : player.currentSeasonPlan, nextSeasonPlan: activeSeason.field === 'nextSeasonPlan' ? value : player.nextSeasonPlan, twoYearPlan: activeSeason.field === 'twoYearPlan' ? value : player.twoYearPlan })
+  const ordered = (position: string) => data.players.filter(player => plannerPosition(player.preferredPosition) === position).sort((a, b) => sort === 'age' ? playerAge(a.dateOfBirth) - playerAge(b.dateOfBirth) || a.lastName.localeCompare(b.lastName) : sort === 'name' ? a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName) : a.preferredPosition.localeCompare(b.preferredPosition) || a.lastName.localeCompare(b.lastName))
+  return <section className="squad-planner"><section className="section-toolbar planner-toolbar"><div><span className="eyebrow">Планировщик состава</span><h2>План по позициям</h2><p>Текущий и два следующих сезона. Роль игрока влияет на цвет матрицы опыта.</p></div><label>Сортировка<select value={sort} onChange={event => setSort(event.target.value as typeof sort)}><option value="position">По позиции</option><option value="age">По возрасту</option><option value="name">По фамилии</option></select></label></section><nav className="planner-season-tabs" aria-label="Горизонт планирования">{plannerSeasons.map(item => <button className={season === item.id ? 'active' : ''} key={item.id} onClick={() => setSeason(item.id)}>{item.label}</button>)}</nav><div className="planner-position-list">{plannerPositions.map(position => <article className="card planner-position" key={position}><div className="card-heading"><div><span className="eyebrow">{position}</span><h2>{ordered(position).length} игроков</h2></div></div>{ordered(position).length ? ordered(position).map(player => <div className="planner-player" key={player.playerId}><span><strong>{player.firstName} {player.lastName}</strong><small>{player.preferredPosition} · {playerAge(player.dateOfBirth)} лет</small></span><label>Роль<select value={player[activeSeason.field]} onChange={event => updatePlan(player, event.target.value)}><option>Основной состав</option><option>Важный игрок</option><option>Ротация</option><option>Развитие</option><option>Глубина состава</option></select></label></div>) : <p className="readonly-note">Игроков на этой позиции пока нет.</p>}</article>)}</div><ExperienceMatrix data={data} season={activeSeason} /></section>
+}
+
+function ExperienceMatrix({ data, season }: { data: CommandCenter; season: { id: PlanSeason; label: string; field: keyof Pick<Player, 'currentSeasonPlan' | 'nextSeasonPlan' | 'twoYearPlan'> } }) {
+  const stages = [{ id: 'growth', label: 'Рост', note: 'до 22 лет' }, { id: 'emerging', label: 'Становление', note: '23–25 лет' }, { id: 'peak', label: 'На пике', note: '26–31 год' }, { id: 'experienced', label: 'Опытный', note: '32+ лет' }]
+  const stage = (player: Player) => { const age = playerAge(player.dateOfBirth); return age <= 22 ? 'growth' : age <= 25 ? 'emerging' : age <= 31 ? 'peak' : 'experienced' }
+  return <section className="experience-matrix"><div className="card-heading"><div><span className="eyebrow">Матрица опыта · {season.label.toLowerCase()}</span><h2>Баланс возраста и ролей</h2><p>Зелёный — рост, фиолетовый — важный игрок, синий — глубина состава.</p></div></div><div className="experience-columns">{stages.map(item => <article key={item.id}><header><strong>{item.label}</strong><small>{item.note}</small></header>{data.players.filter(player => stage(player) === item.id).sort((a, b) => playerAge(a.dateOfBirth) - playerAge(b.dateOfBirth)).map(player => <div className={`experience-player ${plannerRole(player, player[season.field])}`} key={player.playerId}><strong>{player.firstName} {player.lastName}</strong><small>{player.preferredPosition} · {playerAge(player.dateOfBirth)} лет</small></div>)}{!data.players.some(player => stage(player) === item.id) && <p>Нет игроков</p>}</article>)}</div></section>
+}
 
 type SquadView = 'overview' | 'numbers' | 'registration'
 
