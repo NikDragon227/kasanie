@@ -784,6 +784,7 @@ small { color: var(--muted); }
 .command-focus p, .command-focus small { color: #a8c2bd; }
 .focus-next { display: grid; gap: .35rem; margin-top: auto; padding-top: 1rem; border-top: 1px solid #31514e; }
 .football-feed .panel-state { min-height: 150px; }
+.coach-inbox { display: grid; gap: 1rem; }.coach-inbox-tabs { display: flex; gap: .25rem; padding: .35rem; border-bottom: 1px solid var(--line); }.coach-inbox-tabs button { padding: .65rem .9rem; border: 0; border-radius: 10px 10px 0 0; background: transparent; color: var(--muted); font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }.coach-inbox-tabs button:hover { color: var(--ink); }.coach-inbox-tabs button.active { color: var(--ink); background: var(--white); box-shadow: inset 0 -2px 0 var(--mint); }.inbox-news-feed { min-height: 360px; }.inbox-news-feed h2 { margin: .25rem 0 1rem; }
 .communication-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 1rem; }
 .chat-channels { align-self: start; padding: .45rem; }
 .chat-channels button { width: 100%; display: grid; gap: .15rem; padding: .8rem; border: 0; border-radius: 11px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
