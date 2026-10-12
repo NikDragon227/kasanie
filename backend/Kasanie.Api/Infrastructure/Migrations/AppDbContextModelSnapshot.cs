@@ -601,6 +601,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Citizenship")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -635,6 +638,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     b.Property<string>("PreferredPosition")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SecondCitizenship")
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
@@ -1494,11 +1500,27 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<int>("PlayerId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Appearances")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Assists")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("AverageRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("numeric(3,2)");
+
                     b.Property<string>("CurrentSeasonPlan")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("Goals")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCaptain")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset>("JoinedAt")
@@ -1525,6 +1547,10 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasKey("TeamId", "PlayerId");
 
                     b.HasIndex("PlayerId");
+
+                    b.HasIndex("TeamId", "IsCaptain")
+                        .IsUnique()
+                        .HasFilter("\"IsCaptain\"");
 
                     b.HasIndex("TeamId", "ShirtNumber")
                         .IsUnique()
@@ -1601,6 +1627,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<int?>("MaxRosterSize")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("MealCost")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
@@ -1618,6 +1647,9 @@ namespace Kasanie.Api.Infrastructure.Migrations
 
                     b.Property<DateOnly?>("RegistrationDeadline")
                         .HasColumnType("date");
+
+                    b.Property<string>("RegistrationRequirements")
+                        .HasColumnType("text");
 
                     b.Property<string>("SourceUrl")
                         .HasColumnType("text");
@@ -1641,6 +1673,24 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.HasIndex("TeamId");
 
                     b.ToTable("TeamTournaments");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTournamentRegistration", b =>
+                {
+                    b.Property<int>("TeamTournamentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("RegisteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TeamTournamentId", "PlayerId");
+
+                    b.HasIndex("PlayerId");
+
+                    b.ToTable("TeamTournamentRegistrations");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTraining", b =>
@@ -2677,6 +2727,25 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Team");
                 });
 
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTournamentRegistration", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.PlayerProfile", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Kasanie.Api.Domain.TeamTournament", "TeamTournament")
+                        .WithMany("Registrations")
+                        .HasForeignKey("TeamTournamentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("TeamTournament");
+                });
+
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTraining", b =>
                 {
                     b.HasOne("Kasanie.Api.Domain.CoachProfile", "Coach")
@@ -3047,6 +3116,11 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Tournaments");
 
                     b.Navigation("TrainingGroups");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTournament", b =>
+                {
+                    b.Navigation("Registrations");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TeamTraining", b =>

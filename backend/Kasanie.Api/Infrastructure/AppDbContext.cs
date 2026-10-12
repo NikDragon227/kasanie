@@ -18,6 +18,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TeamTrainingGroupPlayer> TeamTrainingGroupPlayers => Set<TeamTrainingGroupPlayer>();
     public DbSet<TeamMatch> TeamMatches => Set<TeamMatch>();
     public DbSet<TeamTournament> TeamTournaments => Set<TeamTournament>();
+    public DbSet<TeamTournamentRegistration> TeamTournamentRegistrations => Set<TeamTournamentRegistration>();
     public DbSet<TeamMessage> TeamMessages => Set<TeamMessage>();
     public DbSet<TeamInjury> TeamInjuries => Set<TeamInjury>();
     public DbSet<TeamScheduleEvent> TeamScheduleEvents => Set<TeamScheduleEvent>();
@@ -72,6 +73,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<SchoolMembership>().HasKey(x => new { x.SchoolId, x.UserId });
         builder.Entity<TeamCoach>().HasKey(x => new { x.TeamId, x.CoachId });
         builder.Entity<TeamPlayer>().HasKey(x => new { x.TeamId, x.PlayerId });
+        builder.Entity<TeamTournamentRegistration>().HasKey(x => new { x.TeamTournamentId, x.PlayerId });
         builder.Entity<TeamInvitation>().HasIndex(x => new { x.TeamId, x.PlayerId }).IsUnique();
         builder.Entity<TeamInvitation>().HasIndex(x => new { x.PlayerId, x.Status, x.CreatedAt });
         builder.Entity<TeamTrainingGroupPlayer>().HasKey(x => new { x.TeamTrainingGroupId, x.PlayerId });
@@ -85,6 +87,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TeamTrainingTemplate>().HasIndex(x => new { x.TeamId, x.CoachId, x.Name }).IsUnique();
         builder.Entity<TeamTrainingTemplateExercise>().HasIndex(x => new { x.TeamTrainingTemplateId, x.ExerciseId }).IsUnique();
         builder.Entity<TeamPlayer>().HasIndex(x => new { x.TeamId, x.ShirtNumber }).IsUnique().HasFilter("\"IsActive\" AND \"ShirtNumber\" IS NOT NULL");
+        builder.Entity<TeamPlayer>().HasIndex(x => new { x.TeamId, x.IsCaptain }).IsUnique().HasFilter("\"IsCaptain\"");
         builder.Entity<TeamMessage>().HasIndex(x => new { x.TeamId, x.Channel, x.CreatedAt });
         builder.Entity<TeamInjury>().HasIndex(x => new { x.TeamId, x.Status });
         builder.Entity<TeamScheduleEvent>().HasIndex(x => new { x.TeamId, x.StartsAt });
@@ -143,6 +146,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         builder.Entity<PlayerProfile>().Property(x => x.Height).HasPrecision(5, 1);
         builder.Entity<PlayerProfile>().Property(x => x.Weight).HasPrecision(5, 1);
+        builder.Entity<TeamPlayer>().Property(x => x.AverageRating).HasPrecision(3, 2);
         builder.Entity<AssessmentDefinition>().Property(x => x.MinimumReasonableValue).HasPrecision(10, 2);
         builder.Entity<AssessmentDefinition>().Property(x => x.MaximumReasonableValue).HasPrecision(10, 2);
         builder.Entity<AssessmentNorm>().Property(x => x.LowPerformanceValue).HasPrecision(10, 2);

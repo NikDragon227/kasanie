@@ -15,9 +15,11 @@ public static partial class EndpointMapping
             var team = await AssignedTeam(db, principal, teamId, false);
             if (team is null) return Results.Forbid();
             var now = DateTimeOffset.UtcNow;
+            var coachName = await db.TeamCoaches.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.IsHeadCoach).ThenBy(x => x.CreatedAt).Select(x => x.Coach.DisplayName).FirstOrDefaultAsync();
             var players = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new
             {
                 x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.Gender, x.Player.PreferredPosition, x.Player.DominantFoot, x.Player.ExperienceLevel, isRegistered = x.Player.UserId != null, x.ShirtNumber,
+                x.Player.Height, x.Player.Weight, x.Player.Citizenship, x.Player.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.AverageRating,
                 x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan,
                 completedTrainings = db.TeamTrainingPlayerResults.Count(r => r.PlayerId == x.PlayerId && r.TeamTrainingExercise.TeamTraining.TeamId == teamId && r.IsCompleted),
                 attendance = db.TeamTrainingAttendances.Count(a => a.PlayerId == x.PlayerId && a.TeamTraining.TeamId == teamId && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late)),
@@ -27,7 +29,7 @@ public static partial class EndpointMapping
             var injuries = await db.TeamInjuries.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.StartedOn).Select(x => new { x.Id, x.PlayerId, player = x.Player.FirstName + " " + x.Player.LastName, x.Type, x.Severity, x.Status, x.RiskLevel, x.StartedOn, x.ExpectedReturnOn, x.ClosedOn, x.Notes }).ToListAsync();
             var events = await db.TeamScheduleEvents.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.StartsAt).Select(x => new { x.Id, x.Type, x.Title, x.StartsAt, x.ReminderAt, x.Notes }).ToListAsync();
             var matches = await db.TeamMatches.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.ScheduledAt).Select(x => new { x.Id, x.Opponent, x.Competition, x.ScheduledAt, x.Venue, x.Status, x.GoalsFor, x.GoalsAgainst }).ToListAsync();
-            var tournaments = await db.TeamTournaments.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.StartDate).Select(x => new { x.Id, x.Name, x.StartDate, x.EndDate, x.Status, x.SourceUrl, x.RegistrationDeadline }).ToListAsync();
+            var tournaments = await db.TeamTournaments.AsNoTracking().Where(x => x.TeamId == teamId).OrderBy(x => x.StartDate).Select(x => new { x.Id, x.Name, x.StartDate, x.EndDate, x.Status, x.SourceUrl, x.RegistrationDeadline, x.MaxRosterSize, x.RegistrationRequirements, registeredPlayerIds = x.Registrations.Select(registration => registration.PlayerId).ToList() }).ToListAsync();
             var trainings = await db.TeamTrainings.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.ScheduledAt).Take(30).Select(x => new { x.Id, x.Title, x.ScheduledAt, status = x.Status.ToString(), players = x.Attendances.Count, present = x.Attendances.Count(a => a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late) }).ToListAsync();
             var invitations = await db.TeamInvitations.AsNoTracking().Where(x => x.TeamId == teamId).OrderByDescending(x => x.CreatedAt).Take(30).Select(x => new
             {
@@ -36,7 +38,7 @@ public static partial class EndpointMapping
             }).ToListAsync();
             return Results.Ok(new
             {
-                team = new { team.Id, name = (team.AgeGroup ?? "") + (team.AgeGroup == null ? "" : " — ") + team.Name, team.Season, team.TrainingCycleStage, team.CycleStart, team.CycleEnd, team.TacticFormation, team.TacticNotes, team.TacticPlanJson, team.SetPiecesJson, team.OpponentInstructions, team.OpponentReportUrl, team.OpponentReportNotes, team.CodeOfConduct, school = team.School.Name },
+                team = new { team.Id, name = (team.AgeGroup ?? "") + (team.AgeGroup == null ? "" : " — ") + team.Name, team.Season, team.TrainingCycleStage, team.CycleStart, team.CycleEnd, team.TacticFormation, team.TacticNotes, team.TacticPlanJson, team.SetPiecesJson, team.OpponentInstructions, team.OpponentReportUrl, team.OpponentReportNotes, team.CodeOfConduct, school = team.School.Name, coachName },
                 players, invitations, messages, injuries, events, matches, tournaments, trainings,
                 summary = new { activeInjuries = injuries.Count(x => x.Status != "Закрыта"), highRiskPlayers = injuries.Where(x => x.Status != "Закрыта" && x.RiskLevel >= 70).Select(x => x.PlayerId).Distinct().Count(), nextMatch = matches.FirstOrDefault(x => x.ScheduledAt >= now), reminders = events.Count(x => x.StartsAt >= now && x.StartsAt <= now.AddDays(7)) }
             });
@@ -60,6 +62,48 @@ public static partial class EndpointMapping
             await SaveCoachAudit(db, principal, "coach_team_player_planned", nameof(TeamPlayer), $"{teamId}:{playerId}"); return Results.NoContent();
         });
 
+        coach.MapPut("/teams/{teamId:int}/captain", async (int teamId, TeamCaptainRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var members = await db.TeamPlayers.Where(x => x.TeamId == teamId && x.IsActive).ToListAsync();
+            var captain = request.PlayerId is null ? null : members.SingleOrDefault(x => x.PlayerId == request.PlayerId);
+            if (request.PlayerId is not null && captain is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["playerId"] = ["Капитан должен быть игроком этой команды."] });
+            foreach (var member in members.Where(x => x.IsCaptain)) member.IsCaptain = false;
+            await db.SaveChangesAsync();
+            if (captain is not null) captain.IsCaptain = true;
+            await SaveCoachAudit(db, principal, "coach_team_captain_updated", nameof(TeamPlayer), $"{teamId}:{request.PlayerId}");
+            return Results.NoContent();
+        });
+
+        coach.MapPut("/teams/{teamId:int}/tournaments/{tournamentId:int}/registration-settings", async (int teamId, int tournamentId, TeamTournamentRegistrationSettingsRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var tournament = await db.TeamTournaments.SingleOrDefaultAsync(x => x.Id == tournamentId && x.TeamId == teamId);
+            if (tournament is null) return Results.NotFound();
+            if (request.MaxRosterSize is < 1 or > 99) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxRosterSize"] = ["Укажите лимит от 1 до 99 игроков."] });
+            if (request.Requirements?.Length > 2000) return Results.ValidationProblem(new Dictionary<string, string[]> { ["requirements"] = ["Условия не должны превышать 2000 символов."] });
+            tournament.MaxRosterSize = request.MaxRosterSize;
+            tournament.RegistrationRequirements = Clean(request.Requirements);
+            await SaveCoachAudit(db, principal, "coach_tournament_registration_settings_updated", nameof(TeamTournament), tournamentId.ToString());
+            return Results.NoContent();
+        });
+
+        coach.MapPut("/teams/{teamId:int}/tournaments/{tournamentId:int}/registrations", async (int teamId, int tournamentId, TeamTournamentRegistrationsRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var tournament = await db.TeamTournaments.SingleOrDefaultAsync(x => x.Id == tournamentId && x.TeamId == teamId);
+            if (tournament is null) return Results.NotFound();
+            var playerIds = request.PlayerIds.Distinct().ToList();
+            if (tournament.MaxRosterSize.HasValue && playerIds.Count > tournament.MaxRosterSize.Value) return Results.ValidationProblem(new Dictionary<string, string[]> { ["playerIds"] = ["В заявке больше игроков, чем допускает лимит турнира."] });
+            var validIds = await db.TeamPlayers.Where(x => x.TeamId == teamId && x.IsActive && playerIds.Contains(x.PlayerId)).Select(x => x.PlayerId).ToListAsync();
+            if (validIds.Count != playerIds.Count) return Results.ValidationProblem(new Dictionary<string, string[]> { ["playerIds"] = ["В заявку можно включать только игроков текущего состава."] });
+            var existing = await db.TeamTournamentRegistrations.Where(x => x.TeamTournamentId == tournamentId).ToListAsync();
+            db.TeamTournamentRegistrations.RemoveRange(existing);
+            db.TeamTournamentRegistrations.AddRange(playerIds.Select(playerId => new TeamTournamentRegistration { TeamTournamentId = tournamentId, PlayerId = playerId }));
+            await SaveCoachAudit(db, principal, "coach_tournament_registration_updated", nameof(TeamTournament), tournamentId.ToString());
+            return Results.NoContent();
+        });
+
         coach.MapPost("/teams/{teamId:int}/players", async (int teamId, CoachTeamPlayerCreateRequest request, ClaimsPrincipal principal, AppDbContext db) =>
         {
             if (await AssignedTeam(db, principal, teamId) is null) return Results.Forbid();
@@ -71,7 +115,8 @@ public static partial class EndpointMapping
             var player = new PlayerProfile
             {
                 FirstName = request.FirstName.Trim(), LastName = request.LastName.Trim(), DateOfBirth = request.DateOfBirth,
-                Gender = Clean(request.Gender), PreferredPosition = request.PreferredPosition.Trim(), DominantFoot = request.DominantFoot.Trim(), ExperienceLevel = request.ExperienceLevel.Trim()
+                Gender = Clean(request.Gender), PreferredPosition = request.PreferredPosition.Trim(), DominantFoot = request.DominantFoot.Trim(), ExperienceLevel = request.ExperienceLevel.Trim(),
+                Height = request.Height, Weight = request.Weight, Citizenship = Clean(request.Citizenship), SecondCitizenship = Clean(request.SecondCitizenship)
             };
             db.Players.Add(player);
             db.TeamPlayers.Add(new TeamPlayer { TeamId = teamId, Player = player, ShirtNumber = request.ShirtNumber });

@@ -167,7 +167,19 @@ public sealed class TeamTournament
     public decimal Income { get; set; }
     public string? SourceUrl { get; set; }
     public DateOnly? RegistrationDeadline { get; set; }
+    public int? MaxRosterSize { get; set; }
+    public string? RegistrationRequirements { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<TeamTournamentRegistration> Registrations { get; set; } = [];
+}
+
+public sealed class TeamTournamentRegistration
+{
+    public int TeamTournamentId { get; set; }
+    public TeamTournament TeamTournament { get; set; } = null!;
+    public int PlayerId { get; set; }
+    public PlayerProfile Player { get; set; } = null!;
+    public DateTimeOffset RegisteredAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class TeamCoach
@@ -187,6 +199,11 @@ public sealed class TeamPlayer
     public int PlayerId { get; set; }
     public PlayerProfile Player { get; set; } = null!;
     public int? ShirtNumber { get; set; }
+    public bool IsCaptain { get; set; }
+    public int Appearances { get; set; }
+    public int Goals { get; set; }
+    public int Assists { get; set; }
+    public decimal? AverageRating { get; set; }
     public string TournamentRegistrationStatus { get; set; } = "Не заявлен";
     public string CurrentSeasonPlan { get; set; } = "Основной состав";
     public string NextSeasonPlan { get; set; } = "Оценить развитие";
@@ -362,6 +379,8 @@ public sealed class PlayerProfile
     public required string ExperienceLevel { get; set; }
     public decimal? Height { get; set; }
     public decimal? Weight { get; set; }
+    public string? Citizenship { get; set; }
+    public string? SecondCitizenship { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<TeamPlayer> TeamPlayers { get; set; } = [];
