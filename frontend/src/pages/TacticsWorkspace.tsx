@@ -169,11 +169,11 @@ export function TacticsWorkspace({ data, save }: Props) {
     </nav>
 
     {activeTab === 'lineup' && <section className="tactics-command">
-      <article className="card tactical-pitch" onDragOver={event => formation === CUSTOM_FORMATION && event.preventDefault()} onDrop={moveCustomToken}>
-        <div className="pitch-toolbar"><div><span className="eyebrow">Стартовый состав</span><h2>{formation}</h2></div><label>Схема<select value={formation} onChange={event => selectFormation(event.target.value)}>{Object.keys(formations).map(item => <option key={item}>{item}</option>)}<option>{CUSTOM_FORMATION}</option></select></label></div>
+      <section className="tactical-board">
+        <header className="pitch-toolbar"><div><span className="eyebrow">Стартовый состав</span><h2>{formation}</h2></div><label>Схема<select value={formation} onChange={event => selectFormation(event.target.value)}>{Object.keys(formations).map(item => <option key={item}>{item}</option>)}<option>{CUSTOM_FORMATION}</option></select></label></header>
         {formation === CUSTOM_FORMATION && <p className="custom-formation-note">Своя схема: перетаскивайте фишки с игроками в любую точку поля.</p>}
-        <Pitch slots={currentSlots} lineup={lineup} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('lineup', slotId, event)} onClick={slotId => () => clickSlot('lineup', slotId)} />
-      </article>
+        <article className="card tactical-pitch" onDragOver={event => formation === CUSTOM_FORMATION && event.preventDefault()} onDrop={moveCustomToken}><Pitch slots={currentSlots} lineup={lineup} playerById={playerById} selectedPlayerId={selectedPlayerId} onDrop={slotId => event => handleDrop('lineup', slotId, event)} onClick={slotId => () => clickSlot('lineup', slotId)} /></article>
+      </section>
       <aside className="card tactic-squad"><div className="card-heading"><div><h2>Игроки</h2><p>Нажмите на игрока и фишку или перетащите его на поле.</p></div><span className="count-chip">{data.players.length}</span></div>{sortedPlayers.map(player => <button type="button" draggable key={player.playerId} className={selectedPlayerId === player.playerId ? 'active' : ''} onClick={() => setSelectedPlayerId(current => current === player.playerId ? null : player.playerId)} onDragStart={event => event.dataTransfer.setData('playerId', String(player.playerId))}><b>{player.shirtNumber || '—'}</b><span><strong>{player.lastName}</strong><small>{player.firstName} · {player.preferredPosition} · {playerAge(player.dateOfBirth)} лет</small></span></button>)}</aside>
       <aside className="card phase-notes"><div className="card-heading"><div><span className="eyebrow">Тактические акценты</span><h2>Модель игры</h2></div></div>{(Object.keys(phaseCopy) as TacticPhase[]).map(phase => <label key={phase}><strong>{phaseCopy[phase].title}</strong><small>{phaseCopy[phase].hint}</small><textarea value={phaseNotes[phase]} onChange={event => setPhaseNotes(current => ({ ...current, [phase]: event.target.value }))} placeholder="Добавить установку…" /></label>)}</aside>
     </section>}
