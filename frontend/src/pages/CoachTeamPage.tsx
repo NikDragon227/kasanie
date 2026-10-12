@@ -23,16 +23,27 @@ const tabs: { id: Tab; label: string }[] = [{ id: 'overview', label: 'Обзор
 const cycleStages = ['Подготовительный этап', 'Базовый этап', 'Соревновательный этап', 'Восстановительный этап', 'Переходный этап']
 
 export function CoachTeamsPage() {
-  const teams = useApiData<CoachTeam[]>('/api/coach/teams'); const [params, setParams] = useSearchParams(); const [notice, setNotice] = useState<Notice>(null); const [tab, setTab] = useState<Tab>('overview')
+  const teams = useApiData<CoachTeam[]>('/api/coach/teams'); const [params, setParams] = useSearchParams(); const [notice, setNotice] = useState<Notice>(null)
   const activeTeams = useMemo(() => teams.data ?? [], [teams.data]); const selectedId = Number(params.get('team')) || activeTeams[0]?.teamId || 0
+  const requestedTab = params.get('tab')
+  const tab: Tab = tabs.some(item => item.id === requestedTab) ? requestedTab as Tab : 'overview'
   const center = useApiData<CommandCenter>(selectedId ? `/api/coach/teams/${selectedId}/command-center` : null)
-  useEffect(() => { if (!params.get('team') && activeTeams[0]) setParams({ team: String(activeTeams[0].teamId) }, { replace: true }) }, [activeTeams, params, setParams])
+  useEffect(() => {
+    if (!params.get('team') && activeTeams[0]) {
+      const next = new URLSearchParams(params)
+      next.set('team', String(activeTeams[0].teamId))
+      setParams(next, { replace: true })
+    }
+  }, [activeTeams, params, setParams])
+  useEffect(() => {
+    if (params.get('view') === 'planning' && center.data) requestAnimationFrame(() => document.querySelector('.squad-planner')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [center.data, params])
   if (teams.loading) return <PageLoader />
   if (teams.error || !teams.data) return <ErrorState message={teams.error} retry={teams.reload} />
   if (!activeTeams.length) return <><PageHeader eyebrow="Кабинет тренера" title="Мои команды" /><section className="card"><EmptyState title="Составы не назначены">Владелец школы должен назначить вас тренером состава.</EmptyState></section></>
   return <><PageHeader eyebrow="Командный центр тренера" title="Мои команды" actions={<Link className="button" to="/coach/trainings">Журнал тренировок →</Link>} />
-    <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { setParams({ team: e.target.value }); setTab('overview') }}>{activeTeams.map(x => <option value={x.teamId} key={x.teamId}>{x.name}</option>)}</select></label>{center.data && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
-    <nav className="team-subnav coach-command-nav">{tabs.map(x => <button key={x.id} className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.label}</button>)}</nav>
+    <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { const next = new URLSearchParams(params); next.set('team', e.target.value); next.delete('view'); setParams(next) }}>{activeTeams.map(x => <option value={x.teamId} key={x.teamId}>{x.name}</option>)}</select></label>{center.data && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
+    <nav className="team-subnav coach-command-nav">{tabs.map(x => <button key={x.id} className={tab === x.id ? 'active' : ''} onClick={() => { const next = new URLSearchParams(params); next.set('tab', x.id); next.delete('view'); setParams(next) }}>{x.label}</button>)}</nav>
     {notice && <p className={notice.ok ? 'success-message' : 'error-message'}>{notice.text}</p>}
     {center.loading ? <PageLoader /> : center.error || !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} reload={center.reload} setNotice={setNotice} />}
   </>

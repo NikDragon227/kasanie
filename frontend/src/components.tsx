@@ -1,14 +1,32 @@
-import { type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 
 export const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
-const navigation: Record<string, { to: string; label: string; icon: string }[]> = {
+type NavigationItem = { to: string; label: string; icon: string; section?: string }
+
+const navigation: Record<string, NavigationItem[]> = {
   Player: [
     { to: '/player', label: 'Главная', icon: '⌂' }, { to: '/player/assessment', label: 'Тестирование', icon: '◎' },
     { to: '/player/training', label: 'Тренировки', icon: '▶' }, { to: '/player/progress', label: 'Прогресс', icon: '↗' }, { to: '/player/profile', label: 'Профиль', icon: '◉' },
   ],
-  Coach: [{ to: '/coach', label: 'Обзор', icon: '⌂' }, { to: '/coach/teams', label: 'Мои команды', icon: '▦' }, { to: '/coach/trainings', label: 'Журнал', icon: '✓' }, { to: '/coach/players', label: 'Мои игроки', icon: '◉' }, { to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Все команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Все игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки школы', icon: '◇' }],
+  Coach: [
+    { to: '/coach', label: 'Обзор', icon: '⌂', section: 'Команда' },
+    { to: '/coach/teams?tab=chat', label: 'Входящие', icon: '✉' },
+    { to: '/coach/teams?tab=squad', label: 'Состав', icon: '◉' },
+    { to: '/coach/teams?tab=squad&view=planning', label: 'Планировщик состава', icon: '▦' },
+    { to: '/coach/teams?tab=tactics', label: 'Тактика', icon: '◫' },
+    { to: '/coach/players', label: 'Центр развития', icon: '↗' },
+    { to: '/coach/trainings', label: 'Тренировки', icon: '✓', section: 'Процесс' },
+    { to: '/coach/teams?tab=injuries', label: 'Медштаб', icon: '✚' },
+    { to: '/coach/teams?tab=schedule', label: 'Расписание', icon: '▤' },
+    { to: '/coach/teams?tab=tournaments', label: 'Турниры', icon: '♜' },
+    { to: '/school', label: 'Школа', icon: '⌂', section: 'Управление школой' },
+    { to: '/school/teams', label: 'Все команды', icon: '▦' },
+    { to: '/school/coaches', label: 'Персонал', icon: '◆' },
+    { to: '/school/players', label: 'Все игроки', icon: '◉' },
+    { to: '/school/settings', label: 'Настройки школы', icon: '◇' },
+  ],
   Parent: [{ to: '/parent', label: 'Мои дети', icon: '⌂' }],
   SchoolOwner: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
   SchoolAdmin: [{ to: '/school', label: 'Школа', icon: '⌂' }, { to: '/school/teams', label: 'Команды', icon: '▦' }, { to: '/school/coaches', label: 'Тренеры', icon: '◆' }, { to: '/school/players', label: 'Игроки', icon: '◉' }, { to: '/school/settings', label: 'Настройки', icon: '◇' }],
@@ -39,12 +57,22 @@ export function AuthenticatedGuard() {
 export function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const role = primaryRole(user?.roles ?? [])
-  const items = Array.from(new Map((user?.roles.flatMap(x => navigation[x] ?? []) ?? []).map(x => [x.to, x])).values())
+  const items = Array.from(new Map((user?.roles.flatMap(x => navigation[x] ?? []) ?? []).map(x => [x.to, x])).values()) as NavigationItem[]
+  const navigationItems: NavigationItem[] = [...items, { to: '/account/security', label: 'Безопасность', icon: '◇', section: role === 'Coach' ? 'Профиль' : undefined }]
+  const isCurrent = (to: string) => {
+    const [pathname, search = ''] = to.split('?')
+    if (location.pathname !== pathname) return false
+    const expected = new URLSearchParams(search)
+    const current = new URLSearchParams(location.search)
+    if ([...expected].some(([key, value]) => current.get(key) !== value)) return false
+    return [...current.keys()].every(key => key === 'team' || expected.has(key))
+  }
   return <div className="app-shell">
     <aside className="sidebar">
       <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></NavLink>
-      <nav aria-label="Основная навигация">{[...items, { to: '/account/security', label: 'Безопасность', icon: '◇' }].map(item => <NavLink key={item.to} to={item.to} end={item.to === roleHome[role]}><span aria-hidden>{item.icon}</span>{item.label}</NavLink>)}</nav>
+      <nav aria-label="Основная навигация">{navigationItems.map((item, index) => <Fragment key={item.to}>{item.section && (index === 0 || navigationItems[index - 1].section !== item.section) && <span className="sidebar-nav-title">{item.section}</span>}<NavLink to={item.to} className={() => isCurrent(item.to) ? 'active' : ''}><span aria-hidden>{item.icon}</span>{item.label}</NavLink></Fragment>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>
     </aside>
