@@ -1,7 +1,20 @@
 export class ApiError extends Error {
   constructor(public status: number, public body: Record<string, unknown>) {
-    super((body.message ?? body.detail ?? body.title ?? `Ошибка ${status}`) as string)
+    const validationMessage = getValidationMessage(body.errors)
+    super((body.message ?? body.detail ?? validationMessage ?? body.title ?? `Ошибка ${status}`) as string)
   }
+}
+
+function getValidationMessage(errors: unknown): string | undefined {
+  if (!errors || typeof errors !== 'object') return undefined
+
+  for (const messages of Object.values(errors as Record<string, unknown>)) {
+    if (!Array.isArray(messages)) continue
+    const message = messages.find((value): value is string => typeof value === 'string' && value.length > 0)
+    if (message) return message
+  }
+
+  return undefined
 }
 
 let csrfToken: string | null = null
