@@ -47,6 +47,8 @@ public sealed record TeamTrainingGroupRequest(string Name, string? Purpose, List
 public sealed record TeamTacticRequest(string? Formation, string? Notes, string? PlanJson = null, string? SetPiecesJson = null, string? OpponentInstructions = null);
 public sealed record TeamCycleRequest(string Stage, DateOnly? StartsOn, DateOnly? EndsOn);
 public sealed record TeamPlayerManagementRequest(int? ShirtNumber, string TournamentRegistrationStatus, string CurrentSeasonPlan, string NextSeasonPlan, string TwoYearPlan);
+public sealed record TeamShirtNumberAssignment(int PlayerId, int? ShirtNumber);
+public sealed record TeamShirtNumbersRequest(List<TeamShirtNumberAssignment> Assignments);
 public sealed record TeamCaptainRequest(int? PlayerId);
 public sealed record TeamPlayerSquadRoleRequest(string? Role);
 public sealed record TeamTournamentRegistrationSettingsRequest(int? MaxRosterSize, string? Requirements);

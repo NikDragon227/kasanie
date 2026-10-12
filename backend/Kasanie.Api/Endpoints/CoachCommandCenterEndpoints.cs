@@ -69,6 +69,25 @@ public static partial class EndpointMapping
             await SaveCoachAudit(db, principal, "coach_team_player_planned", nameof(TeamPlayer), $"{teamId}:{playerId}"); return Results.NoContent();
         });
 
+        coach.MapPut("/teams/{teamId:int}/shirt-numbers", async (int teamId, TeamShirtNumbersRequest request, ClaimsPrincipal principal, AppDbContext db) =>
+        {
+            if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
+            var members = await db.TeamPlayers.Where(x => x.TeamId == teamId && x.IsActive).ToListAsync();
+            var assignments = request.Assignments.GroupBy(x => x.PlayerId).ToDictionary(x => x.Key, x => x.Last().ShirtNumber);
+            if (assignments.Count != members.Count || members.Any(member => !assignments.ContainsKey(member.PlayerId))) return Results.ValidationProblem(new Dictionary<string, string[]> { ["assignments"] = ["Передайте номера для всех игроков текущего состава."] });
+            var numbers = assignments.Values.Where(number => number.HasValue).Select(number => number!.Value).ToList();
+            if (numbers.Any(number => number is < 1 or > 99)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["shirtNumber"] = ["Номер должен быть от 1 до 99."] });
+            if (numbers.Distinct().Count() != numbers.Count) return Results.ValidationProblem(new Dictionary<string, string[]> { ["shirtNumber"] = ["Один номер нельзя назначить нескольким игрокам."] });
+
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            foreach (var member in members) member.ShirtNumber = null;
+            await db.SaveChangesAsync();
+            foreach (var member in members) member.ShirtNumber = assignments[member.PlayerId];
+            await SaveCoachAudit(db, principal, "coach_team_shirt_numbers_updated", nameof(TeamPlayer), teamId.ToString());
+            await transaction.CommitAsync();
+            return Results.NoContent();
+        });
+
         coach.MapPut("/teams/{teamId:int}/captain", async (int teamId, TeamCaptainRequest request, ClaimsPrincipal principal, AppDbContext db) =>
         {
             if (await AssignedTeam(db, principal, teamId, false) is null) return Results.Forbid();
