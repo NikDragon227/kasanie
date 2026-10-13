@@ -5,7 +5,7 @@ import { useAuth } from './auth'
 export const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 type NavigationItem = { to: string; label: string; icon: string; section?: string }
 
-const coachMenuArtwork: Record<string, { image: string; scale: number }> = {
+const sidebarMenuArtwork: Record<string, { image: string; scale: number }> = {
   '/coach': { image: 'overview', scale: 1.95 },
   '/coach/teams?tab=chat': { image: 'inbox', scale: 1.48 },
   '/coach/teams?tab=squad': { image: 'squad', scale: 1.32 },
@@ -16,10 +16,16 @@ const coachMenuArtwork: Record<string, { image: string; scale: number }> = {
   '/coach/teams?tab=injuries': { image: 'medical', scale: 1.73 },
   '/coach/teams?tab=schedule': { image: 'schedule', scale: 1.64 },
   '/coach/teams?tab=tournaments': { image: 'tournaments', scale: 1.79 },
+  '/school': { image: 'school', scale: 1.46 },
+  '/school/teams': { image: 'school-teams', scale: 1.25 },
+  '/school/coaches': { image: 'staff', scale: 1.5 },
+  '/school/players': { image: 'school-players', scale: 1.3 },
+  '/school/settings': { image: 'school-settings', scale: 1.32 },
+  '/account/security': { image: 'security', scale: 1.6 },
 }
 
 function NavigationIcon({ item }: { item: NavigationItem }) {
-  const artwork = coachMenuArtwork[item.to]
+  const artwork = sidebarMenuArtwork[item.to]
   if (!artwork) return <span aria-hidden>{item.icon}</span>
   return <span className="sidebar-menu-icon" aria-hidden="true" style={{ '--menu-icon-scale': artwork.scale } as CSSProperties}><img src={`/brand/navigation/${artwork.image}.webp`} alt="" width="26" height="26" decoding="async" /></span>
 }

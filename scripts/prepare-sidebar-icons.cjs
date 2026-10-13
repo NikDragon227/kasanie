@@ -14,6 +14,12 @@ const sources = [
   ['medical', '17_28_24-8'],
   ['schedule', '17_28_26-9'],
   ['tournaments', '17_28_27-10'],
+  ['school', '17_50_07-1'],
+  ['school-teams', '17_50_09-2'],
+  ['staff', '17_50_10-3'],
+  ['school-players', '17_50_12-4'],
+  ['school-settings', '17_50_14-5'],
+  ['security', '17_50_16-6'],
 ]
 
 async function main() {
@@ -24,6 +30,14 @@ async function main() {
   for (const [name, suffix] of sources) {
     const source = path.join(sourceDirectory, `Изображение ChatGPT 13 окт. 2026 г., ${suffix}.png`)
     const output = path.join(outputDirectory, `${name}.webp`)
+    try {
+      await fs.access(source)
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+      // Previously exported icons can remain even after their source files are moved.
+      await fs.access(output)
+      continue
+    }
     await sharp(source).resize(192, 192, { fit: 'contain' }).webp({ quality: 90 }).toFile(output)
     console.log(`${name}.webp`)
   }
