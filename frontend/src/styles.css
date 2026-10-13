@@ -851,7 +851,13 @@ small { color: var(--muted); }
 .hierarchy-list small { color: var(--muted); }
 .collective-layout textarea, .analytics-layout textarea { min-height: 190px; }
 .tactics-command { display: grid; grid-template-columns: minmax(480px, 600px) minmax(330px, 400px); align-items: start; gap: clamp(1rem, 1.8vw, 1.75rem); width: min(100%, 1060px); margin-inline: auto; }.tactics-command > .tactical-board { grid-column: 1; grid-row: 1 / span 2; }.tactics-command > .tactic-squad { grid-column: 2; }
-.tactical-board { display: grid; gap: .6rem; min-width: 0; }.tactical-pitch { position: relative; width: min(100%, clamp(347px, 48vh, 507px)); min-height: 0; margin-inline: auto; aspect-ratio: 2 / 3; overflow: hidden; border-color: #2c6b58; background-color: #1d741c; background-position: center; background-size: cover; background-repeat: no-repeat; }.tactical-pitch.format-11v11 { background-image: url('/brand/tactics/pitch-11v11.png?v=2') !important; }.tactical-pitch.format-9v9 { background-image: url('/brand/tactics/pitch-9v9.png?v=2') !important; }.tactical-pitch.format-8v8 { background-image: url('/brand/tactics/pitch-8v8.png?v=2') !important; }
+.tactical-board { display: grid; gap: .6rem; min-width: 0; }
+.tactical-pitch { position: relative; width: min(100%, clamp(347px, 48vh, 507px)); min-height: 0; margin-inline: auto; aspect-ratio: 3 / 4; overflow: hidden; border-color: #2c6b58; }
+.tactical-pitch.format-11v11 { --pitch-image: url('/brand/tactics/pitch-11v11.png?v=2'); }
+.tactical-pitch.format-9v9 { --pitch-image: url('/brand/tactics/pitch-9v9.png?v=2'); }
+.tactical-pitch.format-8v8 { --pitch-image: url('/brand/tactics/pitch-8v8.png?v=2'); }
+/* The app's card theme uses a background shorthand, so keep all pitch background properties together. */
+.tactical-pitch, .app-shell .tactical-pitch { background: #f7f7f7 var(--pitch-image, url('/brand/tactics/pitch-11v11.png?v=2')) center / contain no-repeat !important; }
 .tactical-pitch::before { content: ''; position: absolute; z-index: 0; inset: 4%; border: 2px solid #c7dbc69c; background: linear-gradient(0deg, transparent 49.8%, #c7dbc69c 50%, transparent 50.2%); }
 .tactical-pitch::after { content: ''; position: absolute; z-index: 0; left: 40%; top: 40%; width: 20%; aspect-ratio: 1; border: 2px solid #c7dbc69c; border-radius: 50%; }
 .tactical-pitch::before, .tactical-pitch::after, .pitch-goal { display: none; }.pitch-goal { position: absolute; z-index: 1; left: 31%; width: 38%; height: 12%; border: 2px solid #c7dbc69c; pointer-events: none; }.pitch-goal::after { content: ''; position: absolute; left: 22%; width: 56%; height: 34%; border: 2px solid #c7dbc69c; }.pitch-goal-top { top: 4%; border-top: 0; }.pitch-goal-top::after { top: 0; border-top: 0; }.pitch-goal-bottom { bottom: 4%; border-bottom: 0; }.pitch-goal-bottom::after { bottom: 0; border-bottom: 0; }
@@ -2493,6 +2499,6 @@ input, select, textarea, button { max-width: 100%; }
   .performer-table-head, .performer-candidate { grid-template-columns: 68px minmax(0, 1fr) 58px; gap: .35rem; }.performer-candidate strong { font-size: .7rem; }
 }
 
-/* Full 11×11 pitch: keep the board compact while preserving its 2:3 proportions. */
+/* Keep each pitch compact while preserving the supplied boards' 3:4 proportions. */
 .tactical-pitch.set-piece-pitch { width: min(100%, clamp(347px, 48vh, 507px)); }
 @media (max-width: 1180px) { .tactical-pitch { width: min(100%, clamp(347px, 48vh, 507px)); } }
