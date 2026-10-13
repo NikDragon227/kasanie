@@ -850,15 +850,15 @@ small { color: var(--muted); }
 .hierarchy-list div > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #153936; color: white; font-weight: 800; }
 .hierarchy-list small { color: var(--muted); }
 .collective-layout textarea, .analytics-layout textarea { min-height: 190px; }
-.tactics-command { display: grid; grid-template-columns: minmax(0, 650px) minmax(300px, 390px); align-items: start; gap: 1rem; width: min(100%, 1056px); margin-inline: 0 auto; }.tactics-command > .tactical-board { grid-column: 1; grid-row: 1 / span 2; }.tactics-command > .tactic-squad { grid-column: 2; }
-.tactical-board { display: grid; gap: .6rem; }.tactical-pitch { position: relative; width: min(100%, 650px); min-height: 0; margin-inline: auto; aspect-ratio: 4 / 5; overflow: hidden; border-color: #2c6b58; background-color: #117b49 !important; background-image: repeating-linear-gradient(to bottom, #138950 0, #138950 12.5%, #0d7544 12.5%, #0d7544 25%) !important; }
+.tactics-command { display: grid; grid-template-columns: minmax(560px, 1.55fr) minmax(330px, .65fr); align-items: start; gap: clamp(1rem, 1.8vw, 1.75rem); width: min(100%, 1500px); margin-inline: auto; }.tactics-command > .tactical-board { grid-column: 1; grid-row: 1 / span 2; }.tactics-command > .tactic-squad { grid-column: 2; }
+.tactical-board { display: grid; gap: .6rem; min-width: 0; }.tactical-pitch { position: relative; width: min(100%, 860px); min-height: 0; margin-inline: auto; aspect-ratio: 4 / 5; overflow: hidden; border-color: #2c6b58; background-color: #117b49 !important; background-image: repeating-linear-gradient(to bottom, #138950 0, #138950 12.5%, #0d7544 12.5%, #0d7544 25%) !important; }
 .tactical-pitch::before { content: ''; position: absolute; z-index: 0; inset: 4%; border: 2px solid #c7dbc69c; background: linear-gradient(0deg, transparent 49.8%, #c7dbc69c 50%, transparent 50.2%); }
 .tactical-pitch::after { content: ''; position: absolute; z-index: 0; left: 40%; top: 40%; width: 20%; aspect-ratio: 1; border: 2px solid #c7dbc69c; border-radius: 50%; }
 .pitch-goal { position: absolute; z-index: 1; left: 31%; width: 38%; height: 12%; border: 2px solid #c7dbc69c; pointer-events: none; }.pitch-goal::after { content: ''; position: absolute; left: 22%; width: 56%; height: 34%; border: 2px solid #c7dbc69c; }.pitch-goal-top { top: 4%; border-top: 0; }.pitch-goal-top::after { top: 0; border-top: 0; }.pitch-goal-bottom { bottom: 4%; border-bottom: 0; }.pitch-goal-bottom::after { bottom: 0; border-bottom: 0; }
 .tactical-pitch button { position: absolute; z-index: 2; width: 96px; min-height: 55px; translate: -50% -50%; border: 2px solid #d4f4e5; border-radius: 12px; background: #102b2aeb; color: white; box-shadow: 0 8px 18px #001c; cursor: pointer; }
 .tactical-pitch button small { display: block; color: #8ce2c1; }
 .tactical-pitch button strong { font-size: .66rem; }
-.tactic-squad { align-self: start; max-height: 700px; overflow: auto; }
+.tactic-squad { align-self: start; width: 100%; max-height: min(700px, calc(100vh - 250px)); overflow: auto; }
 .tactic-squad > .legacy-player { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: .55rem; padding: .55rem; border-top: 1px solid var(--line); cursor: grab; }
 .tactic-squad > .legacy-player b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent); }
 .tactic-squad > .legacy-player span { display: grid; }
