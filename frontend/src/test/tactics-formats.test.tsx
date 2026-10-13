@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest'
 import { TacticsWorkspace } from '../pages/TacticsWorkspace'
 
 describe('team tactics formats', () => {
+  it.each(['11v11', '9v9', '8v8', '7v7', '5v5'])('shows only assigned shirt numbers on every %s board', matchFormat => {
+    const players = [
+      { playerId: 1, firstName: 'Миша', lastName: 'Волков', dateOfBirth: '2014-01-01', preferredPosition: 'Нападающий', dominantFoot: 'Правая', shirtNumber: 9, isCaptain: false },
+      { playerId: 2, firstName: 'Артём', lastName: 'Соколов', dateOfBirth: '2010-01-01', preferredPosition: 'Нападающий', dominantFoot: 'Правая', isCaptain: false }
+    ]
+    const { container } = render(<TacticsWorkspace data={{ team: { matchFormat }, players }} save={vi.fn()} />)
+    for (const section of ['Расстановка', 'Угловые', 'Штрафные', 'Ауты']) {
+      if (section === 'Угловые') fireEvent.click(screen.getByRole('button', { name: 'Стандарты' }))
+      if (section !== 'Расстановка') fireEvent.click(screen.getByRole('button', { name: section }))
+      const tokens = container.querySelectorAll<HTMLButtonElement>('.tactical-pitch button')
+      expect(Array.from(tokens, token => token.textContent)).toEqual(Array(tokens.length).fill('＋'))
+      fireEvent.drop(tokens[0], { dataTransfer: { getData: () => '1' } })
+      expect(tokens[0]).toHaveTextContent(/^9$/)
+      expect(tokens[0]).toHaveAccessibleName('Миша Волков, номер 9')
+      expect(tokens[0].querySelector('small')).toBeNull()
+      fireEvent.drop(tokens[0], { dataTransfer: { getData: () => '2' } })
+      expect(tokens[0]).toHaveTextContent(/^—$/)
+    }
+  })
+
   it.each([['11v11', 11], ['9v9', 9], ['8v8', 8], ['7v7', 7], ['5v5', 5]] as const)('uses %s for every available formation', (matchFormat, count) => {
     const { container } = render(<TacticsWorkspace data={{ team: { matchFormat }, players: [] }} save={vi.fn()} />)
     const select = screen.getByLabelText('Схема') as HTMLSelectElement
@@ -34,7 +54,7 @@ describe('team tactics formats', () => {
     for (const section of ['Угловые', 'Штрафные', 'Ауты']) {
       fireEvent.click(screen.getByRole('button', { name: section }))
       expect(container.querySelectorAll('.tactical-pitch.format-5v5 button')).toHaveLength(5)
-      expect(screen.getByRole('button', { name: /^ВР\s*＋$/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Назначить игрока: ВР' })).toBeInTheDocument()
     }
   })
 })
