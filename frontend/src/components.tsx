@@ -1,9 +1,28 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './auth'
 
 export const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 type NavigationItem = { to: string; label: string; icon: string; section?: string }
+
+const coachMenuArtwork: Record<string, { image: string; scale: number }> = {
+  '/coach': { image: 'overview', scale: 1.95 },
+  '/coach/teams?tab=chat': { image: 'inbox', scale: 1.48 },
+  '/coach/teams?tab=squad': { image: 'squad', scale: 1.32 },
+  '/coach/teams?tab=squad&view=planning': { image: 'planning', scale: 1.61 },
+  '/coach/teams?tab=tactics': { image: 'tactics', scale: 1.5 },
+  '/coach/players': { image: 'development', scale: 1.87 },
+  '/coach/trainings': { image: 'training', scale: 1.48 },
+  '/coach/teams?tab=injuries': { image: 'medical', scale: 1.73 },
+  '/coach/teams?tab=schedule': { image: 'schedule', scale: 1.64 },
+  '/coach/teams?tab=tournaments': { image: 'tournaments', scale: 1.79 },
+}
+
+function NavigationIcon({ item }: { item: NavigationItem }) {
+  const artwork = coachMenuArtwork[item.to]
+  if (!artwork) return <span aria-hidden>{item.icon}</span>
+  return <span className="sidebar-menu-icon" aria-hidden="true" style={{ '--menu-icon-scale': artwork.scale } as CSSProperties}><img src={`/brand/navigation/${artwork.image}.webp`} alt="" width="26" height="26" decoding="async" /></span>
+}
 
 const navigation: Record<string, NavigationItem[]> = {
   Player: [
@@ -72,7 +91,7 @@ export function AppShell() {
   return <div className="app-shell">
     <aside className="sidebar">
       <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></NavLink>
-      <nav aria-label="Основная навигация">{navigationItems.map((item, index) => <Fragment key={item.to}>{item.section && (index === 0 || navigationItems[index - 1].section !== item.section) && <span className="sidebar-nav-title">{item.section}</span>}<NavLink to={item.to} className={() => isCurrent(item.to) ? 'active' : ''}><span aria-hidden>{item.icon}</span>{item.label}</NavLink></Fragment>)}</nav>
+      <nav aria-label="Основная навигация">{navigationItems.map((item, index) => <Fragment key={item.to}>{item.section && (index === 0 || navigationItems[index - 1].section !== item.section) && <span className="sidebar-nav-title">{item.section}</span>}<NavLink to={item.to} className={() => isCurrent(item.to) ? 'active' : ''}><NavigationIcon item={item} />{item.label}</NavLink></Fragment>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>
     </aside>
