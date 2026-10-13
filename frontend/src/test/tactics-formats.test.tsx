@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { TacticsWorkspace } from '../pages/TacticsWorkspace'
 
 describe('team tactics formats', () => {
-  it.each([['11v11', 11], ['9v9', 9], ['8v8', 8], ['7v7', 7]] as const)('uses %s for every available formation', (matchFormat, count) => {
+  it.each([['11v11', 11], ['9v9', 9], ['8v8', 8], ['7v7', 7], ['5v5', 5]] as const)('uses %s for every available formation', (matchFormat, count) => {
     const { container } = render(<TacticsWorkspace data={{ team: { matchFormat }, players: [] }} save={vi.fn()} />)
     const select = screen.getByLabelText('Схема') as HTMLSelectElement
     for (const option of Array.from(select.options)) {
@@ -11,7 +11,8 @@ describe('team tactics formats', () => {
       expect(container.querySelector(`.tactical-pitch.format-${matchFormat}`)).not.toBeNull()
       expect(container.querySelectorAll('.tactical-pitch button')).toHaveLength(count)
     }
-    expect(screen.getByText(`Стартовый состав · ${matchFormat.replace('v', ' × ')}`)).toBeInTheDocument()
+    const label = matchFormat === '5v5' ? 'Футзал · 5 × 5' : matchFormat.replace('v', ' × ')
+    expect(screen.getByText(`Стартовый состав · ${label}`)).toBeInTheDocument()
   })
 
   it('replaces an incompatible saved formation with a seven-player formation', () => {
@@ -25,5 +26,15 @@ describe('team tactics formats', () => {
     const { container } = render(<TacticsWorkspace data={{ team: { matchFormat: '7v7', tacticPlanJson: JSON.stringify({ formation: 'Своя схема', customSlots }) }, players: [] }} save={vi.fn()} />)
     expect(screen.getByLabelText('Схема')).toHaveValue('Своя схема')
     expect(container.querySelectorAll('.tactical-pitch button')).toHaveLength(7)
+  })
+
+  it('uses five players including a goalkeeper on every futsal set-piece board', () => {
+    const { container } = render(<TacticsWorkspace data={{ team: { matchFormat: '5v5' }, players: [] }} save={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Стандарты' }))
+    for (const section of ['Угловые', 'Штрафные', 'Ауты']) {
+      fireEvent.click(screen.getByRole('button', { name: section }))
+      expect(container.querySelectorAll('.tactical-pitch.format-5v5 button')).toHaveLength(5)
+      expect(screen.getByRole('button', { name: /^ВР\s*＋$/ })).toBeInTheDocument()
+    }
   })
 })

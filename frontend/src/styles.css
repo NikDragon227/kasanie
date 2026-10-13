@@ -855,6 +855,7 @@ small { color: var(--muted); }
 .tactical-pitch { position: relative; width: min(100%, clamp(347px, 48vh, 507px)); min-height: 0; margin-inline: auto; aspect-ratio: 3 / 4; overflow: hidden; border-color: #2c6b58; }
 .tactical-pitch.format-11v11 { --pitch-image: url('/brand/tactics/pitch-11v11.png?v=3'); }
 .tactical-pitch.format-9v9, .tactical-pitch.format-8v8, .tactical-pitch.format-7v7 { --pitch-image: url('/brand/tactics/pitch-9v9.png?v=3'); aspect-ratio: 1413 / 2157; }
+.tactical-pitch.format-5v5 { --pitch-image: url('/brand/tactics/pitch-5v5.png'); aspect-ratio: 941 / 1672; }
 /* The app's card theme uses a background shorthand, so keep all pitch background properties together. */
 .tactical-pitch, .app-shell .tactical-pitch { background: #f7f7f7 var(--pitch-image, url('/brand/tactics/pitch-11v11.png?v=3')) center / contain no-repeat !important; }
 .tactical-pitch::before { content: ''; position: absolute; z-index: 0; inset: 4%; border: 2px solid #c7dbc69c; background: linear-gradient(0deg, transparent 49.8%, #c7dbc69c 50%, transparent 50.2%); }

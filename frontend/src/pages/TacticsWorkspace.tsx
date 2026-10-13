@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 type Player = { playerId: number; firstName: string; lastName: string; dateOfBirth: string; preferredPosition: string; dominantFoot: string; coachNote?: string; shirtNumber?: number; isCaptain: boolean }
-type MatchFormat = '11v11' | '9v9' | '8v8' | '7v7'
+type MatchFormat = '11v11' | '9v9' | '8v8' | '7v7' | '5v5'
 type Team = { matchFormat?: string; tacticFormation?: string; tacticNotes?: string; tacticPlanJson?: string; setPiecesJson?: string; opponentInstructions?: string }
 type Props = { data: { team: Team; players: Player[] }; save: (value: unknown) => void }
 type Slot = { id: string; x: number; y: number; label: string }
@@ -36,13 +36,18 @@ const formationsByFormat: Record<MatchFormat, Record<string, Slot[]>> = {
     '3-2-2': [slot('gk', 50, 89, 'ВР'), slot('lb', 20, 70, 'ЛЗ'), slot('cb', 50, 74, 'ЦЗ'), slot('rb', 80, 70, 'ПЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st1', 36, 19, 'НП'), slot('st2', 64, 19, 'НП')]
   },
   '7v7': {
-  '2-3-1': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('lm', 20, 49, 'ЛП'), slot('cm', 50, 54, 'ЦП'), slot('rm', 80, 49, 'ПП'), slot('st', 50, 18, 'НП')],
+    '2-3-1': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('lm', 20, 49, 'ЛП'), slot('cm', 50, 54, 'ЦП'), slot('rm', 80, 49, 'ПП'), slot('st', 50, 18, 'НП')],
     '3-2-1': [slot('gk', 50, 89, 'ВР'), slot('lb', 20, 70, 'ЛЗ'), slot('cb', 50, 74, 'ЦЗ'), slot('rb', 80, 70, 'ПЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st', 50, 18, 'НП')],
     '2-2-2': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st1', 36, 19, 'НП'), slot('st2', 64, 19, 'НП')]
+  },
+  '5v5': {
+    '1-2-1': [slot('gk', 50, 90, 'ВР'), slot('fixo', 50, 69, 'Фиксо'), slot('alaLeft', 23, 47, 'Л. ала'), slot('alaRight', 77, 47, 'П. ала'), slot('pivot', 50, 23, 'Пивот')],
+    '2-2': [slot('gk', 50, 90, 'ВР'), slot('backLeft', 30, 67, 'ЛЗ'), slot('backRight', 70, 67, 'ПЗ'), slot('frontLeft', 30, 29, 'ЛН'), slot('frontRight', 70, 29, 'ПН')],
+    '3-1': [slot('gk', 50, 90, 'ВР'), slot('fixo', 50, 69, 'Фиксо'), slot('alaLeft', 23, 57, 'Л. ала'), slot('alaRight', 77, 57, 'П. ала'), slot('pivot', 50, 23, 'Пивот')]
   }
-  }
-  const normalizeMatchFormat = (format?: string): MatchFormat => format === '9v9' || format === '8v8' || format === '7v7' ? format : '11v11'
-const formatLabel = (format: MatchFormat) => format.replace('v', ' × ')
+}
+const normalizeMatchFormat = (format?: string): MatchFormat => format === '9v9' || format === '8v8' || format === '7v7' || format === '5v5' ? format : '11v11'
+const formatLabel = (format: MatchFormat) => format === '5v5' ? 'Футзал · 5 × 5' : format.replace('v', ' × ')
 
 const cornerSlots: Record<'attack' | 'defence', Slot[]> = {
   attack: [slot('taker', 8, 8, 'Подающий'), slot('near', 32, 14, 'Ближняя'), slot('far', 68, 15, 'Дальняя'), slot('penalty', 50, 24, '11 м'), slot('edge', 50, 39, 'Подбор'), slot('leftCover', 20, 48, 'Страховка'), slot('rightCover', 80, 48, 'Страховка'), slot('mid1', 36, 63, 'Баланс'), slot('mid2', 64, 63, 'Баланс'), slot('back', 50, 76, 'Назад'), slot('gk', 50, 90, 'ВР')],
@@ -160,9 +165,15 @@ export function TacticsWorkspace({ data, save }: Props) {
     return Object.fromEntries(Object.entries(setPieceDefaults).map(([key, defaults]) => {
       const saved = savedPlans[key] && typeof savedPlans[key] === 'object' && !Array.isArray(savedPlans[key]) ? savedPlans[key] as Record<string, unknown> : {}
       const legacyMode = key === 'cornerAttack' ? 'attack' : key === 'cornerDefence' ? 'defence' : undefined
-      const slots = asSlots(saved.slots)
+      const savedSlots = asSlots(saved.slots)
       const legacySlots = legacyMode ? asSlots(legacyLayouts[legacyMode]) : []
-      return [key, { slots: slots.length ? slots : legacySlots.length ? legacySlots : defaults.map(slot => ({ ...slot })), lineup: Object.keys(asLineup(saved.lineup)).length ? asLineup(saved.lineup) : legacyMode ? asLineup(legacyCorners[legacyMode]) : {}, arrows: asDrawingArrows(saved.arrows), notes: asNotes(saved.notes) }]
+      let slots = (savedSlots.length ? savedSlots : legacySlots.length ? legacySlots : defaults).map(position => ({ ...position }))
+      if (matchFormat === '5v5') {
+        const goalkeeper = slots.find(position => position.id === 'gk') ?? slot('gk', 50, 90, 'ВР')
+        slots = [...slots.filter(position => position.id !== 'gk').slice(0, 4), goalkeeper].map(position => ({ ...position, label: position.label === '11 м' ? '6 м' : position.label }))
+      }
+      const savedLineup = Object.keys(asLineup(saved.lineup)).length ? asLineup(saved.lineup) : legacyMode ? asLineup(legacyCorners[legacyMode]) : {}
+      return [key, { slots, lineup: Object.fromEntries(Object.entries(savedLineup).filter(([slotId]) => slots.some(position => position.id === slotId))), arrows: asDrawingArrows(saved.arrows), notes: asNotes(saved.notes) }]
     })) as SetPiecePlans
   })
   const [activeTab, setActiveTab] = useState<'lineup' | 'standards' | 'captain' | 'match'>('lineup')

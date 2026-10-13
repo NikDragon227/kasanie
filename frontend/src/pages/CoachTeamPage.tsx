@@ -21,7 +21,7 @@ type Notice = { text: string; ok: boolean } | null
 type Tab = 'overview' | 'chat' | 'squad' | 'collective' | 'tactics' | 'analytics' | 'training' | 'injuries' | 'schedule' | 'tournaments'
 const tabs: { id: Tab; label: string }[] = [{ id: 'overview', label: 'Обзор' }, { id: 'chat', label: 'Общение' }, { id: 'squad', label: 'Состав' }, { id: 'collective', label: 'Коллектив' }, { id: 'tactics', label: 'Тактика' }, { id: 'analytics', label: 'Аналитика' }, { id: 'training', label: 'Тренировки' }, { id: 'injuries', label: 'Травмы' }, { id: 'schedule', label: 'Расписание' }, { id: 'tournaments', label: 'Турниры' }]
 const cycleStages = ['Подготовительный этап', 'Базовый этап', 'Соревновательный этап', 'Восстановительный этап', 'Переходный этап']
-const formatLabel = (format?: string) => ['9v9', '8v8', '7v7'].includes(format ?? '') ? format!.replace('v', ' × ') : '11 × 11'
+const formatLabel = (format?: string) => format === '5v5' ? 'Футзал · 5 × 5' : ['9v9', '8v8', '7v7'].includes(format ?? '') ? format!.replace('v', ' × ') : '11 × 11'
 
 export function CoachTeamsPage() {
   const teams = useApiData<CoachTeam[]>('/api/coach/teams'); const [params, setParams] = useSearchParams(); const [notice, setNotice] = useState<Notice>(null)
