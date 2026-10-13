@@ -1235,7 +1235,7 @@ public sealed class AuthorizationIntegrationTests
         var request = new
         {
             sportId = 1, venueId = 1, eventType = 0, gameFormat = "5×5", title = "Футбол вечером в Туле", description = "Открытая игра",
-            startAt = DateTimeOffset.UtcNow.AddDays(5), endAt = DateTimeOffset.UtcNow.AddDays(5).AddHours(2), capacity = 8,
+            startAt = DateTimeOffset.UtcNow.AddDays(5), endAt = DateTimeOffset.UtcNow.AddDays(5).AddHours(2), capacity = 10,
             waitlistCapacity = 2, price = 0, skillLevel = "Любой", minimumAge = 18, maximumAge = (int?)null,
             equipmentRequirements = (string?)null, rules = (string?)null, cancellationPolicy = (string?)null,
             registrationDeadline = (DateTimeOffset?)null, isRecurring = false, recurrenceRule = (string?)null,
