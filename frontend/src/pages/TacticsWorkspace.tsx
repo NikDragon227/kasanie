@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 type Player = { playerId: number; firstName: string; lastName: string; dateOfBirth: string; preferredPosition: string; dominantFoot: string; coachNote?: string; shirtNumber?: number; isCaptain: boolean }
-type MatchFormat = '11v11' | '9v9' | '8v8'
+type MatchFormat = '11v11' | '9v9' | '8v8' | '7v7'
 type Team = { matchFormat?: string; tacticFormation?: string; tacticNotes?: string; tacticPlanJson?: string; setPiecesJson?: string; opponentInstructions?: string }
 type Props = { data: { team: Team; players: Player[] }; save: (value: unknown) => void }
 type Slot = { id: string; x: number; y: number; label: string }
@@ -34,10 +34,15 @@ const formationsByFormat: Record<MatchFormat, Record<string, Slot[]>> = {
     '3-3-1': [slot('gk', 50, 89, 'ВР'), slot('lb', 20, 70, 'ЛЗ'), slot('cb', 50, 74, 'ЦЗ'), slot('rb', 80, 70, 'ПЗ'), slot('lm', 20, 49, 'ЛП'), slot('cm', 50, 53, 'ЦП'), slot('rm', 80, 49, 'ПП'), slot('st', 50, 18, 'НП')],
     '2-3-2': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('lm', 20, 49, 'ЛП'), slot('cm', 50, 54, 'ЦП'), slot('rm', 80, 49, 'ПП'), slot('st1', 36, 19, 'НП'), slot('st2', 64, 19, 'НП')],
     '3-2-2': [slot('gk', 50, 89, 'ВР'), slot('lb', 20, 70, 'ЛЗ'), slot('cb', 50, 74, 'ЦЗ'), slot('rb', 80, 70, 'ПЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st1', 36, 19, 'НП'), slot('st2', 64, 19, 'НП')]
+  },
+  '7v7': {
+  '2-3-1': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('lm', 20, 49, 'ЛП'), slot('cm', 50, 54, 'ЦП'), slot('rm', 80, 49, 'ПП'), slot('st', 50, 18, 'НП')],
+    '3-2-1': [slot('gk', 50, 89, 'ВР'), slot('lb', 20, 70, 'ЛЗ'), slot('cb', 50, 74, 'ЦЗ'), slot('rb', 80, 70, 'ПЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st', 50, 18, 'НП')],
+    '2-2-2': [slot('gk', 50, 89, 'ВР'), slot('cb1', 35, 72, 'ЦЗ'), slot('cb2', 65, 72, 'ЦЗ'), slot('cm1', 36, 51, 'ЦП'), slot('cm2', 64, 51, 'ЦП'), slot('st1', 36, 19, 'НП'), slot('st2', 64, 19, 'НП')]
   }
-}
-const normalizeMatchFormat = (format?: string): MatchFormat => format === '9v9' || format === '8v8' ? format : '11v11'
-const formatLabel = (format: MatchFormat) => format === '9v9' ? '9 × 9' : format === '8v8' ? '8 × 8' : '11 × 11'
+  }
+  const normalizeMatchFormat = (format?: string): MatchFormat => format === '9v9' || format === '8v8' || format === '7v7' ? format : '11v11'
+const formatLabel = (format: MatchFormat) => format.replace('v', ' × ')
 
 const cornerSlots: Record<'attack' | 'defence', Slot[]> = {
   attack: [slot('taker', 8, 8, 'Подающий'), slot('near', 32, 14, 'Ближняя'), slot('far', 68, 15, 'Дальняя'), slot('penalty', 50, 24, '11 м'), slot('edge', 50, 39, 'Подбор'), slot('leftCover', 20, 48, 'Страховка'), slot('rightCover', 80, 48, 'Страховка'), slot('mid1', 36, 63, 'Баланс'), slot('mid2', 64, 63, 'Баланс'), slot('back', 50, 76, 'Назад'), slot('gk', 50, 90, 'ВР')],
@@ -129,7 +134,7 @@ export function TacticsWorkspace({ data, save }: Props) {
   const [lineup, setLineup] = useState<Lineup>(() => asLineup(storedPlan.lineup ?? initialPlan))
   const [customSlots, setCustomSlots] = useState<Slot[]>(() => {
     const saved = asSlots(storedPlan.customSlots)
-    return saved.length || storedPlan.formation !== CUSTOM_FORMATION ? saved : availableFormations[fallbackFormation].map(position => ({ ...position }))
+    return saved.length === Number(matchFormat.split('v')[0]) ? saved : availableFormations[fallbackFormation].map(position => ({ ...position }))
   })
   const [roles, setRoles] = useState<RoleAssignments>(() => {
     const saved = asRoleAssignments(storedSetPieces.roles ?? initialSetPieces)

@@ -380,5 +380,5 @@ public static partial class EndpointMapping
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string NormalizeMatchFormat(string? value) => value is "9v9" or "8v8" ? value : "11v11";
+    private static string NormalizeMatchFormat(string? value) => value is "9v9" or "8v8" or "7v7" ? value : "11v11";
 }

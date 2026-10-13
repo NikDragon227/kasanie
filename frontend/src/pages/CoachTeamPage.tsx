@@ -21,7 +21,7 @@ type Notice = { text: string; ok: boolean } | null
 type Tab = 'overview' | 'chat' | 'squad' | 'collective' | 'tactics' | 'analytics' | 'training' | 'injuries' | 'schedule' | 'tournaments'
 const tabs: { id: Tab; label: string }[] = [{ id: 'overview', label: 'Обзор' }, { id: 'chat', label: 'Общение' }, { id: 'squad', label: 'Состав' }, { id: 'collective', label: 'Коллектив' }, { id: 'tactics', label: 'Тактика' }, { id: 'analytics', label: 'Аналитика' }, { id: 'training', label: 'Тренировки' }, { id: 'injuries', label: 'Травмы' }, { id: 'schedule', label: 'Расписание' }, { id: 'tournaments', label: 'Турниры' }]
 const cycleStages = ['Подготовительный этап', 'Базовый этап', 'Соревновательный этап', 'Восстановительный этап', 'Переходный этап']
-const formatLabel = (format?: string) => format === '9v9' ? '9 × 9' : format === '8v8' ? '8 × 8' : '11 × 11'
+const formatLabel = (format?: string) => ['9v9', '8v8', '7v7'].includes(format ?? '') ? format!.replace('v', ' × ') : '11 × 11'
 
 export function CoachTeamsPage() {
   const teams = useApiData<CoachTeam[]>('/api/coach/teams'); const [params, setParams] = useSearchParams(); const [notice, setNotice] = useState<Notice>(null)
@@ -52,7 +52,7 @@ function CoachCommandCenter({ data, tab, plannerMode, reload, setNotice }: { dat
   if (tab === 'chat') return <Inbox data={data} send={(channel, text) => run(() => post(`/api/coach/teams/${data.team.id}/messages`, { channel, text }), 'Сообщение отправлено.')} />
   if (tab === 'squad') return plannerMode ? <SquadPlanner data={data} setRole={(player, role) => run(() => put(`/api/coach/teams/${data.team.id}/players/${player.playerId}/squad-role`, { role }), 'Роль игрока сохранена.')} /> : <Squad data={data} run={run} />
   if (tab === 'collective') return <Collective data={data} save={codeOfConduct => run(() => put(`/api/coach/teams/${data.team.id}/collective`, { codeOfConduct }), 'Кодекс команды сохранён.')} />
-  if (tab === 'tactics') return <TacticsWorkspace key={data.team.id} data={data} save={value => run(() => put(`/api/coach/teams/${data.team.id}/tactics`, value), 'Тактический план сохранён и доступен владельцу школы.')} />
+  if (tab === 'tactics') return <TacticsWorkspace key={`${data.team.id}-${data.team.matchFormat}`} data={data} save={value => run(() => put(`/api/coach/teams/${data.team.id}/tactics`, value), 'Тактический план сохранён и доступен владельцу школы.')} />
   if (tab === 'analytics') return <Analytics data={data} save={(sourceUrl, notes) => run(() => put(`/api/coach/teams/${data.team.id}/opponent-report`, { sourceUrl, notes }), 'Отчёт о сопернике сохранён.')} />
   if (tab === 'training') return <Training data={data} save={value => run(() => put(`/api/coach/teams/${data.team.id}/cycle`, value), 'Тренировочный цикл обновлён.')} />
   if (tab === 'injuries') return <Injuries data={data} add={value => run(() => post(`/api/coach/teams/${data.team.id}/injuries`, value), 'Запись о травме добавлена.')} />
