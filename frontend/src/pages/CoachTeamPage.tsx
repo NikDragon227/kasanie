@@ -41,7 +41,7 @@ export function CoachTeamsPage() {
   return <><PageHeader title="Кабинет тренера" actions={<Link className="button" to="/coach/trainings">Журнал тренировок →</Link>} />
     <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { const next = new URLSearchParams(params); next.set('team', e.target.value); next.delete('view'); setParams(next) }}>{activeTeams.map(x => <option value={x.teamId} key={x.teamId}>{x.name}</option>)}</select></label>{center.data && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
     {notice && <p className={notice.ok ? 'success-message' : 'error-message'}>{notice.text}</p>}
-    {center.loading ? <PageLoader /> : center.error || !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} plannerMode={params.get('view') === 'planning'} reload={center.reload} setNotice={setNotice} />}
+    {center.loading && !center.data ? <PageLoader /> : !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} plannerMode={params.get('view') === 'planning'} reload={center.reload} setNotice={setNotice} />}
   </>
 }
 
