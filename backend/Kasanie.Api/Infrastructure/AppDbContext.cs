@@ -159,6 +159,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TeamTournament>().Property(x => x.OtherCost).HasPrecision(12, 2);
         builder.Entity<TeamTournament>().Property(x => x.Income).HasPrecision(12, 2);
         builder.Entity<Team>().Property(x => x.TrainingCycleStage).HasDefaultValue("Подготовительный этап");
+        builder.Entity<Team>().Property(x => x.MatchFormat).HasDefaultValue("11v11");
 
         foreach (var relationship in builder.Model.GetEntityTypes().SelectMany(x => x.GetForeignKeys()))
             relationship.DeleteBehavior = DeleteBehavior.Restrict;

@@ -92,7 +92,7 @@ public static partial class EndpointMapping
             var attendancePresent = await db.TeamTrainingAttendances.CountAsync(x => x.TeamTraining.Team.SchoolId == schoolId && x.TeamTraining.ScheduledAt >= monthStart && (x.Status == AttendanceStatus.Present || x.Status == AttendanceStatus.Late));
             var teamSummaries = await db.Teams.AsNoTracking().Where(x => x.SchoolId == schoolId && x.IsActive).OrderBy(x => x.AgeGroup).ThenBy(x => x.Name).Select(x => new
             {
-                x.Id, x.Name, x.AgeGroup, x.Season, x.TrainingCycleStage,
+                x.Id, x.Name, x.AgeGroup, x.Season, x.MatchFormat, x.TrainingCycleStage,
                 displayName = (x.AgeGroup ?? "") + (x.AgeGroup == null ? "" : " — ") + x.Name,
                 players = x.TeamPlayers.Count(p => p.IsActive),
                 coaches = x.TeamCoaches.Count(),
@@ -131,7 +131,7 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             return Results.Ok(await db.Teams.AsNoTracking().Where(x => x.SchoolId == schoolId).OrderByDescending(x => x.IsActive).ThenBy(x => x.Name).Select(x => new
             {
-                x.Id, x.Name, x.AgeGroup, x.Season, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.IsActive,
+                x.Id, x.Name, x.AgeGroup, x.Season, x.MatchFormat, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.IsActive,
                 displayName = (x.AgeGroup ?? "") + (x.AgeGroup == null ? "" : " — ") + x.Name,
                 coaches = x.TeamCoaches.Select(c => new { c.CoachId, c.Coach.DisplayName, c.IsHeadCoach }),
                 players = x.TeamPlayers.Count(p => p.IsActive),
@@ -146,7 +146,7 @@ public static partial class EndpointMapping
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.AgeGroup)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["team"] = ["Укажите возрастную команду и название состава."] });
             var name = request.Name.Trim(); var ageGroup = request.AgeGroup.Trim();
             if (await db.Teams.AnyAsync(x => x.SchoolId == schoolId && x.IsActive && x.Name.ToLower() == name.ToLower() && x.AgeGroup != null && x.AgeGroup.ToLower() == ageGroup.ToLower())) return Results.Conflict(new { message = "Такой состав уже существует." });
-            var team = new Team { SchoolId = schoolId, Name = name, AgeGroup = ageGroup, Season = Clean(request.Season), TrainingCycleStage = "Цикл не назначен", IsActive = request.IsActive };
+            var team = new Team { SchoolId = schoolId, Name = name, AgeGroup = ageGroup, Season = Clean(request.Season), MatchFormat = NormalizeMatchFormat(request.MatchFormat), TrainingCycleStage = "Цикл не назначен", IsActive = request.IsActive };
             db.Teams.Add(team);
             if (request.HeadCoachId.HasValue)
             {
@@ -162,7 +162,7 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             var team = await db.Teams.SingleOrDefaultAsync(x => x.Id == teamId && x.SchoolId == schoolId); if (team is null) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.AgeGroup)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["team"] = ["Укажите возрастную команду и название состава."] });
-            team.Name = request.Name.Trim(); team.AgeGroup = request.AgeGroup.Trim(); team.Season = Clean(request.Season); team.IsActive = request.IsActive; team.UpdatedAt = DateTimeOffset.UtcNow;
+            team.Name = request.Name.Trim(); team.AgeGroup = request.AgeGroup.Trim(); team.Season = Clean(request.Season); team.MatchFormat = NormalizeMatchFormat(request.MatchFormat ?? team.MatchFormat); team.IsActive = request.IsActive; team.UpdatedAt = DateTimeOffset.UtcNow;
             if (request.HeadCoachId.HasValue && !await CoachBelongsToSchoolAsync(db, schoolId, request.HeadCoachId.Value)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["headCoachId"] = ["Тренер не состоит в этой школе."] });
             foreach (var current in await db.TeamCoaches.Where(x => x.TeamId == teamId && x.IsHeadCoach).ToListAsync()) current.IsHeadCoach = false;
             if (request.HeadCoachId.HasValue)
@@ -178,7 +178,7 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             var team = await db.Teams.AsNoTracking().Where(x => x.Id == teamId && x.SchoolId == schoolId).Select(x => new
             {
-                x.Id, x.Name, x.AgeGroup, x.Season, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.TacticFormation, x.TacticNotes, x.TacticPlanJson, x.SetPiecesJson, x.OpponentInstructions, x.CodeOfConduct, x.IsActive,
+                x.Id, x.Name, x.AgeGroup, x.Season, x.MatchFormat, x.TrainingCycleStage, x.CycleStart, x.CycleEnd, x.TacticFormation, x.TacticNotes, x.TacticPlanJson, x.SetPiecesJson, x.OpponentInstructions, x.CodeOfConduct, x.IsActive,
                 displayName = (x.AgeGroup ?? "") + (x.AgeGroup == null ? "" : " — ") + x.Name,
                 coaches = x.TeamCoaches.OrderByDescending(c => c.IsHeadCoach).Select(c => new { c.CoachId, c.Coach.DisplayName, c.IsHeadCoach }).ToList()
             }).SingleOrDefaultAsync();
@@ -380,4 +380,5 @@ public static partial class EndpointMapping
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string NormalizeMatchFormat(string? value) => value is "9v9" or "8v8" ? value : "11v11";
 }

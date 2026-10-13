@@ -34,8 +34,8 @@ public sealed record AssessmentUpsertRequest(string Name, string Description, st
 public sealed record SchoolCreateRequest(string Name, string OwnerEmail, string? City, string? ContactEmail, string? Phone);
 public sealed record SchoolUpdateRequest(string Name, string? City, string? ContactEmail, string? Phone, string? LogoUrl);
 public sealed record SchoolStatusRequest(bool IsActive);
-public sealed record TeamUpsertRequest(string Name, string? AgeGroup, string? Season, string? TrainingCycleStage = null, DateOnly? CycleStart = null, DateOnly? CycleEnd = null, int? HeadCoachId = null, bool IsActive = true);
-public sealed record TeamIdentityUpdateRequest(string Name, string AgeGroup, string? Season, int? HeadCoachId, bool IsActive = true);
+public sealed record TeamUpsertRequest(string Name, string? AgeGroup, string? Season, string? TrainingCycleStage = null, DateOnly? CycleStart = null, DateOnly? CycleEnd = null, int? HeadCoachId = null, bool IsActive = true, string? MatchFormat = null);
+public sealed record TeamIdentityUpdateRequest(string Name, string AgeGroup, string? Season, int? HeadCoachId, bool IsActive = true, string? MatchFormat = null);
 public sealed record SchoolCoachInviteRequest(string Email, string DisplayName);
 public sealed record TeamCoachRequest(int CoachId, bool IsHeadCoach);
 public sealed record SchoolPlayerCreateRequest(string FirstName, string LastName, DateOnly DateOfBirth, string City, string PreferredPosition, string DominantFoot, string ExperienceLevel, int TeamId, int? ShirtNumber);

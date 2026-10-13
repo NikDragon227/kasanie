@@ -45,7 +45,7 @@ public static partial class EndpointMapping
             }).ToListAsync();
             return Results.Ok(new
             {
-                team = new { team.Id, name = (team.AgeGroup ?? "") + (team.AgeGroup == null ? "" : " — ") + team.Name, team.Season, team.TrainingCycleStage, team.CycleStart, team.CycleEnd, team.TacticFormation, team.TacticNotes, team.TacticPlanJson, team.SetPiecesJson, team.OpponentInstructions, team.OpponentReportUrl, team.OpponentReportNotes, team.CodeOfConduct, school = team.School.Name, coachName },
+                team = new { team.Id, name = (team.AgeGroup ?? "") + (team.AgeGroup == null ? "" : " — ") + team.Name, team.Season, team.MatchFormat, team.TrainingCycleStage, team.CycleStart, team.CycleEnd, team.TacticFormation, team.TacticNotes, team.TacticPlanJson, team.SetPiecesJson, team.OpponentInstructions, team.OpponentReportUrl, team.OpponentReportNotes, team.CodeOfConduct, school = team.School.Name, coachName },
                 players, invitations, messages, injuries, events, matches, tournaments, trainings,
                 summary = new { activeInjuries = injuries.Count(x => x.Status != "Закрыта"), highRiskPlayers = injuries.Where(x => x.Status != "Закрыта" && x.RiskLevel >= 70).Select(x => x.PlayerId).Distinct().Count(), nextMatch = matches.FirstOrDefault(x => x.ScheduledAt >= now), reminders = events.Count(x => x.StartsAt >= now && x.StartsAt <= now.AddDays(7)) }
             });

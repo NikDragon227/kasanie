@@ -87,6 +87,7 @@ public sealed class Team
     public required string Name { get; set; }
     public string? AgeGroup { get; set; }
     public string? Season { get; set; }
+    public string MatchFormat { get; set; } = "11v11";
     public string TrainingCycleStage { get; set; } = "Подготовительный этап";
     public DateOnly? CycleStart { get; set; }
     public DateOnly? CycleEnd { get; set; }

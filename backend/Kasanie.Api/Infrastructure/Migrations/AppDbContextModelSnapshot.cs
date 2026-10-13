@@ -1255,6 +1255,12 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("MatchFormat")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("11v11");
+
                     b.Property<string>("OpponentInstructions")
                         .HasColumnType("text");
 
