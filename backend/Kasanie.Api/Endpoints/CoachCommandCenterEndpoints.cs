@@ -19,7 +19,7 @@ public static partial class EndpointMapping
             var playerRows = await db.TeamPlayers.AsNoTracking().Where(x => x.TeamId == teamId && x.IsActive).OrderBy(x => x.ShirtNumber).ThenBy(x => x.Player.LastName).Select(x => new
             {
                 x.PlayerId, x.Player.FirstName, x.Player.LastName, x.Player.DateOfBirth, x.Player.Gender, x.Player.PreferredPosition, x.Player.DominantFoot, x.Player.ExperienceLevel, isRegistered = x.Player.UserId != null, x.ShirtNumber,
-                x.Player.Height, x.Player.Weight, x.Player.Citizenship, x.Player.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
+                x.Player.Height, x.Player.Weight, x.Player.Citizenship, x.Player.SecondCitizenship, coachNote = db.CoachNotes.Where(note => note.PlayerId == x.PlayerId).OrderByDescending(note => note.CreatedAt).Select(note => note.Text).FirstOrDefault(), x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
                 x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan,
                 completedTrainings = db.TeamTrainingPlayerResults.Count(r => r.PlayerId == x.PlayerId && r.TeamTrainingExercise.TeamTraining.TeamId == teamId && r.IsCompleted),
                 attendance = db.TeamTrainingAttendances.Count(a => a.PlayerId == x.PlayerId && a.TeamTraining.TeamId == teamId && (a.Status == AttendanceStatus.Present || a.Status == AttendanceStatus.Late)),
@@ -28,7 +28,7 @@ public static partial class EndpointMapping
             var players = playerRows.Select(x => new
             {
                 x.PlayerId, x.FirstName, x.LastName, x.DateOfBirth, x.Gender, x.PreferredPosition, x.DominantFoot, x.ExperienceLevel, x.isRegistered, x.ShirtNumber,
-                x.Height, x.Weight, x.Citizenship, x.SecondCitizenship, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
+                x.Height, x.Weight, x.Citizenship, x.SecondCitizenship, x.coachNote, x.IsCaptain, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating, x.SquadRoleOverride,
                 autoSquadRole = ResolveAutomaticSquadRole(x.PreferredPosition, x.Appearances, x.Goals, x.Assists, x.CleanSheets, x.AverageRating),
                 x.TournamentRegistrationStatus, x.CurrentSeasonPlan, x.NextSeasonPlan, x.TwoYearPlan, x.completedTrainings, x.attendance, x.activeInjury
             }).ToList();
