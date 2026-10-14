@@ -45,4 +45,5 @@ PostgreSQL; конфликты записи возвращают 409. Новых
 
 Проверки: SchoolAdministrationTests, PlayerActionsTests, player-actions.test.tsx,
 training-workspace.test.tsx и локальная проверка интерфейса.
-Изменения подготовлены локально, без публикации на production.
+Для публикации обновляются API и frontend. Новых миграций для управления школами
+не требуется; тренировочный раздел использует миграцию AddTeamTrainingWorkspace.
