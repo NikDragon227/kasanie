@@ -21,7 +21,7 @@ using Microsoft.Extensions.Options;
 
 namespace Kasanie.Tests;
 
-public sealed class AuthorizationIntegrationTests
+public sealed partial class AuthorizationIntegrationTests
 {
     [Fact]
     public async Task AdminSummary_ReturnsPlatformMetricsForSelectedPeriod()

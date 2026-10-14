@@ -164,6 +164,7 @@ public static partial class EndpointMapping
         });
 
         MapCoachCommandCenter(coach);
+        MapTrainingWorkspace(coach);
 
         coach.MapGet("/players/{playerId:int}", async (int playerId, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {

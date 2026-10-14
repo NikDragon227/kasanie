@@ -23,6 +23,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TeamInjury> TeamInjuries => Set<TeamInjury>();
     public DbSet<TeamScheduleEvent> TeamScheduleEvents => Set<TeamScheduleEvent>();
     public DbSet<TeamTraining> TeamTrainings => Set<TeamTraining>();
+    public DbSet<TeamTrainingWorkspace> TeamTrainingWorkspaces => Set<TeamTrainingWorkspace>();
     public DbSet<TeamTrainingScheduleSlot> TeamTrainingScheduleSlots => Set<TeamTrainingScheduleSlot>();
     public DbSet<TeamTrainingExercise> TeamTrainingExercises => Set<TeamTrainingExercise>();
     public DbSet<TeamTrainingTemplate> TeamTrainingTemplates => Set<TeamTrainingTemplate>();
@@ -77,6 +78,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<TeamInvitation>().HasIndex(x => new { x.TeamId, x.PlayerId }).IsUnique();
         builder.Entity<TeamInvitation>().HasIndex(x => new { x.PlayerId, x.Status, x.CreatedAt });
         builder.Entity<TeamTrainingGroupPlayer>().HasKey(x => new { x.TeamTrainingGroupId, x.PlayerId });
+        builder.Entity<TeamTrainingWorkspace>().HasKey(x => x.TeamId);
+        builder.Entity<TeamTrainingWorkspace>().Property(x => x.Version).IsConcurrencyToken();
+        builder.Entity<TeamTrainingWorkspace>().HasOne(x => x.Team).WithOne().HasForeignKey<TeamTrainingWorkspace>(x => x.TeamId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<TeamTrainingAttendance>().HasKey(x => new { x.TeamTrainingId, x.PlayerId });
         builder.Entity<TeamTrainingPlayerResult>().HasKey(x => new { x.TeamTrainingExerciseId, x.PlayerId });
         builder.Entity<TeamTrainingExercise>().HasIndex(x => new { x.TeamTrainingId, x.ExerciseId }).IsUnique();

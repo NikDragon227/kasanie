@@ -21,7 +21,7 @@ export function CoachDashboard() {
   const data = workday.data
   const teamLink = (teamId: number) => `/coach/teams?team=${teamId}`
   return <>
-    <PageHeader eyebrow="Кабинет тренера" title="Мой рабочий день" actions={<Link className="button" to="/coach/trainings">Журнал тренировок</Link>} />
+    <PageHeader eyebrow="Кабинет тренера" title="Мой рабочий день" actions={<Link className="button" to="/coach/trainings/journal">Журнал тренировок</Link>} />
     <p className="coach-workday-intro">Главное на сегодня: проведите занятие, закройте журнал и не пропустите риски по составу.</p>
     <section className="stat-grid four coach-workday-stats">
       <StatCard label="Незакрытый журнал" value={data.unfinished.length} tone={data.unfinished.length ? 'coral' : 'accent'} />
@@ -32,7 +32,7 @@ export function CoachDashboard() {
     <section className="coach-workday-grid">
       <article className="card coach-day-focus">
         <span className="eyebrow">Ближайшая тренировка</span>
-        {data.nextTraining ? <><h2>{data.nextTraining.title}</h2><p>{data.nextTraining.team} · {formatDate(data.nextTraining.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextTraining.players} игроков</span><span>{data.nextTraining.exercises} упражнений</span></div><Link className="button" to={`/coach/trainings/${data.nextTraining.id}`}>Открыть занятие</Link></> : <EmptyState title="Тренировка не запланирована"><Link className="button" to="/coach/trainings">Запланировать занятие</Link></EmptyState>}
+        {data.nextTraining ? <><h2>{data.nextTraining.title}</h2><p>{data.nextTraining.team} · {formatDate(data.nextTraining.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextTraining.players} игроков</span><span>{data.nextTraining.exercises} упражнений</span></div><Link className="button" to={`/coach/trainings/${data.nextTraining.id}`}>Открыть занятие</Link></> : <EmptyState title="Тренировка не запланирована"><Link className="button" to="/coach/trainings/journal">Запланировать занятие</Link></EmptyState>}
       </article>
       <article className="card coach-day-focus">
         <span className="eyebrow">Ближайший матч</span>
@@ -40,7 +40,7 @@ export function CoachDashboard() {
       </article>
     </section>
     <section className="coach-workday-grid">
-      <article className="card"><div className="card-heading"><div><span className="eyebrow">Сначала закрыть</span><h2>Незавершённый журнал</h2></div><Link to="/coach/trainings">Все занятия →</Link></div>{data.unfinished.length ? <div className="coach-workday-list">{data.unfinished.map(item => <Link key={item.id} to={`/coach/trainings/${item.id}`}><div><b>{item.title}</b><small>{item.team} · {formatDate(item.scheduledAt)}</small></div><span>{item.unresolvedAttendance ? `${item.unresolvedAttendance} без отметки` : 'Завершить'}</span></Link>)}</div> : <EmptyState title="Всё закрыто">У прошедших занятий нет незавершённых действий.</EmptyState>}</article>
+      <article className="card"><div className="card-heading"><div><span className="eyebrow">Сначала закрыть</span><h2>Незавершённый журнал</h2></div><Link to="/coach/trainings/journal">Все занятия →</Link></div>{data.unfinished.length ? <div className="coach-workday-list">{data.unfinished.map(item => <Link key={item.id} to={`/coach/trainings/${item.id}`}><div><b>{item.title}</b><small>{item.team} · {formatDate(item.scheduledAt)}</small></div><span>{item.unresolvedAttendance ? `${item.unresolvedAttendance} без отметки` : 'Завершить'}</span></Link>)}</div> : <EmptyState title="Всё закрыто">У прошедших занятий нет незавершённых действий.</EmptyState>}</article>
       <article className="card"><div className="card-heading"><div><span className="eyebrow">Внимание</span><h2>Игроки и риски</h2></div><Link to="/coach/teams">Команды →</Link></div>{data.risks.length ? <div className="coach-workday-list">{data.risks.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.player}</b><small>{item.team} · {item.type} · {item.severity}</small></div><span className={item.riskLevel >= 7 ? 'risk-high' : ''}>риск {item.riskLevel}/10</span></Link>)}</div> : <EmptyState title="Активных рисков нет">Проверьте состав перед следующим занятием.</EmptyState>}</article>
     </section>
     {data.upcomingEvents.length > 0 && <section className="card coach-week-events"><div className="card-heading"><div><span className="eyebrow">Ближайшие 7 дней</span><h2>Расписание команды</h2></div></div><div className="coach-workday-list">{data.upcomingEvents.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.title}</b><small>{item.team} · {item.type}</small></div><span>{formatDate(item.startsAt)}</span></Link>)}</div></section>}

@@ -273,6 +273,15 @@ public sealed class TeamScheduleEvent
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class TeamTrainingWorkspace
+{
+    public int TeamId { get; set; }
+    public Team Team { get; set; } = null!;
+    public string StateJson { get; set; } = "{}";
+    public int Version { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TeamTraining
 {
     public int Id { get; set; }

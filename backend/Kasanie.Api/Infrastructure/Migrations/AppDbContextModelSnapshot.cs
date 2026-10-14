@@ -1251,15 +1251,15 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("MatchFormat")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("11v11");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("OpponentInstructions")
                         .HasColumnType("text");
@@ -1981,6 +1981,27 @@ namespace Kasanie.Api.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("TeamTrainingTemplateExercises");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingWorkspace", b =>
+                {
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StateJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("TeamId");
+
+                    b.ToTable("TeamTrainingWorkspaces");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TrainingDay", b =>
@@ -2934,6 +2955,17 @@ namespace Kasanie.Api.Infrastructure.Migrations
                     b.Navigation("Exercise");
 
                     b.Navigation("TeamTrainingTemplate");
+                });
+
+            modelBuilder.Entity("Kasanie.Api.Domain.TeamTrainingWorkspace", b =>
+                {
+                    b.HasOne("Kasanie.Api.Domain.Team", "Team")
+                        .WithOne()
+                        .HasForeignKey("Kasanie.Api.Domain.TeamTrainingWorkspace", "TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("Kasanie.Api.Domain.TrainingDay", b =>
