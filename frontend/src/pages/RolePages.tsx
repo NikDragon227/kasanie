@@ -21,8 +21,7 @@ export function CoachDashboard() {
   const data = workday.data
   const teamLink = (teamId: number) => `/coach/teams?team=${teamId}`
   return <>
-    <PageHeader eyebrow="Кабинет тренера" title="Мой рабочий день" actions={<Link className="button" to="/coach/trainings/journal">Журнал тренировок</Link>} />
-    <p className="coach-workday-intro">Главное на сегодня: проведите занятие, закройте журнал и не пропустите риски по составу.</p>
+    <PageHeader title="Кабинет тренера" actions={<Link className="button" to="/coach/trainings/journal">Журнал тренировок</Link>} />
     <section className="stat-grid four coach-workday-stats">
       <StatCard label="Незакрытый журнал" value={data.unfinished.length} tone={data.unfinished.length ? 'coral' : 'accent'} />
       <StatCard label="Риски по игрокам" value={data.risks.length} tone={data.risks.length ? 'coral' : 'default'} />

@@ -8,7 +8,7 @@ import { CityInput } from '../CityInput'
 import { LoginForm, PortalUserRegisterPage, RegisterPage, RegistrationChoicePage } from '../pages/PublicPages'
 import { HomePage } from '../pages/HomePage'
 import { AssessmentForm, PlayerDashboard, WorkoutPage } from '../pages/PlayerPages'
-import { AdminDashboard } from '../pages/RolePages'
+import { AdminDashboard, CoachDashboard } from '../pages/RolePages'
 import { GuestParticipationPage, MyActivitiesPage, OrganizerActivitiesPage, PublicActivityPage, SportsNearbyPage } from '../pages/SportsNearbyPages'
 import { FeedbackWidget } from '../FeedbackWidget'
 
@@ -24,6 +24,15 @@ const publicActivity = {
 beforeEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
+  it('uses a single coach cabinet heading without the workday introduction', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ unfinished: [], risks: [], upcomingEvents: [] }))
+    render(<MemoryRouter><CoachDashboard /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Кабинет тренера' })).toBeInTheDocument()
+    expect(screen.getAllByText('Кабинет тренера')).toHaveLength(1)
+    expect(screen.queryByText('Мой рабочий день')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Главное на сегодня/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Журнал тренировок' })).toHaveAttribute('href', '/coach/trainings/journal')
+  })
   it('presents the product, live platform statistics and primary public paths', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(input => {
       if (String(input) === '/api/public/platform-stats') return json({ users: 250000, teams: 18500, tournaments: 3200, coaches: 6800, trustPercent: null })
