@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { ApiError, post } from '../api'
 import { useAuth } from '../auth'
 import { analyticsEvents, trackProductEvent } from '../analytics'
+import { ResendConfirmation } from '../ResendConfirmation'
 import { LEGAL_DOCUMENT_VERSION } from './LegalPages'
 
 const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
@@ -41,6 +42,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
   const [show, setShow] = useState(false)
   const [pending, setPending] = useState(false)
   const [legalAccepted, setLegalAccepted] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
   const roleName = role === 'Coach' ? 'тренера' : 'родителя'
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -59,6 +61,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     try {
       await post('/api/auth/register-portal-user', { email: values.get('email'), password: values.get('password'), dateOfBirth, displayName: values.get('displayName'), role, termsAccepted: values.get('termsAccepted') === 'on', privacyPolicyAccepted: values.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION })
       trackProductEvent(analyticsEvents.registrationCompleted, { role })
+      setRegisteredEmail(String(values.get('email') ?? '').trim())
       setDone(true)
     } catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
@@ -66,7 +69,7 @@ export function PortalUserRegisterPage({ role }: { role: 'Parent' | 'Coach' }) {
     } finally { setPending(false) }
   }
 
-  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите." portalRegistration><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
+  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите." portalRegistration><ResendConfirmation email={registeredEmail} /><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
   return <AuthFrame title={`Кабинет ${roleName}`} subtitle={role === 'Coach' ? 'Ведите команды и управляйте школой, к которой вы прикреплены.' : 'После регистрации вы сможете добавить ребёнка или принять связь с его профилем.'} portalRegistration><form className="auth-form" onSubmit={submit}><label>Имя и фамилия<input name="displayName" autoComplete="name" maxLength={120} required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label>Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><LegalConsent onAcceptanceChange={setLegalAccepted} />{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending || !legalAccepted}>{pending ? 'Создаём…' : `Создать кабинет ${roleName}`}</button><p>Другая роль? <Link to="/join">Вернуться к выбору</Link></p></form></AuthFrame>
 }
 
@@ -142,23 +145,25 @@ export function LoginPage() {
 }
 
 export function LoginForm() {
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
   const { login } = useAuth(); const navigate = useNavigate(); const location = useLocation()
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [show, setShow] = useState(false); const [error, setError] = useState(''); const [pending, setPending] = useState(false)
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setError('')
+    event.preventDefault(); setError(''); setNeedsConfirmation(false)
     if (!email.includes('@')) return setError('Укажите корректный email.')
     if (!password) return setError('Введите пароль.')
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
     setPending(true)
     try { const next = await login(email, password); trackProductEvent(analyticsEvents.loginCompleted, { role: primaryRole(next.roles) }); const from = (location.state as { from?: string } | null)?.from; navigate(from ?? roleHome[primaryRole(next.roles)] ?? '/') }
-    catch (e) { setError(e instanceof ApiError && (e.status === 423 || e.status === 403) ? e.message : 'Неверный email или пароль.') }
+    catch (e) { setNeedsConfirmation(e instanceof ApiError && e.body.code === 'email_not_confirmed'); setError(e instanceof ApiError && (e.status === 423 || e.status === 403) ? e.message : 'Неверный email или пароль.') }
     finally { setPending(false) }
   }
   const showDemoAccounts = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.ru" /></label><label>Пароль<span className="password-control"><input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span></label>{error && <div className="form-error" role="alert">{error}</div>}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p>Нет аккаунта? <Link to="/register">Игроку</Link> · <Link to="/register-organizer">Организатору</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
+  return <form className="auth-form" onSubmit={submit} noValidate><label>Email<input type="email" autoComplete="email" value={email} onChange={e => { setEmail(e.target.value); setNeedsConfirmation(false) }} placeholder="you@example.ru" /></label><label>Пароль<span className="password-control"><input type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span></label>{error && <div className="form-error" role="alert">{error}</div>}{needsConfirmation && <ResendConfirmation key={email.trim()} email={email.trim()} />}<button className="button large" disabled={pending}>{pending ? 'Входим…' : 'Войти'}</button><p><Link to="/forgot-password">Не помню пароль</Link></p><p><Link to="/resend-confirmation">Не пришло письмо подтверждения?</Link></p><p>Нет аккаунта? <Link to="/register">Игроку</Link> · <Link to="/register-organizer">Организатору</Link></p>{showDemoAccounts && <div className="demo-credentials"><strong>Демо-вход</strong><small>Выберите роль — поля заполнятся автоматически.</small><div className="demo-account-list">{demoAccounts.map(account => <button type="button" key={account.email} onClick={() => { setEmail(account.email); setPassword(demoPassword) }}><b>{account.role}</b><span>{account.email}</span></button>)}</div><span className="demo-password">Пароль для всех: {demoPassword}</span></div>}</form>
 }
 
 export function RegisterPage() {
+  const [registeredEmail, setRegisteredEmail] = useState('')
   const [error, setError] = useState(''); const [done, setDone] = useState(false); const [show, setShow] = useState(false); const [pending, setPending] = useState(false); const [legalAccepted, setLegalAccepted] = useState(false)
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(''); const data = new FormData(event.currentTarget); const birth = String(data.get('dateOfBirth')); const age = new Date().getFullYear() - new Date(birth).getFullYear()
@@ -167,13 +172,13 @@ export function RegisterPage() {
     if (String(data.get('password')).length < 8) return setError('Пароль должен содержать не менее 8 символов.')
     trackProductEvent(analyticsEvents.registrationStarted, { role: 'Player' })
     setPending(true)
-    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName'), termsAccepted: data.get('termsAccepted') === 'on', privacyPolicyAccepted: data.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION }); trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Player' }); setDone(true) }
+    try { await post('/api/auth/register', { email: data.get('email'), password: data.get('password'), dateOfBirth: birth, firstName: data.get('firstName'), lastName: data.get('lastName'), termsAccepted: data.get('termsAccepted') === 'on', privacyPolicyAccepted: data.get('privacyPolicyAccepted') === 'on', legalVersion: LEGAL_DOCUMENT_VERSION }); trackProductEvent(analyticsEvents.registrationCompleted, { role: 'Player' }); setRegisteredEmail(String(data.get('email') ?? '').trim()); setDone(true) }
     catch (e) {
       const fieldErrors = e instanceof ApiError ? Object.values(e.body.errors as Record<string, string[]> | undefined ?? {}).flat() : []
       setError(fieldErrors.join(' ') || (e instanceof Error ? e.message : 'Регистрация не выполнена.'))
     } finally { setPending(false) }
   }
-  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
+  if (done) return <AuthFrame title="Профиль создан" subtitle="Подтвердите email по ссылке из письма, затем войдите."><ResendConfirmation email={registeredEmail} /><Link className="button large" to="/login">Перейти ко входу</Link></AuthFrame>
   return <AuthFrame title="Построй свою траекторию" subtitle="Регистрация доступна игрокам от 14 лет"><form className="auth-form two-column" onSubmit={submit}><label>Имя<input name="firstName" autoComplete="given-name" required /></label><label>Фамилия<input name="lastName" autoComplete="family-name" required /></label><label>Дата рождения<input name="dateOfBirth" type="date" required /></label><label>Email<input name="email" type="email" autoComplete="email" required /></label><label className="full">Пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small>Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак.</small></label><div className="full"><LegalConsent onAcceptanceChange={setLegalAccepted} /></div>{error && <div className="form-error full" role="alert">{error}</div>}<button className="button large full" disabled={pending || !legalAccepted}>{pending ? 'Создаём…' : 'Создать аккаунт'}</button><p className="full">Уже есть аккаунт? <Link to="/login">Войти</Link></p></form></AuthFrame>
 }
 
@@ -223,10 +228,14 @@ export function ResetPasswordPage() {
   return <AuthFrame title="Новый пароль" subtitle="Не менее 8 символов: строчная и заглавная буквы, цифра и специальный знак."><form className="auth-form" onSubmit={submit}><label>Новый пароль<span className="password-control"><input name="password" type={show ? 'text' : 'password'} autoComplete="new-password" minLength={8} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'password-requirements password-error' : 'password-requirements'} required /><button type="button" className="password-toggle" onClick={() => setShow(x => !x)} aria-pressed={show}>{show ? 'Скрыть' : 'Показать'}</button></span><small id="password-requirements">Например: Kasanie-2026!</small>{passwordError && <span id="password-error" className="error-message" role="alert">{passwordError}</span>}</label><button className="button large" disabled={pending}>{pending ? 'Сохраняем…' : 'Сохранить пароль'}</button>{status && <div className={status.ok ? 'success-message' : 'form-error'} role={status.ok ? 'status' : 'alert'}>{status.text}</div>}<p><Link to="/login">Ко входу</Link></p></form></AuthFrame>
 }
 
+export function ResendConfirmationPage() {
+  return <AuthFrame title="Отправить письмо повторно" subtitle="Укажите email своего аккаунта — запросим новое письмо подтверждения."><ResendConfirmation /><p><Link to="/login">Вернуться ко входу</Link></p></AuthFrame>
+}
+
 export function ConfirmEmailPage() {
   const [params] = useSearchParams(); const [message, setMessage] = useState('Подтверждаем email…'); const [done, setDone] = useState(false); const userId = params.get('userId') ?? ''; const token = params.get('token') ?? ''
   useEffect(() => { if (!userId || !token) { setMessage('Ссылка недействительна или устарела.'); return } void post<{ message: string }>('/api/auth/confirm-email', { userId, token }).then(x => { setMessage(x.message); setDone(true) }).catch(e => setMessage(e instanceof Error ? e.message : 'Ссылка недействительна или устарела.')) }, [userId, token])
-  return <AuthFrame title="Подтверждение email" subtitle={message}>{done && <Link className="button large" to="/login">Войти</Link>}</AuthFrame>
+  return <AuthFrame title="Подтверждение email" subtitle={message}>{done ? <Link className="button large" to="/login">Войти</Link> : <Link className="button large ghost" to="/resend-confirmation">Отправить письмо повторно</Link>}</AuthFrame>
 }
 
 function AuthFrame({ title, subtitle, children, portalRegistration = false }: { title: string; subtitle: string; children: React.ReactNode; portalRegistration?: boolean }) {

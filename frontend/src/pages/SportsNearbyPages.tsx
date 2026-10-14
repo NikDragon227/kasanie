@@ -18,6 +18,7 @@ import { ApiError, api, post, postForm, put, remove } from "../api";
 import { useAuth } from "../auth";
 import { primaryRole, roleHome, roleLabel } from "../components";
 import { CityInput } from "../CityInput";
+import { ResendConfirmation } from "../ResendConfirmation";
 import {
   analyticsEvents,
   trackPageView,
@@ -1333,6 +1334,7 @@ function YandexLocationPicker({
 
 export function OrganizerRegisterPage() {
   const { user } = useAuth();
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [done, setDone] = useState(false);
   const [show, setShow] = useState(false);
   const [pending, setPending] = useState(false);
@@ -1397,6 +1399,7 @@ export function OrganizerRegisterPage() {
       trackProductEvent(analyticsEvents.registrationCompleted, {
         role: "Organizer",
       });
+      setRegisteredEmail(String(values.get("email") ?? "").trim());
       setDone(true);
     } catch (e) {
       const fieldErrors =
@@ -1428,6 +1431,7 @@ export function OrganizerRegisterPage() {
               Мы отправили ссылку. После подтверждения войдите и создайте первое
               событие.
             </p>
+            <ResendConfirmation email={registeredEmail} />
             <Link className="button large" to="/login">
               Перейти ко входу
             </Link>

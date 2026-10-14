@@ -1,0 +1,5 @@
+.email-confirmation-resend { display: grid; gap: 12px; margin: 18px 0; }
+.email-confirmation-resend p { margin: 0; overflow-wrap: anywhere; }
+.email-confirmation-resend small { color: #6b7885; font-size: 12px; line-height: 1.5; }
+.email-confirmation-resend .button { width: 100%; }
+.email-confirmation-resend .success-message, .email-confirmation-resend .form-error { margin: 0; line-height: 1.5; }
