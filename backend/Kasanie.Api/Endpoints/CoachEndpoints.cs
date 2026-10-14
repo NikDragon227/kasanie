@@ -165,6 +165,7 @@ public static partial class EndpointMapping
 
         MapCoachCommandCenter(coach);
         MapTrainingWorkspace(coach);
+        MapCoachPlayerActions(coach);
 
         coach.MapGet("/players/{playerId:int}", async (int playerId, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {
@@ -190,7 +191,7 @@ public static partial class EndpointMapping
         coach.MapPost("/players/{playerId:int}/notes", async (int playerId, CoachNoteRequest request, ClaimsPrincipal user, IAccessService access, AppDbContext db) =>
         {
             if (!await access.CoachCanAccessAsync(user, playerId)) return Results.Forbid();
-            if (string.IsNullOrWhiteSpace(request.Text)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["text"] = ["Заметка не может быть пустой."] });
+            if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Length > 2000) return Results.ValidationProblem(new Dictionary<string, string[]> { ["text"] = ["Введите заметку от 1 до 2000 символов."] });
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var coachProfile = await db.CoachProfiles.SingleAsync(x => x.UserId == userId);
             var note = new CoachNote { CoachId = coachProfile.Id, PlayerId = playerId, Text = request.Text.Trim() };

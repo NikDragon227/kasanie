@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../auth'
+import { SchoolBoundary } from './SchoolScope'
+import { AdminTeamControls } from './AdminSchoolControls'
 import { post, put, remove } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader, ProgressBar, StatCard } from '../components'
 import { formatDate, useApiData } from '../hooks'
 
-type Membership = { schoolId: number; name: string; role: string }
 type Coach = { userId: string; email: string; isActive: boolean; coachId?: number; displayName?: string }
 type TeamSummary = { id: number; name: string; ageGroup?: string; season?: string; matchFormat?: string; trainingCycleStage: string; displayName: string; players: number; coaches: number; headCoach?: string; trainingsThisWeek: number; unfinished: number }
 type Overview = { id: number; name: string; teams: number; coaches: number; players: number; trainingsThisWeek: number; unfinishedTrainings: number; attendanceRate: number; attentionPlayers: number; teamsWithoutCoach: number; teamsWithoutPlayers: number; teamSummaries: TeamSummary[] }
@@ -29,14 +31,6 @@ const teamTabs: { id: TeamTab; label: string }[] = [
   { id: 'training', label: 'Тренировки' }, { id: 'matches', label: 'Матчи' }, { id: 'tournaments', label: 'Турниры' }, { id: 'economy', label: 'Экономика' },
 ]
 
-function SchoolBoundary({ children }: { children: (schoolId: number) => ReactNode }) {
-  const state = useApiData<Membership[]>('/api/school/memberships')
-  if (state.loading) return <PageLoader />
-  if (state.error) return <ErrorState message={state.error} retry={state.reload} />
-  const schoolId = state.data?.[0]?.schoolId
-  if (!schoolId) return <EmptyState title="Нет доступной школы">Обратитесь к администратору платформы.</EmptyState>
-  return children(schoolId)
-}
 
 export function SchoolDashboardPage() { return <SchoolBoundary>{schoolId => <SchoolOverview schoolId={schoolId} />}</SchoolBoundary> }
 function SchoolOverview({ schoolId }: { schoolId: number }) {
@@ -46,7 +40,7 @@ function SchoolOverview({ schoolId }: { schoolId: number }) {
   const school = state.data
   const issues = school.teamsWithoutCoach + school.teamsWithoutPlayers + school.unfinishedTrainings + school.attentionPlayers
   return <>
-    <PageHeader eyebrow="Управление школой" title={school.name} actions={<Link className="button" to="/school/teams">Открыть команды →</Link>} />
+    <PageHeader eyebrow="Управление школой" title={school.name} actions={<Link className="button" to={`/school/teams?school=${schoolId}`}>Открыть команды →</Link>} />
     <p className="school-hint">Назначьте тренеров и распределите игроков по составам — каждый тренер будет видеть только свои команды и игроков.</p>
     <section className="stat-grid school-core-stats"><StatCard label="Составов" value={school.teams} /><StatCard label="Тренеров" value={school.coaches} /><StatCard label="Игроков" value={school.players} /></section>
     <section className="school-dashboard-grid">
@@ -56,12 +50,12 @@ function SchoolOverview({ schoolId }: { schoolId: number }) {
       </article>
       <article className="card action-center">
         <div className="card-heading"><div><span className="eyebrow">Контроль</span><h2>Что проверить</h2></div></div>
-        <ActionRow value={school.teamsWithoutCoach} label="Составы без тренера" href="/school/teams" /><ActionRow value={school.teamsWithoutPlayers} label="Составы без игроков" href="/school/teams" /><ActionRow value={school.unfinishedTrainings} label="Незавершённые журналы" href="/school/teams" /><ActionRow value={school.attentionPlayers} label="Игроки, которым нужна работа" href="/school/players" />
+        <ActionRow value={school.teamsWithoutCoach} label="Составы без тренера" href={`/school/teams?school=${schoolId}`} /><ActionRow value={school.teamsWithoutPlayers} label="Составы без игроков" href="/school/teams" /><ActionRow value={school.unfinishedTrainings} label="Незавершённые журналы" href="/school/teams" /><ActionRow value={school.attentionPlayers} label="Игроки, которым нужна работа" href={`/school/players?school=${schoolId}`} />
       </article>
     </section>
     <section className="card school-team-summary">
       <div className="card-heading"><div><span className="eyebrow">Все составы</span><h2>Команды школы</h2></div><Link to="/school/teams">Управление →</Link></div>
-      {school.teamSummaries.length ? <div className="team-summary-list">{school.teamSummaries.map(team => <Link to={`/school/teams?team=${team.id}`} key={team.id}><div><strong>{team.displayName}</strong><small>{team.headCoach || 'Тренер не назначен'} · {team.trainingCycleStage}</small></div><span>{team.players}<small>игроков</small></span><span>{team.trainingsThisWeek}<small>тренировок</small></span><span className={team.unfinished ? 'warn' : ''}>{team.unfinished}<small>не завершено</small></span><b>→</b></Link>)}</div> : <EmptyState title="Составов пока нет">Создайте первую команду и назначьте тренера.</EmptyState>}
+      {school.teamSummaries.length ? <div className="team-summary-list">{school.teamSummaries.map(team => <Link to={`/school/teams?school=${schoolId}&team=${team.id}`} key={team.id}><div><strong>{team.displayName}</strong><small>{team.headCoach || 'Тренер не назначен'} · {team.trainingCycleStage}</small></div><span>{team.players}<small>игроков</small></span><span>{team.trainingsThisWeek}<small>тренировок</small></span><span className={team.unfinished ? 'warn' : ''}>{team.unfinished}<small>не завершено</small></span><b>→</b></Link>)}</div> : <EmptyState title="Составов пока нет">Создайте первую команду и назначьте тренера.</EmptyState>}
     </section>
   </>
 }
@@ -72,12 +66,14 @@ export function SchoolTeamsPage() { return <SchoolBoundary>{schoolId => <Teams s
 function Teams({ schoolId }: { schoolId: number }) {
   const state = useApiData<Team[]>(`/api/school/${schoolId}/teams`)
   const coaches = useApiData<Coach[]>(`/api/school/${schoolId}/coaches`)
-  const [params, setParams] = useSearchParams()
+  const { user } = useAuth()
+  const [params, setSearchParams] = useSearchParams()
+  const setParams = useCallback((values: Record<string, string>, options?: { replace?: boolean }) => { const next = new URLSearchParams(params); next.set('school', String(schoolId)); Object.entries(values).forEach(([key, value]) => next.set(key, value)); setSearchParams(next, options) }, [params, schoolId, setSearchParams])
   const [showCreate, setShowCreate] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [tab, setTab] = useState<TeamTab>('overview')
   const [notice, setNotice] = useState<Notice>(null)
-  const activeTeams = useMemo(() => state.data?.filter(x => x.isActive) ?? [], [state.data])
+  const activeTeams = useMemo(() => state.data?.filter(x => x.isActive || user?.roles.includes('Admin')) ?? [], [state.data, user])
   const selectedId = Number(params.get('team')) || activeTeams[0]?.id || 0
   const workspace = useApiData<Workspace>(selectedId ? `/api/school/${schoolId}/teams/${selectedId}/workspace` : null)
   useEffect(() => { if (!params.get('team') && activeTeams[0]) setParams({ team: String(activeTeams[0].id) }, { replace: true }) }, [activeTeams, params, setParams])
@@ -94,7 +90,7 @@ function Teams({ schoolId }: { schoolId: number }) {
     {notice && <p className={notice.ok ? 'success-message' : 'error-message'}>{notice.text}</p>}
     {showCreate && <Modal title="Новая команда и состав" onClose={() => setShowCreate(false)}><TeamCreateForm coaches={coaches.data ?? []} submit={create} /></Modal>}
     {showEdit && workspace.data && <Modal title="Редактировать команду" onClose={() => setShowEdit(false)}><TeamEditForm data={workspace.data} coaches={coaches.data ?? []} submit={async value => { try { await put(`/api/school/${schoolId}/teams/${workspace.data!.team.id}`, value); setShowEdit(false); setNotice({ text: 'Команда обновлена.', ok: true }); await reloadAll() } catch (e) { setNotice({ text: e instanceof Error ? e.message : 'Не удалось обновить команду.', ok: false }) } }} /></Modal>}
-    {activeTeams.length ? <><section className="team-context-bar"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { setParams({ team: e.target.value }); setTab('overview') }}>{activeTeams.map(team => <option key={team.id} value={team.id}>{team.displayName}</option>)}</select></label>{workspace.data && <><div className="team-context-meta"><span><small>Главный тренер</small><strong>{workspace.data.team.coaches.find(x => x.isHeadCoach)?.displayName || 'Не назначен'}</strong></span><span><small>Формат</small><strong>{formatLabel(workspace.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{workspace.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{workspace.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{workspace.data.team.season || '—'}</strong></span></div><button className="button ghost edit-team-button" onClick={() => setShowEdit(true)}>Редактировать команду</button></>}</section><nav className="team-subnav" aria-label="Разделы команды">{teamTabs.map(item => <button className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} key={item.id}>{item.label}</button>)}</nav>{workspace.loading ? <PageLoader /> : workspace.error || !workspace.data ? <ErrorState message={workspace.error} retry={workspace.reload} /> : <TeamWorkspace schoolId={schoolId} data={workspace.data} coaches={coaches.data ?? []} tab={tab} reload={reloadAll} setNotice={setNotice} />}</> : <section className="card"><EmptyState title="Команд пока нет">Создайте возрастную команду и первый состав — после этого можно назначить тренера и добавить игроков.</EmptyState></section>}
+    {activeTeams.length ? <><section className="team-context-bar"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { setParams({ team: e.target.value }); setTab('overview') }}>{activeTeams.map(team => <option key={team.id} value={team.id}>{team.displayName}{!team.isActive ? ' · отключён' : ''}</option>)}</select></label>{workspace.data && <><div className="team-context-meta"><span><small>Главный тренер</small><strong>{workspace.data.team.coaches.find(x => x.isHeadCoach)?.displayName || 'Не назначен'}</strong></span><span><small>Формат</small><strong>{formatLabel(workspace.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{workspace.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{workspace.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{workspace.data.team.season || '—'}</strong></span></div><button className="button ghost edit-team-button" onClick={() => setShowEdit(true)}>Редактировать команду</button></>}</section><nav className="team-subnav" aria-label="Разделы команды">{teamTabs.map(item => <button className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} key={item.id}>{item.label}</button>)}</nav>{workspace.loading ? <PageLoader /> : workspace.error || !workspace.data ? <ErrorState message={workspace.error} retry={workspace.reload} /> : <><TeamWorkspace schoolId={schoolId} data={workspace.data} coaches={coaches.data ?? []} tab={tab} reload={reloadAll} setNotice={setNotice} />{user?.roles.includes('Admin') && <AdminTeamControls key={workspace.data.team.id} schoolId={schoolId} team={workspace.data.team} reload={reloadAll} />}</>}</> : <section className="card"><EmptyState title="Команд пока нет">Создайте возрастную команду и первый состав — после этого можно назначить тренера и добавить игроков.</EmptyState></section>}
   </>
 }
 

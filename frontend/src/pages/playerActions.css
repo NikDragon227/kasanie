@@ -1,0 +1,29 @@
+.player-context-menu { position: fixed; z-index: 110; max-height: calc(100vh - 24px); overflow-y: auto; border: 1px solid #d4dae1; background: #fff; border-radius: 14px; box-shadow: 0 12px 55px #162c3840; padding: 6px; }
+.player-context-menu header { position: relative; padding: 12px 40px 14px 12px; border-bottom: 1px solid #e1e5e8; }
+.player-context-menu header strong { display: block; font-size: 14px; }
+.player-context-menu header small { display: block; margin-top: 4px; font-size: 11px; color: #728090; }
+.player-context-menu header button { position: absolute; right: 10px; top: 8px; background: transparent; border: 0; font-size: 24px; cursor: pointer; }
+.player-menu-columns { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 4px; padding-top: 5px; }
+.player-menu-columns nav { border-right: 1px solid #e5e7e9; padding-right: 4px; }
+.player-menu-columns button, .player-menu-columns a { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 9px 11px; border: 0; background: transparent; color: #253747; border-radius: 7px; cursor: pointer; font: inherit; font-size: 12px; text-decoration: none; text-align: left; }
+.player-menu-columns button.active, .player-menu-columns button:hover, .player-menu-columns a:hover { background: #eceeff; color: #4c56eb; }
+.player-menu-columns button:disabled { opacity: .5; cursor: not-allowed; }
+.player-menu-columns button:focus-visible, .player-menu-columns a:focus-visible { outline: 2px solid #737aff; outline-offset: -2px; }
+.player-menu-panel .readonly-note, .player-menu-panel > p { margin: 12px; font-size: 12px; }
+.player-menu-caption { display: block; font-size: 10px; color: #7a8593; padding: 9px 11px 5px; }
+.player-rest-shortcuts { display: flex; gap: 2px; margin: 3px 8px; }
+.player-rest-shortcuts button { justify-content: center; padding: 8px 5px; border: 1px solid #dde1e9; }
+.squad-overview-row > span:first-child { position: relative; padding-right: 26px; }
+.player-actions-trigger { position: absolute; right: 0; top: 2px; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: #eff1f7; cursor: pointer; color: #4c5677; font-size: 20px; }
+.squad-overview-row:focus-visible { outline: 2px solid #838aff; outline-offset: -2px; }
+.player-comparison-controls { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+.player-comparison-controls label { flex: 1; min-width: 180px; }
+.player-comparison-table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; }
+.player-comparison-table th, .player-comparison-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e4e8ea; }
+.player-comparison-table thead { background: #f2f3fb; }
+.player-comparison-table tbody th { font-weight: 500; color: #677582; }
+.player-similar-list { display: grid; gap: 10px; }
+.player-similar-list article { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; border: 1px solid #e5e8ed; border-radius: 10px; }
+.player-similar-list small { display: block; margin-top: 5px; color: #72808d; }
+.player-similar-list p { font-size: 11px; margin-bottom: 0; color: #677486; }
+@media (max-width: 600px) { .player-menu-columns { grid-template-columns: 1fr; }.player-menu-columns nav { display: flex; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid #e5e8eb; padding-bottom: 6px; }.player-menu-columns nav button { width: auto; flex: 1; }.player-similar-list article { align-items: start; flex-direction: column; } }

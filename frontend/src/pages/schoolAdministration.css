@@ -1,0 +1,13 @@
+.school-scope-bar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 28px; padding: 18px 20px; border: 1px solid #e0e4e8; border-radius: 16px; background: #fff; }
+.school-scope-bar > label { display: grid; gap: 8px; min-width: 220px; color: #667488; font-size: 11px; font-weight: 700; }
+.school-scope-bar select { border: 1px solid #d7dce2; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 13px; background: #fff; color: #1f3343; }
+.school-scope-bar nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.school-scope-bar nav a { padding: 9px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; text-decoration: none; }
+.school-scope-bar nav a.active { background: #eeefff; color: #545dff; }
+.admin-school-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.admin-school-actions .button { font-size: 12px; }
+.school-coach-status { display: flex; align-items: center; gap: 12px; }
+.admin-team-controls { margin: 22px 0; border: 1px solid #d7d9f8; border-radius: 16px; padding: 20px; background: #f7f7ff; }
+.admin-team-controls summary { font-weight: 700; cursor: pointer; }
+.admin-team-controls .profile-form { margin-top: 22px; }
+@media (max-width: 650px) { .school-scope-bar > label { min-width: 0; width: 100%; }.school-scope-bar nav { width: 100%; }.school-coach-status { flex-wrap: wrap; } }

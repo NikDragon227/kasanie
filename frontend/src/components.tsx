@@ -92,7 +92,7 @@ export function AppShell() {
     const expected = new URLSearchParams(search)
     const current = new URLSearchParams(location.search)
     if ([...expected].some(([key, value]) => current.get(key) !== value)) return false
-    return [...current.keys()].every(key => key === 'team' || expected.has(key))
+    return [...current.keys()].every(key => ['team', 'school', 'trainingView', 'player'].includes(key) || expected.has(key))
   }
   return <div className="app-shell">
     <aside className="sidebar">

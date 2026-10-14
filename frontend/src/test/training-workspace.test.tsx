@@ -39,6 +39,14 @@ describe('training calendar dates', () => {
 })
 
 describe('training workspace', () => {
+  it('lists only players with active rest status, excluding normal and expired rest', () => {
+    const value = response()
+    value.state.players = [{ ...defaultPlayerSettings(data.players[0]), intensity: 'Rest' }, { ...defaultPlayerSettings(data.players[1]), restUntil: '2000-01-01' }]
+    board('rest', value)
+    const table = within(screen.getByRole('table'))
+    expect(table.getByText('Иван Игрок')).toBeInTheDocument()
+    expect(table.queryByText('Пётр Вратарь')).not.toBeInTheDocument()
+  })
   it('opens seven training sections and keeps medical unknowns explicit', () => {
     board()
     for (const title of ['Обзор', 'Календарь', 'Группы', 'Наставничество', 'Индивидуальные', 'Отдых', 'Тренеры']) expect(screen.getByRole('button', { name: title })).toBeInTheDocument()

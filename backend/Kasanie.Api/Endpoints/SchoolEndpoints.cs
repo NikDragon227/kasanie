@@ -15,6 +15,7 @@ public static partial class EndpointMapping
     private static void MapSchools(this IEndpointRouteBuilder app)
     {
         var admin = app.MapGroup("/api/admin/schools").RequireAuthorization(Roles.Admin).WithTags("Schools admin");
+        MapSchoolAdminManagement(admin);
 
         admin.MapGet("/", async (AppDbContext db) => Results.Ok(await db.Schools.AsNoTracking().OrderBy(x => x.Name).Select(x => new
         {
@@ -70,9 +71,11 @@ public static partial class EndpointMapping
             return Results.NoContent();
         });
 
-        var portal = app.MapGroup("/api/school").RequireAuthorization(policy => policy.RequireRole(Roles.SchoolOwner, Roles.SchoolAdmin, Roles.Coach)).WithTags("School portal");
+        var portal = app.MapGroup("/api/school").RequireAuthorization(policy => policy.RequireRole(Roles.SchoolOwner, Roles.SchoolAdmin, Roles.Coach, Roles.Admin)).WithTags("School portal");
         portal.MapGet("/memberships", async (ClaimsPrincipal principal, AppDbContext db) =>
         {
+            if (principal.IsInRole(Roles.Admin))
+                return Results.Ok(await db.Schools.AsNoTracking().OrderBy(x => x.Name).Select(x => new { schoolId = x.Id, x.Name, role = "Admin" }).ToListAsync());
             var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
             return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.UserId == userId && x.IsActive && x.School.IsActive)
                 .OrderBy(x => x.School.Name).Select(x => new { x.SchoolId, x.School.Name, role = x.Role.ToString() }).ToListAsync());
@@ -208,9 +211,15 @@ public static partial class EndpointMapping
             var item = new TeamMessage { TeamId = teamId, AuthorUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!, Channel = TeamMessageChannel.Owner, Text = request.Text.Trim() }; db.TeamMessages.Add(item); await db.SaveChangesAsync(); await AddAudit(db, principal, "school_owner_team_message_sent", nameof(TeamMessage), item.Id.ToString()); return Results.Ok(new { item.Id });
         });
 
-        portal.MapPut("/{schoolId:int}/teams/{teamId:int}/tactics", (int schoolId, int teamId) =>
+        portal.MapPut("/{schoolId:int}/teams/{teamId:int}/tactics", async (int schoolId, int teamId, TeamTacticRequest request, ClaimsPrincipal principal, AppDbContext db) =>
         {
-            return Results.Problem("Тактика и тренировочный цикл находятся в зоне ответственности тренера.", statusCode: StatusCodes.Status403Forbidden);
+            if (!principal.IsInRole(Roles.Admin)) return Results.Problem("Тактика и тренировочный цикл находятся в зоне ответственности тренера.", statusCode: StatusCodes.Status403Forbidden);
+            if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
+            var team = await db.Teams.SingleOrDefaultAsync(x => x.Id == teamId && x.SchoolId == schoolId);
+            if (team is null) return Results.NotFound();
+            team.TacticFormation = Clean(request.Formation); team.TacticNotes = Clean(request.Notes); team.TacticPlanJson = Clean(request.PlanJson); team.SetPiecesJson = Clean(request.SetPiecesJson); team.OpponentInstructions = Clean(request.OpponentInstructions); team.UpdatedAt = DateTimeOffset.UtcNow;
+            await SaveCoachAudit(db, principal, "admin_team_tactics_updated", nameof(Team), team.Id.ToString());
+            return Results.NoContent();
         });
 
         portal.MapPost("/{schoolId:int}/teams/{teamId:int}/groups", async (int schoolId, int teamId, TeamTrainingGroupRequest request, ClaimsPrincipal principal, AppDbContext db) =>
@@ -248,7 +257,7 @@ public static partial class EndpointMapping
             if (!await CanManageSchoolAsync(db, principal, schoolId)) return Results.Forbid();
             return Results.Ok(await db.SchoolMemberships.AsNoTracking().Where(x => x.SchoolId == schoolId && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner && db.CoachProfiles.Any(c => c.UserId == x.UserId))).OrderBy(x => x.User.Email).Select(x => new
             {
-                x.UserId, x.User.Email, x.IsActive,
+                x.UserId, x.User.Email, x.IsActive, role = x.Role.ToString(),
                 coachId = db.CoachProfiles.Where(c => c.UserId == x.UserId).Select(c => (int?)c.Id).FirstOrDefault(),
                 displayName = db.CoachProfiles.Where(c => c.UserId == x.UserId).Select(c => c.DisplayName).FirstOrDefault()
             }).ToListAsync());
@@ -267,7 +276,7 @@ public static partial class EndpointMapping
                 var result = await users.CreateAsync(user);
                 if (!result.Succeeded) return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = result.Errors.Select(x => x.Description).ToArray() });
             }
-            if (await db.SchoolMemberships.AnyAsync(x => x.SchoolId != schoolId && x.UserId == user.Id && x.IsActive && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner)))
+            if (!principal.IsInRole(Roles.Admin) && await db.SchoolMemberships.AnyAsync(x => x.SchoolId != schoolId && x.UserId == user.Id && x.IsActive && (x.Role == SchoolMembershipRole.Coach || x.Role == SchoolMembershipRole.Owner)))
                 return Results.Conflict(new { message = "Этот тренер уже состоит в другой школе." });
             if (!await users.IsInRoleAsync(user, Roles.Coach)) await users.AddToRoleAsync(user, Roles.Coach);
             var profile = await db.CoachProfiles.SingleOrDefaultAsync(x => x.UserId == user.Id);
@@ -355,6 +364,7 @@ public static partial class EndpointMapping
 
     private static Task<bool> CanManageSchoolAsync(AppDbContext db, ClaimsPrincipal principal, int schoolId)
     {
+        if (principal.IsInRole(Roles.Admin)) return db.Schools.AnyAsync(x => x.Id == schoolId);
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         return db.SchoolMemberships.AnyAsync(x => x.SchoolId == schoolId && x.UserId == userId && x.IsActive && x.School.IsActive);
     }

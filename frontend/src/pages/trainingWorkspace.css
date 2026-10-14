@@ -51,8 +51,10 @@
 .training-load-bar.high span { background: #dc805e; }
 .training-calendar-toolbar, .training-section-heading, .training-calendar-controls { display: flex; gap: 18px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
 .training-calendar-toolbar h2 { margin-bottom: 0; }
-.training-calendar-controls { justify-content: flex-start; gap: 8px; }
+.training-calendar-controls { justify-content: flex-start; align-items: flex-end; gap: 8px; }
 .training-calendar-controls label { width: auto; }
+.training-calendar-controls .button, .training-calendar-controls input, .training-calendar-controls select { height: 42px; min-height: 42px; margin: 0; }
+.training-calendar-controls .button { min-width: 42px; padding: 8px 12px; }
 .training-calendar-week { margin: 22px 0; }
 .training-calendar-week h3 { font-size: 13px; margin: 0 0 10px; color: #556a78; }
 .training-distribution { display: grid; grid-template-columns: 128px 1fr; gap: 18px; align-items: center; margin-top: 22px; }
