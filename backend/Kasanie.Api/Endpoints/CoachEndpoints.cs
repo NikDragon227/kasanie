@@ -17,10 +17,10 @@ public static partial class EndpointMapping
             exercises = await db.Exercises.AsNoTracking().Where(x => x.IsActive && !x.Name.StartsWith("E2E ") && !x.Name.StartsWith("Smoke CRUD ")).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, skillCategory = x.SkillCategory.ToString(), x.DurationMinutes }).ToListAsync(),
             programs = await db.TrainingPrograms.AsNoTracking().Where(x => x.IsActive && !x.Name.StartsWith("E2E ")).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.Description }).ToListAsync()
         }));
-        coach.MapGet("/players", async (string? search, string? level, ClaimsPrincipal user, AppDbContext db) =>
+        coach.MapGet("/players", async (string? search, string? level, int? schoolId, ClaimsPrincipal user, AppDbContext db) =>
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-            var query = db.TeamPlayers.AsNoTracking().Where(x => x.IsActive && x.Team.IsActive && x.Team.School.IsActive && x.Team.TeamCoaches.Any(c => c.Coach.UserId == userId)).Select(x => x.Player).Distinct();
+            var query = db.TeamPlayers.AsNoTracking().Where(x => x.IsActive && x.Team.IsActive && x.Team.School.IsActive && (!schoolId.HasValue || x.Team.SchoolId == schoolId) && x.Team.TeamCoaches.Any(c => c.Coach.UserId == userId)).Select(x => x.Player).Distinct();
             if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => (x.FirstName + " " + x.LastName).ToLower().Contains(search.ToLower()));
             if (!string.IsNullOrWhiteSpace(level)) query = query.Where(x => x.ExperienceLevel == level);
             var players = await query.OrderBy(x => x.LastName).Select(x => new
@@ -37,16 +37,16 @@ public static partial class EndpointMapping
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
             return Results.Ok(await db.TeamCoaches.AsNoTracking().Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
-                .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).Select(x => new { x.TeamId, name = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
+                .OrderBy(x => x.Team.AgeGroup).ThenBy(x => x.Team.Name).Select(x => new { x.TeamId, x.Team.SchoolId, name = (x.Team.AgeGroup ?? "") + (x.Team.AgeGroup == null ? "" : " — ") + x.Team.Name, x.Team.AgeGroup, x.Team.Season, school = x.Team.School.Name, x.IsHeadCoach, players = x.Team.TeamPlayers.Count(p => p.IsActive) }).ToListAsync());
         });
 
-        coach.MapGet("/workday", async (ClaimsPrincipal user, AppDbContext db) =>
+        coach.MapGet("/workday", async (int? schoolId, ClaimsPrincipal user, AppDbContext db) =>
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
             var now = DateTimeOffset.UtcNow;
             var weekEnd = now.AddDays(7);
             var assignedTeams = db.TeamCoaches
-                .Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive)
+                .Where(x => x.Coach.UserId == userId && x.Team.IsActive && x.Team.School.IsActive && (!schoolId.HasValue || x.Team.SchoolId == schoolId))
                 .Select(x => x.TeamId);
 
             var nextTraining = await db.TeamTrainings.AsNoTracking()

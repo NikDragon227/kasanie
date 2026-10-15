@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { post, put, remove } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader, ProgressBar, StatCard } from '../components'
 import { formatDate, useApiData } from '../hooks'
 import { TacticsWorkspace } from './TacticsWorkspace'
 import { TrainingWorkspace } from './TrainingWorkspace'
+import { CoachScopeBar, useCoachScope } from '../CoachScope'
 import { PlayerActionMenu } from './PlayerActionMenu'
 
-type CoachTeam = { teamId: number; name: string; season?: string; school: string; isHeadCoach: boolean; players: number }
 type Player = { playerId: number; firstName: string; lastName: string; dateOfBirth: string; gender?: string; preferredPosition: string; dominantFoot: string; experienceLevel: string; isRegistered: boolean; shirtNumber?: number; height?: number; weight?: number; citizenship?: string; secondCitizenship?: string; coachNote?: string; isCaptain: boolean; appearances: number; goals: number; assists: number; cleanSheets: number; averageRating?: number; squadRoleOverride?: string; autoSquadRole: string; tournamentRegistrationStatus: string; currentSeasonPlan: string; nextSeasonPlan: string; twoYearPlan: string; completedTrainings: number; attendance: number; activeInjury: boolean }
 type Match = { id: number; opponent: string; competition?: string; scheduledAt: string; venue: string; status: string; goalsFor?: number; goalsAgainst?: number }
 type CommandCenter = {
@@ -25,25 +25,19 @@ const tabs: { id: Tab; label: string }[] = [{ id: 'overview', label: 'Обзор
 const formatLabel = (format?: string) => format === '5v5' ? 'Футзал · 5 × 5' : ['9v9', '8v8', '7v7'].includes(format ?? '') ? format!.replace('v', ' × ') : '11 × 11'
 
 export function CoachTeamsPage() {
-  const teams = useApiData<CoachTeam[]>('/api/coach/teams'); const [params, setParams] = useSearchParams(); const [notice, setNotice] = useState<Notice>(null)
-  const activeTeams = useMemo(() => teams.data ?? [], [teams.data]); const selectedId = Number(params.get('team')) || activeTeams[0]?.teamId || 0
+  const scope = useCoachScope()
+  const [params] = useSearchParams()
+  const [notice, setNotice] = useState<Notice>(null)
+  const selectedId = !scope.loading && !scope.error ? scope.teamId : 0
   const requestedTab = params.get('tab')
   const tab: Tab = tabs.some(item => item.id === requestedTab) ? requestedTab as Tab : 'overview'
   const center = useApiData<CommandCenter>(selectedId ? `/api/coach/teams/${selectedId}/command-center` : null)
-  useEffect(() => {
-    if (!params.get('team') && activeTeams[0]) {
-      const next = new URLSearchParams(params)
-      next.set('team', String(activeTeams[0].teamId))
-      setParams(next, { replace: true })
-    }
-  }, [activeTeams, params, setParams])
-  if (teams.loading) return <PageLoader />
-  if (teams.error || !teams.data) return <ErrorState message={teams.error} retry={teams.reload} />
-  if (!activeTeams.length) return <><PageHeader eyebrow="Кабинет тренера" title="Мои команды" /><section className="card"><EmptyState title="Составы не назначены">Владелец школы должен назначить вас тренером состава.</EmptyState></section></>
-  return <><PageHeader title="Кабинет тренера" actions={<Link className="button" to={`/coach/trainings?team=${selectedId}`}>Тренировки →</Link>} />
-    <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select value={selectedId} onChange={e => { const next = new URLSearchParams(params); next.set('team', e.target.value); next.delete('view'); setParams(next) }}>{activeTeams.map(x => <option value={x.teamId} key={x.teamId}>{x.name}</option>)}</select></label>{center.data && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Формат</small><strong>{formatLabel(center.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
+  if (scope.loading) return <PageLoader />
+  if (scope.error) return <ErrorState message={scope.error} retry={scope.reload} />
+  return <><PageHeader title="Кабинет тренера" actions={<Link className="button" to={scope.link('/coach/trainings')}>Тренировки →</Link>} />
+    <CoachScopeBar>{center.data?.team.id === selectedId && <div className="team-context-meta"><span><small>Формат</small><strong>{formatLabel(center.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</CoachScopeBar>
     {notice && <p className={notice.ok ? 'success-message' : 'error-message'}>{notice.text}</p>}
-    {center.loading && !center.data ? <PageLoader /> : !center.data ? <ErrorState message={center.error} retry={center.reload} /> : <CoachCommandCenter data={center.data} tab={tab} plannerMode={params.get('view') === 'planning'} reload={center.reload} setNotice={setNotice} />}
+    {!selectedId ? <section className="card"><EmptyState title="В этой школе состав не назначен">Владелец или администратор школы должен назначить вас тренером состава. Можно выбрать другую школу в шапке.</EmptyState></section> : center.data?.team.id !== selectedId || center.loading ? center.error ? <ErrorState message={center.error} retry={center.reload} /> : <PageLoader /> : <CoachCommandCenter key={selectedId} data={center.data} tab={tab} plannerMode={params.get('view') === 'planning'} reload={center.reload} setNotice={setNotice} />}
   </>
 }
 

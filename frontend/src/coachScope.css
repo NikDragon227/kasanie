@@ -1,0 +1,6 @@
+.team-context-bar.coach-scope-bar { grid-template-columns: minmax(220px, .65fr) minmax(260px, .9fr) minmax(0, 1.7fr); }
+.coach-scope-bar > label { min-width: 0; border-right: 1px solid #ffffff12; }
+.coach-scope-bar select { font-family: inherit; font-size: 1rem; font-weight: 600; text-overflow: ellipsis; }
+.coach-scope-bar .team-context-meta { grid-template-columns: .8fr .55fr 1.2fr .7fr; }
+@media (max-width: 1400px) { .team-context-bar.coach-scope-bar { grid-template-columns: 1fr 1fr; }.coach-scope-bar .team-context-meta { grid-column: 1 / -1; } }
+@media (max-width: 650px) { .team-context-bar.coach-scope-bar { grid-template-columns: 1fr; }.coach-scope-bar .team-context-meta { grid-template-columns: 1fr 1fr; }.coach-scope-bar > label + label { border-top: 1px solid #ffffff12; } }

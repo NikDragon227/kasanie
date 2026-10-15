@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth'
+import { CoachScopeProvider } from '../CoachScope'
 import { RadarChart, type Skills } from '../components'
 import { CityInput } from '../CityInput'
 import { LoginForm, PortalUserRegisterPage, RegisterPage, RegistrationChoicePage } from '../pages/PublicPages'
@@ -25,13 +26,13 @@ beforeEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('critical workflows', () => {
   it('uses a single coach cabinet heading without the workday introduction', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ unfinished: [], risks: [], upcomingEvents: [] }))
-    render(<MemoryRouter><CoachDashboard /></MemoryRouter>)
+    vi.spyOn(globalThis, 'fetch').mockImplementation(input => String(input) === '/api/coach/teams' ? json([{ teamId: 1, schoolId: 1, name: 'Первый состав', school: 'Школа' }]) : String(input) === '/api/school/memberships' ? json([{ schoolId: 1, name: 'Школа' }]) : json({ unfinished: [], risks: [], upcomingEvents: [] }))
+    render(<MemoryRouter><CoachScopeProvider userId="dashboard-test"><CoachDashboard /></CoachScopeProvider></MemoryRouter>)
     expect(await screen.findByRole('heading', { level: 1, name: 'Кабинет тренера' })).toBeInTheDocument()
     expect(screen.getAllByText('Кабинет тренера')).toHaveLength(1)
     expect(screen.queryByText('Мой рабочий день')).not.toBeInTheDocument()
     expect(screen.queryByText(/Главное на сегодня/)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Журнал тренировок' })).toHaveAttribute('href', '/coach/trainings/journal')
+    expect(screen.getByRole('link', { name: 'Журнал тренировок' })).toHaveAttribute('href', '/coach/trainings/journal?school=1&team=1')
   })
   it('presents the product, live platform statistics and primary public paths', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(input => {

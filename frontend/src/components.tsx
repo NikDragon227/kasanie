@@ -1,5 +1,6 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { coachScopedLink, useOptionalCoachScope } from './CoachScope'
 import { useAuth } from './auth'
 
 export const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
@@ -81,6 +82,9 @@ export function AuthenticatedGuard() {
 
 export function AppShell() {
   const { user, logout } = useAuth()
+  const coachScope = useOptionalCoachScope()
+  const scopeParams = new URLSearchParams(useLocation().search)
+  const scopedLink = (path: string) => coachScope?.link(path) ?? (user?.roles.includes('Coach') ? coachScopedLink(path, Number(scopeParams.get('school')) || 0, Number(scopeParams.get('team')) || 0) : path)
   const navigate = useNavigate()
   const location = useLocation()
   const role = primaryRole(user?.roles ?? [])
@@ -96,8 +100,8 @@ export function AppShell() {
   }
   return <div className="app-shell">
     <aside className="sidebar">
-      <NavLink className="brand" to={roleHome[role] ?? '/'}><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></NavLink>
-      <nav aria-label="Основная навигация">{navigationItems.map((item, index) => <Fragment key={item.to}>{item.section && (index === 0 || navigationItems[index - 1].section !== item.section) && <span className="sidebar-nav-title">{item.section}</span>}<NavLink to={item.to} className={() => isCurrent(item.to) ? 'active' : ''}><NavigationIcon item={item} />{item.label}</NavLink></Fragment>)}</nav>
+      <NavLink className="brand" to={scopedLink(roleHome[role] ?? '/')}><span className="brand-emblem brand-emblem-outlined"><img src="/brand/kasanie-logo-official.png" alt="" /></span><span><strong>КАСАНИЕ</strong><small>спортивная платформа</small></span></NavLink>
+      <nav aria-label="Основная навигация">{navigationItems.map((item, index) => <Fragment key={item.to}>{item.section && (index === 0 || navigationItems[index - 1].section !== item.section) && <span className="sidebar-nav-title">{item.section}</span>}<NavLink to={scopedLink(item.to)} className={() => isCurrent(item.to) ? 'active' : ''}><NavigationIcon item={item} />{item.label}</NavLink></Fragment>)}</nav>
       <div className="sidebar-user"><span className="avatar">{user?.email[0].toUpperCase()}</span><div><small>{roleLabel(role)}</small><span>{user?.email}</span></div></div>
       <button className="link-button" onClick={async () => { await logout(); navigate('/login') }}>Выйти</button>
     </aside>

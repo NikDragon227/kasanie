@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState, type CSSProperties, type ReactNode
 import { Link, useSearchParams } from 'react-router-dom'
 import { put } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader } from '../components'
+import { CoachScopeBar, useCoachScope, useOptionalCoachScope } from '../CoachScope'
 import { useApiData } from '../hooks'
 import {
   addDays, coachTasks, dateFromKey, dateKey, dayIntensity, defaultPlayerSettings, defaultTrainingFormation, individualFocus,
@@ -11,7 +12,6 @@ import {
 } from './trainingModel'
 import './trainingWorkspace.css'
 
-type Team = { teamId: number; name: string; school: string }
 type TrainingView = typeof trainingTabs[number][0]
 type EditorProps = { data: TrainingTeamData; response: TrainingResponse; state: TrainingState; update: (patch: Partial<TrainingState>) => void }
 const shortDate = (value: Date) => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(value)
@@ -19,16 +19,14 @@ const fullName = (player: TrainingPlayer) => `${player.firstName} ${player.lastN
 const format = (value?: string) => value === '5v5' ? 'Футзал · 5 × 5' : (value ?? '11v11').replace('v', ' × ')
 
 export function TrainingWorkspacePage() {
-  const teams = useApiData<Team[]>('/api/coach/teams')
-  const [params, setParams] = useSearchParams()
-  const teamId = Number(params.get('team')) || teams.data?.[0]?.teamId || 0
+  const scope = useCoachScope()
+  const teamId = !scope.loading && !scope.error ? scope.teamId : 0
   const center = useApiData<TrainingTeamData>(teamId ? `/api/coach/teams/${teamId}/command-center` : null)
-  if (teams.loading) return <PageLoader />
-  if (teams.error) return <ErrorState message={teams.error} retry={teams.reload} />
-  if (!teams.data?.length) return <><PageHeader title="Тренировки" /><section className="card"><EmptyState title="Команда не назначена">Добавьте команду и назначьте тренера в управлении школой.</EmptyState></section></>
-  return <><PageHeader title="Тренировки" actions={<Link className="button ghost" to={`/coach/trainings/journal?team=${teamId}`}>Журнал занятий →</Link>} />
-    <section className="team-context-bar coach-team-context"><label><small>КОМАНДА И СОСТАВ</small><select aria-label="Команда тренировок" value={teamId} onChange={event => { const next = new URLSearchParams(params); next.set('team', event.target.value); setParams(next) }}>{teams.data.map(team => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}</select></label>{center.data?.team.id === teamId && <div className="team-context-meta"><span><small>Школа</small><strong>{center.data.team.school}</strong></span><span><small>Формат</small><strong>{format(center.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</section>
-    {center.loading || center.data?.team.id !== teamId ? center.error ? <ErrorState message={center.error} retry={center.reload} /> : <PageLoader /> : <TrainingWorkspace key={teamId} data={center.data} />}
+  if (scope.loading) return <PageLoader />
+  if (scope.error) return <ErrorState message={scope.error} retry={scope.reload} />
+  return <><PageHeader title="Тренировки" actions={<Link className="button ghost" to={scope.link('/coach/trainings/journal')}>Журнал занятий →</Link>} />
+    <CoachScopeBar>{center.data?.team.id === teamId && <div className="team-context-meta"><span><small>Формат</small><strong>{format(center.data.team.matchFormat)}</strong></span><span><small>Игроков</small><strong>{center.data.players.length}</strong></span><span><small>Текущий цикл</small><strong>{center.data.team.trainingCycleStage}</strong></span><span><small>Сезон</small><strong>{center.data.team.season || '—'}</strong></span></div>}</CoachScopeBar>
+    {!teamId ? <section className="card"><EmptyState title="В этой школе состав не назначен">Для доступа к тренировкам нужно назначение в команду этой школы.</EmptyState></section> : center.loading || center.data?.team.id !== teamId ? center.error ? <ErrorState message={center.error} retry={center.reload} /> : <PageLoader /> : <TrainingWorkspace key={teamId} data={center.data} />}
   </>
 }
 
@@ -52,6 +50,9 @@ export function TrainingBoard({ data, response, calendarDate, onCalendarDate }: 
   const [editingSlot, setEditingSlot] = useState<CalendarEntry | null>(null)
   const [tasksOpen, setTasksOpen] = useState(false)
   const dirty = JSON.stringify(state) !== saved
+  const scope = useOptionalCoachScope()
+  const registerGuard = scope?.registerGuard
+  useEffect(() => registerGuard?.(() => !pending && (!dirty || confirm('Есть несохранённые изменения плана. Сменить школу или состав без сохранения?'))), [registerGuard, dirty, pending])
   const update = (patch: Partial<TrainingState>) => { setState(previous => ({ ...previous, ...patch })); setNotice(null) }
   const setView = (nextView: TrainingView) => { const next = new URLSearchParams(params); next.set('trainingView', nextView); setParams(next, { replace: true }) }
   useEffect(() => {

@@ -4,6 +4,7 @@ import { post, put, remove } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader, ProgressBar, RadarChart, StatCard, type Skills } from '../components'
 import { formatDate, useApiData } from '../hooks'
 import { CityInput } from '../CityInput'
+import { CoachScopeBar, useCoachScope } from '../CoachScope'
 import { DevelopmentProfile } from '../DevelopmentProfile'
 
 type CoachPlayer = { id: number; firstName: string; lastName: string; preferredPosition: string; experienceLevel: string; lastActivity?: string; planCompletion: number }
@@ -16,12 +17,21 @@ type CoachWorkday = {
 }
 
 export function CoachDashboard() {
-  const workday = useApiData<CoachWorkday>('/api/coach/workday')
+  const scope = useCoachScope()
+  return <CoachDashboardContent key={scope.schoolId} />
+}
+function CoachDashboardContent() {
+  const scope = useCoachScope()
+  const workday = useApiData<CoachWorkday>(!scope.loading && !scope.error && scope.schoolId ? `/api/coach/workday?schoolId=${scope.schoolId}` : null)
+  if (scope.loading) return <PageLoader />
+  if (scope.error) return <ErrorState message={scope.error} retry={scope.reload} />
+  if (!scope.schoolId) return <><PageHeader title="Кабинет тренера" /><EmptyState title="Нет доступных школ" /></>
   if (workday.loading) return <PageLoader />; if (workday.error || !workday.data) return <ErrorState message={workday.error} retry={workday.reload} />
   const data = workday.data
   const teamLink = (teamId: number) => `/coach/teams?team=${teamId}`
   return <>
-    <PageHeader title="Кабинет тренера" actions={<Link className="button" to="/coach/trainings/journal">Журнал тренировок</Link>} />
+    <PageHeader title="Кабинет тренера" actions={<Link className="button" to={scope.link('/coach/trainings/journal')}>Журнал тренировок</Link>} />
+    <CoachScopeBar />
     <section className="stat-grid four coach-workday-stats">
       <StatCard label="Незакрытый журнал" value={data.unfinished.length} tone={data.unfinished.length ? 'coral' : 'accent'} />
       <StatCard label="Риски по игрокам" value={data.risks.length} tone={data.risks.length ? 'coral' : 'default'} />
@@ -31,23 +41,30 @@ export function CoachDashboard() {
     <section className="coach-workday-grid">
       <article className="card coach-day-focus">
         <span className="eyebrow">Ближайшая тренировка</span>
-        {data.nextTraining ? <><h2>{data.nextTraining.title}</h2><p>{data.nextTraining.team} · {formatDate(data.nextTraining.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextTraining.players} игроков</span><span>{data.nextTraining.exercises} упражнений</span></div><Link className="button" to={`/coach/trainings/${data.nextTraining.id}`}>Открыть занятие</Link></> : <EmptyState title="Тренировка не запланирована"><Link className="button" to="/coach/trainings/journal">Запланировать занятие</Link></EmptyState>}
+        {data.nextTraining ? <><h2>{data.nextTraining.title}</h2><p>{data.nextTraining.team} · {formatDate(data.nextTraining.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextTraining.players} игроков</span><span>{data.nextTraining.exercises} упражнений</span></div><Link className="button" to={`/coach/trainings/${data.nextTraining.id}`}>Открыть занятие</Link></> : <EmptyState title="Тренировка не запланирована"><Link className="button" to={scope.link('/coach/trainings/journal')}>Запланировать занятие</Link></EmptyState>}
       </article>
       <article className="card coach-day-focus">
         <span className="eyebrow">Ближайший матч</span>
-        {data.nextMatch ? <><h2>— {data.nextMatch.opponent}</h2><p>{data.nextMatch.team} · {formatDate(data.nextMatch.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextMatch.competition || 'Матч'}</span><span>{data.nextMatch.venue}</span></div><Link className="button ghost" to={teamLink(data.nextMatch.teamId)}>Открыть команду</Link></> : <EmptyState title="Ближайшего матча нет"><Link className="button ghost" to="/coach/teams">Перейти к расписанию</Link></EmptyState>}
+        {data.nextMatch ? <><h2>— {data.nextMatch.opponent}</h2><p>{data.nextMatch.team} · {formatDate(data.nextMatch.scheduledAt)}</p><div className="coach-day-meta"><span>{data.nextMatch.competition || 'Матч'}</span><span>{data.nextMatch.venue}</span></div><Link className="button ghost" to={teamLink(data.nextMatch.teamId)}>Открыть команду</Link></> : <EmptyState title="Ближайшего матча нет"><Link className="button ghost" to={scope.link('/coach/teams?tab=schedule')}>Перейти к расписанию</Link></EmptyState>}
       </article>
     </section>
     <section className="coach-workday-grid">
-      <article className="card"><div className="card-heading"><div><span className="eyebrow">Сначала закрыть</span><h2>Незавершённый журнал</h2></div><Link to="/coach/trainings/journal">Все занятия →</Link></div>{data.unfinished.length ? <div className="coach-workday-list">{data.unfinished.map(item => <Link key={item.id} to={`/coach/trainings/${item.id}`}><div><b>{item.title}</b><small>{item.team} · {formatDate(item.scheduledAt)}</small></div><span>{item.unresolvedAttendance ? `${item.unresolvedAttendance} без отметки` : 'Завершить'}</span></Link>)}</div> : <EmptyState title="Всё закрыто">У прошедших занятий нет незавершённых действий.</EmptyState>}</article>
-      <article className="card"><div className="card-heading"><div><span className="eyebrow">Внимание</span><h2>Игроки и риски</h2></div><Link to="/coach/teams">Команды →</Link></div>{data.risks.length ? <div className="coach-workday-list">{data.risks.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.player}</b><small>{item.team} · {item.type} · {item.severity}</small></div><span className={item.riskLevel >= 7 ? 'risk-high' : ''}>риск {item.riskLevel}/10</span></Link>)}</div> : <EmptyState title="Активных рисков нет">Проверьте состав перед следующим занятием.</EmptyState>}</article>
+      <article className="card"><div className="card-heading"><div><span className="eyebrow">Сначала закрыть</span><h2>Незавершённый журнал</h2></div><Link to={scope.link('/coach/trainings/journal')}>Все занятия →</Link></div>{data.unfinished.length ? <div className="coach-workday-list">{data.unfinished.map(item => <Link key={item.id} to={`/coach/trainings/${item.id}`}><div><b>{item.title}</b><small>{item.team} · {formatDate(item.scheduledAt)}</small></div><span>{item.unresolvedAttendance ? `${item.unresolvedAttendance} без отметки` : 'Завершить'}</span></Link>)}</div> : <EmptyState title="Всё закрыто">У прошедших занятий нет незавершённых действий.</EmptyState>}</article>
+      <article className="card"><div className="card-heading"><div><span className="eyebrow">Внимание</span><h2>Игроки и риски</h2></div><Link to={scope.link('/coach/teams')}>Команды →</Link></div>{data.risks.length ? <div className="coach-workday-list">{data.risks.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.player}</b><small>{item.team} · {item.type} · {item.severity}</small></div><span className={item.riskLevel >= 7 ? 'risk-high' : ''}>риск {item.riskLevel}/10</span></Link>)}</div> : <EmptyState title="Активных рисков нет">Проверьте состав перед следующим занятием.</EmptyState>}</article>
     </section>
     {data.upcomingEvents.length > 0 && <section className="card coach-week-events"><div className="card-heading"><div><span className="eyebrow">Ближайшие 7 дней</span><h2>Расписание команды</h2></div></div><div className="coach-workday-list">{data.upcomingEvents.map(item => <Link key={item.id} to={teamLink(item.teamId)}><div><b>{item.title}</b><small>{item.team} · {item.type}</small></div><span>{formatDate(item.startsAt)}</span></Link>)}</div></section>}
   </>
 }
 
 export function CoachPlayersPage() {
-  const [search, setSearch] = useState(''); const { data, loading, error, reload } = useApiData<CoachPlayer[]>(`/api/coach/players?search=${encodeURIComponent(search)}`)
+  const scope = useCoachScope()
+  if (scope.loading) return <PageLoader />
+  if (scope.error) return <ErrorState message={scope.error} retry={scope.reload} />
+  return <><CoachScopeBar />{scope.schoolId ? <CoachPlayersList key={scope.schoolId} /> : <EmptyState title="Нет доступных школ" />}</>
+}
+function CoachPlayersList() {
+  const scope = useCoachScope()
+  const [search, setSearch] = useState(''); const { data, loading, error, reload } = useApiData<CoachPlayer[]>(scope.schoolId ? `/api/coach/players?schoolId=${scope.schoolId}&search=${encodeURIComponent(search)}` : null)
   return <><PageHeader eyebrow="Связанные профили" title="Мои игроки" /><div className="toolbar"><label className="search"><span>⌕</span><input aria-label="Поиск игроков" placeholder="Имя или фамилия" value={search} onChange={e => setSearch(e.target.value)} /></label><select aria-label="Фильтр уровня"><option>Все уровни</option><option>Начинающий</option><option>Любитель</option><option>Опытный</option></select></div>{loading ? <PageLoader /> : error || !data ? <ErrorState message={error} retry={reload} /> : <section className="card player-table">{data.length ? data.map(x => <PlayerRow key={x.id} player={x} />) : <EmptyState title="Связанные игроки не найдены" />}</section>}</>
 }
 function PlayerRow({ player }: { player: CoachPlayer }) { return <Link className="player-row" to={`/coach/players/${player.id}`}><span className="avatar large">{player.firstName[0]}{player.lastName[0]}</span><div><strong>{player.firstName} {player.lastName}</strong><small>{player.preferredPosition} · {player.experienceLevel}</small></div><div className="player-progress"><ProgressBar value={player.planCompletion} label="План" /></div><span>{formatDate(player.lastActivity)}</span><b>→</b></Link> }
