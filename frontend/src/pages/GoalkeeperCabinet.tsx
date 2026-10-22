@@ -62,7 +62,7 @@ function KeeperWorkspace({ team, registerGuard }: { team: KeeperTeam; registerGu
     {tab === 'players' && <section className="card"><div className="card-heading"><div><span className="eyebrow">Только вратари выбранного состава</span><h2>Учёт вратарей</h2></div><button className="button ghost" onClick={() => setModal({ kind: 'new-player' })}>+ Добавить вратаря</button></div><KeeperRoster players={data.players} open={player => setModal({ kind: 'player', player })} /></section>}
     {tab === 'journal' && <section className="card"><div className="card-heading"><h2>Журнал вратарских тренировок</h2><span>{data.trainings.length} занятий</span></div>{data.trainings.length ? <div className="keeper-journal">{data.trainings.map(item => <button key={item.id} onClick={() => training(undefined, item.id)}><span><strong>{item.title}</strong><small>{when(item.scheduledAt)} · {item.durationMinutes} мин · {item.players} вратарей</small></span><span className={`keeper-status ${item.status.toLowerCase()}`}>{keeperStatus[item.status]}</span><span>Открыть →</span></button>)}</div> : <EmptyState title="Журнал пока пуст" />}</section>}
     {modal && <KeeperModal title={modal.kind === 'training' ? 'Тренировка вратарей' : modal.kind === 'exercise' ? 'Упражнение вратарей' : modal.kind === 'player' ? keeperName(modal.player) : 'Новый вратарь'} close={close}>
-      {modal.kind === 'training' ? <KeeperTrainingLoader teamId={team.teamId} data={data} modal={modal} register={register} saved={saved} copy={() => setModal({ ...modal, copy: true, date: keeperDate(new Date(Date.now() + 86400000)) })} /> : modal.kind === 'exercise' ? <KeeperExerciseEditor teamId={team.teamId} initial={modal.exercise} register={register} saved={saved} /> : modal.kind === 'player' ? <KeeperRecordEditor teamId={team.teamId} player={modal.player} register={register} saved={saved} /> : <KeeperNewPlayer teamId={team.teamId} register={register} saved={saved} />}
+      {modal.kind === 'training' ? <KeeperTrainingLoader team={team} data={data} modal={modal} register={register} saved={saved} copy={() => setModal({ ...modal, copy: true, date: keeperDate(new Date(Date.now() + 86400000)) })} /> : modal.kind === 'exercise' ? <KeeperExerciseEditor teamId={team.teamId} initial={modal.exercise} register={register} saved={saved} /> : modal.kind === 'player' ? <KeeperRecordEditor teamId={team.teamId} player={modal.player} register={register} saved={saved} /> : <KeeperNewPlayer teamId={team.teamId} register={register} saved={saved} />}
     </KeeperModal>}
   </>
 }
@@ -89,7 +89,8 @@ function useKeeperGuard(dirty: boolean, pending: boolean, register: Guard) {
   useEffect(() => { const prevent = (event: BeforeUnloadEvent) => { if (dirty || pending) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', prevent); return () => window.removeEventListener('beforeunload', prevent) }, [dirty, pending])
 }
 
-function KeeperTrainingLoader({ teamId, data, modal, register, saved, copy }: { teamId: number; data: KeeperWorkspace; modal: Extract<Modal, { kind: 'training' }>; register: Guard; saved: (message: string) => Promise<void>; copy: () => void }) {
+function KeeperTrainingLoader({ team, data, modal, register, saved, copy }: { team: KeeperTeam; data: KeeperWorkspace; modal: Extract<Modal, { kind: 'training' }>; register: Guard; saved: (message: string) => Promise<void>; copy: () => void }) {
+  const teamId = team.teamId
   const state = useApiData<KeeperDetail>(modal.id ? `/api/coach/goalkeepers/trainings/${modal.id}` : null)
   if (modal.id && state.loading) return <PageLoader />
   if (modal.id && (state.error || !state.data)) return <ErrorState message={state.error} retry={state.reload} />
@@ -97,23 +98,33 @@ function KeeperTrainingLoader({ teamId, data, modal, register, saved, copy }: { 
   const detail = modal.id ? state.data ?? undefined : undefined
   const initial = detail ? { ...detail.state, version: detail.version, status: detail.status, scheduledAt: keeperLocalTime(detail.state.scheduledAt) } : newKeeperPlan(modal.date, data.players)
   const draft = modal.copy ? { ...initial, scheduledAt: `${modal.date}T18:00`, version: 0, status: 'Planned', players: initial.players.filter(x => data.players.some(p => p.playerId === x.playerId)).map(x => ({ ...x, attendance: 'Unknown', rating: null, notes: '' })), notes: '' } : initial
-  return <KeeperTrainingEditor key={`${modal.id ?? 'new'}-${modal.copy ? 'copy' : 'edit'}`} teamId={teamId} id={modal.copy ? undefined : modal.id} initial={draft} data={data} names={detail?.players ?? data.players} register={register} saved={saved} copy={copy} />
+  return <KeeperTrainingEditor key={`${modal.id ?? 'new'}-${modal.copy ? 'copy' : 'edit'}`} team={team} teamId={teamId} id={modal.copy ? undefined : modal.id} initial={draft} data={data} names={detail?.players ?? data.players} register={register} saved={saved} copy={copy} />
 }
 
-export function KeeperTrainingEditor({ teamId, id, initial, data, names, register, saved, copy }: { teamId: number; id?: number; initial: KeeperPlan; data: KeeperWorkspace; names: { playerId: number; firstName: string; lastName: string }[]; register: Guard; saved: (message: string) => Promise<void>; copy: () => void }) {
+export function KeeperTrainingEditor({ team, teamId, id, initial, data, names, register, saved, copy }: { team: KeeperTeam; teamId: number; id?: number; initial: KeeperPlan; data: KeeperWorkspace; names: { playerId: number; firstName: string; lastName: string }[]; register: Guard; saved: (message: string) => Promise<void>; copy: () => void }) {
   const [draft, setDraft] = useState(initial), [pending, setPending] = useState(false), [error, setError] = useState('')
+  const [exporting, setExporting] = useState(false)
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null)
   const locked = ['Completed', 'Cancelled'].includes(initial.status)
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial)
-  useKeeperGuard(dirty, pending, register)
+  useKeeperGuard(dirty, pending || exporting, register)
   const players = useMemo(() => [...new Map([...data.players, ...names].map(p => [p.playerId, p])).values()], [data.players, names])
   const update = (patch: Partial<KeeperPlan>) => { setDraft(value => ({ ...value, ...patch })); setError('') }
   const step = (index: number, patch: Partial<KeeperPlan['plan'][number]>) => update({ plan: draft.plan.map((item, i) => i === index ? { ...item, ...patch } : item) })
   const add = (exerciseId: number) => { const exercise = data.exercises.find(x => x.id === exerciseId); update({ plan: [...draft.plan, { exerciseId: exercise?.id ?? null, title: exercise?.title ?? '', stage: draft.plan.length ? 'Основная часть' : 'Разминка', durationMinutes: exercise?.durationMinutes ?? 10, instructions: exercise?.description ?? '' }] }) }
   const reorder = (index: number, offset: number) => { const plan = [...draft.plan]; [plan[index], plan[index + offset]] = [plan[index + offset], plan[index]]; update({ plan }) }
   const participant = (playerId: number, patch: Partial<KeeperPlan['players'][number]>) => update({ players: draft.players.map(p => p.playerId === playerId ? { ...p, ...patch } : p) })
+  const exportPdf = async () => {
+    if (!id || dirty || pending || exporting || confirmStatus) return
+    setExporting(true); setError('')
+    try {
+      const { downloadKeeperPlanPdf } = await import('./goalkeeperPdf')
+      await downloadKeeperPlanPdf({ plan: initial, team, names: players })
+    } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сформировать PDF. Попробуйте ещё раз.') }
+    finally { setExporting(false) }
+  }
   const save = async (status: string, confirmed = false) => {
-    if (pending || locked) return
+    if (pending || exporting || locked) return
     if (!draft.title.trim() || !draft.scheduledAt || !draft.plan.length || !draft.players.length || draft.plan.some(x => !x.title.trim() || x.durationMinutes < 1 || x.durationMinutes > 180) || draft.plan.reduce((s, x) => s + x.durationMinutes, 0) > 360) { setError('Укажите тему, дату, вратарей и хотя бы один этап с названием и длительностью. Общая длительность — до 360 минут.'); return }
     if (status === 'Completed' && draft.players.some(p => p.attendance === 'Unknown')) { setError('Перед завершением отметьте посещаемость всех вратарей.'); return }
     if (['Completed', 'Cancelled'].includes(status) && !confirmed) { setConfirmStatus(status); return }
@@ -121,7 +132,9 @@ export function KeeperTrainingEditor({ teamId, id, initial, data, names, registe
     setPending(true); setError('')
     try { const path = `/api/coach/goalkeepers/teams/${teamId}/trainings${id ? `/${id}` : ''}`; const body = { ...draft, status, scheduledAt: new Date(draft.scheduledAt).toISOString() }; if (id) await put(path, body); else await post(path, body); await saved(status === 'Completed' ? 'Тренировка завершена. Учёт посещаемости обновлён.' : status === 'Cancelled' ? 'Тренировка отменена. История сохранена.' : 'Тренировка сохранена в календаре.') } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось сохранить тренировку.') } finally { setPending(false) }
   }
-  return <div className="keeper-training-editor">{locked && <p className="keeper-locked">{keeperStatus[initial.status]} · План и итоги сохранены в истории. Можно повторить занятие на другую дату.</p>}<fieldset disabled={pending || locked || !!confirmStatus}>
+  return <div className="keeper-training-editor">{locked && <p className="keeper-locked">{keeperStatus[initial.status]} · План и итоги сохранены в истории. Можно повторить занятие на другую дату.</p>}
+    <div className="keeper-pdf-toolbar"><p className="readonly-note" id="keeper-pdf-hint">{!id || dirty ? 'Сохраните план, чтобы скачать актуальную версию в PDF.' : 'PDF: план по этапам и участники, без личных наблюдений и оценок вратарей.'}</p><button type="button" className="button ghost" aria-describedby="keeper-pdf-hint" disabled={!id || dirty || pending || exporting || !!confirmStatus} onClick={() => void exportPdf()}>{exporting ? 'Формируем PDF…' : 'Скачать PDF'}</button></div>
+    <fieldset disabled={pending || exporting || locked || !!confirmStatus}>
     <div className="profile-form"><label className="full">Тема тренировки<input maxLength={180} value={draft.title} onChange={e => update({ title: e.target.value })} required /></label><label>Дата и время<input aria-label="Дата и время вратарской тренировки" type="datetime-local" min="2020-01-01T00:00" max="2100-12-31T23:59" value={draft.scheduledAt} onChange={e => update({ scheduledAt: e.target.value })} required /></label><label>Место<input maxLength={500} value={draft.venue} onChange={e => update({ venue: e.target.value })} placeholder="Поле, зал, площадка" /></label><label>Интенсивность<select value={draft.intensity} onChange={e => update({ intensity: e.target.value })}>{['Низкая', 'Средняя', 'Высокая'].map(x => <option key={x}>{x}</option>)}</select></label><label>Цель занятия<input maxLength={2000} value={draft.objective} onChange={e => update({ objective: e.target.value })} placeholder="Что хотим улучшить" /></label></div>
     <div className="keeper-plan-heading"><h3>Полный план занятия</h3><strong>{draft.plan.reduce((sum, x) => sum + x.durationMinutes, 0)} мин</strong></div><p className="readonly-note">Этапы идут сверху вниз. Описание сохраняется в плане и не меняется при редактировании библиотеки.</p>
     <div className="keeper-plan-list">{draft.plan.map((item, index) => <article key={index}><div className="keeper-step-heading"><b>Этап {index + 1}</b><div><button type="button" className="button ghost" aria-label={`Этап ${index + 1} вверх`} disabled={!index} onClick={() => reorder(index, -1)}>↑</button><button type="button" className="button ghost" aria-label={`Этап ${index + 1} вниз`} disabled={index === draft.plan.length - 1} onClick={() => reorder(index, 1)}>↓</button><button type="button" className="button ghost" aria-label={`Убрать этап ${index + 1}`} onClick={() => update({ plan: draft.plan.filter((_, i) => i !== index) })}>×</button></div></div><div className="profile-form"><label>Название этапа {index + 1}<input maxLength={180} value={item.title} onChange={e => step(index, { title: e.target.value })} /></label><label>Часть занятия<select value={item.stage} onChange={e => step(index, { stage: e.target.value })}>{keeperStages.map(x => <option key={x}>{x}</option>)}</select></label><label>Длительность, мин<input aria-label={`Минуты этапа ${index + 1}`} type="number" min={1} max={180} value={item.durationMinutes || ''} onChange={e => step(index, { durationMinutes: Number(e.target.value) })} /></label><label>Инструкция<textarea maxLength={4000} value={item.instructions} onChange={e => step(index, { instructions: e.target.value })} /></label></div></article>)}</div>

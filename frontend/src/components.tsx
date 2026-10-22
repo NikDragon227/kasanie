@@ -6,7 +6,7 @@ import { useAuth } from './auth'
 export const roleHome: Record<string, string> = { Player: '/player', Coach: '/coach', Parent: '/parent', SchoolOwner: '/school', SchoolAdmin: '/school', Organizer: '/organizer/activities', Admin: '/admin' }
 type NavigationItem = { to: string; label: string; icon: string; section?: string }
 
-const sidebarMenuArtwork: Record<string, { image: string; scale: number }> = {
+const sidebarMenuArtwork: Record<string, { image: string; scale: number; format?: 'png' | 'webp' }> = {
   '/coach': { image: 'overview', scale: 1.95 },
   '/coach/teams?tab=chat': { image: 'inbox', scale: 1.48 },
   '/coach/teams?tab=squad': { image: 'squad', scale: 1.32 },
@@ -14,6 +14,7 @@ const sidebarMenuArtwork: Record<string, { image: string; scale: number }> = {
   '/coach/teams?tab=tactics': { image: 'tactics', scale: 1.5 },
   '/coach/players': { image: 'development', scale: 1.87 },
   '/coach/trainings': { image: 'training', scale: 1.48 },
+  '/goalkeeper': { image: 'goalkeeper-coach', scale: 1.95, format: 'png' },
   '/coach/teams?tab=injuries': { image: 'medical', scale: 1.73 },
   '/coach/teams?tab=schedule': { image: 'schedule', scale: 1.64 },
   '/coach/teams?tab=tournaments': { image: 'tournaments', scale: 1.79 },
@@ -28,7 +29,7 @@ const sidebarMenuArtwork: Record<string, { image: string; scale: number }> = {
 function NavigationIcon({ item }: { item: NavigationItem }) {
   const artwork = sidebarMenuArtwork[item.to]
   if (!artwork) return <span aria-hidden>{item.icon}</span>
-  return <span className="sidebar-menu-icon" aria-hidden="true" style={{ '--menu-icon-scale': artwork.scale } as CSSProperties}><img src={`/brand/navigation/${artwork.image}.webp`} alt="" width="26" height="26" decoding="async" /></span>
+  return <span className="sidebar-menu-icon" aria-hidden="true" style={{ '--menu-icon-scale': artwork.scale } as CSSProperties}><img src={`/brand/navigation/${artwork.image}.${artwork.format ?? 'webp'}`} alt="" width="26" height="26" decoding="async" /></span>
 }
 
 const navigation: Record<string, NavigationItem[]> = {
@@ -98,7 +99,7 @@ export function AppShell() {
     const expected = new URLSearchParams(search)
     const current = new URLSearchParams(location.search)
     if ([...expected].some(([key, value]) => current.get(key) !== value)) return false
-    return [...current.keys()].every(key => ['team', 'school', 'trainingView', 'player'].includes(key) || expected.has(key))
+    return [...current.keys()].every(key => ['team', 'school', 'trainingView', 'keeperView', 'player'].includes(key) || expected.has(key))
   }
   return <div className="app-shell">
     <aside className="sidebar">

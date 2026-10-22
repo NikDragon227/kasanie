@@ -3,9 +3,13 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth'
 import { resetCsrf } from '../api'
+import { AppShell } from '../components'
 import { GoalkeeperCabinetPage, KeeperTrainingEditor } from '../pages/GoalkeeperCabinet'
 import { GoalkeeperStaffPanel } from '../pages/GoalkeeperStaffPanel'
 import { keeperCalendarDays, newKeeperPlan, type KeeperWorkspace } from '../pages/goalkeeperModel'
+
+const pdf = vi.hoisted(() => ({ download: vi.fn(async () => {}) }))
+vi.mock('../pages/goalkeeperPdf', () => ({ downloadKeeperPlanPdf: pdf.download }))
 
 const teams = [{ teamId: 3, schoolId: 2, school: 'Плазма СПОРТ', name: 'U17 — Первый состав', coach: 'Тренер ВР' }, { teamId: 4, schoolId: 3, school: 'Динамо', name: 'U15', coach: 'Тренер ВР' }]
 const data: KeeperWorkspace = {
@@ -29,10 +33,47 @@ function mockRequests(appointments = teams) {
 function setup(path = '/goalkeeper?team=3&school=2') {
   return render(<MemoryRouter initialEntries={[path]}><AuthProvider><GoalkeeperCabinetPage /></AuthProvider></MemoryRouter>)
 }
-beforeEach(() => { resetCsrf(); sessionStorage.clear() })
+beforeEach(() => { resetCsrf(); sessionStorage.clear(); pdf.download.mockReset() })
 afterEach(() => vi.restoreAllMocks())
 
 describe('goalkeeper cabinet', () => {
+  it('uses the supplied goalkeeper coach artwork in the navigation', async () => {
+    mockRequests()
+    render(<MemoryRouter initialEntries={['/goalkeeper?team=3&school=2&keeperView=journal']}><AuthProvider><AppShell /></AuthProvider></MemoryRouter>)
+    const link = await screen.findByRole('link', { name: 'Тренер вратарей' })
+    expect(link.querySelector('img')).toHaveAttribute('src', '/brand/navigation/goalkeeper-coach.png')
+    expect(link).toHaveClass('active')
+  })
+  it('downloads the saved training PDF with its team context without writing to the API', async () => {
+    const fetch = mockRequests()
+    const initial = { ...newKeeperPlan('2026-10-22', data.players), version: 1, plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: 'Две серии' }] }
+    render(<KeeperTrainingEditor team={teams[0]} id={3} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать PDF' }))
+    await waitFor(() => expect(pdf.download).toHaveBeenCalledWith({ plan: initial, team: teams[0], names: data.players }))
+    expect(fetch.mock.calls.some(([, options]) => ['POST', 'PUT'].includes(options?.method ?? ''))).toBe(false)
+    fireEvent.change(screen.getByLabelText('Тема тренировки'), { target: { value: 'Изменённый план' } })
+    expect(screen.getByRole('button', { name: 'Скачать PDF' })).toBeDisabled()
+    expect(screen.getByText('Сохраните план, чтобы скачать актуальную версию в PDF.')).toBeInTheDocument()
+  })
+  it('disables PDF for unsaved plans and allows it for completed sessions', async () => {
+    mockRequests()
+    const initial = { ...newKeeperPlan('2026-10-22', data.players), plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: '' }] }
+    const view = render(<KeeperTrainingEditor team={teams[0]} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Скачать PDF' })).toBeDisabled()
+    view.unmount()
+    render(<KeeperTrainingEditor team={teams[0]} id={3} teamId={3} initial={{ ...initial, status: 'Completed' }} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать PDF' }))
+    await waitFor(() => expect(pdf.download).toHaveBeenCalledOnce())
+  })
+  it('shows a PDF failure and permits retry without losing the training', async () => {
+    mockRequests(); pdf.download.mockRejectedValueOnce(new Error('Не удалось загрузить шрифт PDF'))
+    const initial = { ...newKeeperPlan('2026-10-22', data.players), version: 1, plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: '' }] }
+    render(<KeeperTrainingEditor team={teams[0]} id={3} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать PDF' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить шрифт PDF')
+    expect(screen.getByRole('button', { name: 'Скачать PDF' })).toBeEnabled()
+    expect(screen.getByLabelText('Название этапа 1')).toHaveValue('Ловля')
+  })
   it('requires a specialist appointment instead of falling back to the general squad', async () => {
     const fetch = mockRequests([])
     setup()
@@ -67,7 +108,7 @@ describe('goalkeeper cabinet', () => {
   })
   it('builds a complete ordered session plan from a library snapshot', async () => {
     const fetch = mockRequests(), saved = vi.fn(async () => {})
-    render(<KeeperTrainingEditor teamId={3} initial={newKeeperPlan('2026-10-22', data.players)} data={data} names={data.players} register={() => {}} saved={saved} copy={() => {}} />)
+    render(<KeeperTrainingEditor team={teams[0]} teamId={3} initial={newKeeperPlan('2026-10-22', data.players)} data={data} names={data.players} register={() => {}} saved={saved} copy={() => {}} />)
     fireEvent.change(screen.getByLabelText('Добавить упражнение в план'), { target: { value: '9' } })
     fireEvent.click(screen.getByRole('button', { name: '+ Свой этап' }))
     fireEvent.change(screen.getByLabelText('Название этапа 2'), { target: { value: 'Заминка' } })
@@ -86,7 +127,7 @@ describe('goalkeeper cabinet', () => {
     const fetch = mockRequests()
     fetch.mockImplementation((input, options) => String(input) === '/api/auth/csrf' ? json({ token: 'x' }) : options?.method === 'PUT' ? json({ message: 'Обновите страницу: версия изменена' }, 409) : json({}))
     const initial = { ...newKeeperPlan('2026-10-22', data.players), version: 2, plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: '' }] }
-    render(<KeeperTrainingEditor id={3} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    render(<KeeperTrainingEditor team={teams[0]} id={3} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
     fireEvent.change(screen.getByLabelText('Тема тренировки'), { target: { value: 'Мой несохранённый план' } })
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить план' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('версия изменена')
@@ -95,12 +136,12 @@ describe('goalkeeper cabinet', () => {
   it('requires attendance before completion and completed sessions are read-only', () => {
     mockRequests()
     const initial = { ...newKeeperPlan('2026-10-20', data.players), plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: '' }] }
-    const view = render(<KeeperTrainingEditor teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
+    const view = render(<KeeperTrainingEditor team={teams[0]} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Завершить тренировку' }))
     expect(screen.getByRole('alert')).toHaveTextContent('посещаемость всех вратарей')
     view.unmount()
     const copy = vi.fn()
-    render(<KeeperTrainingEditor id={3} teamId={3} initial={{ ...initial, status: 'Completed' }} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={copy} />)
+    render(<KeeperTrainingEditor team={teams[0]} id={3} teamId={3} initial={{ ...initial, status: 'Completed' }} data={data} names={data.players} register={() => {}} saved={vi.fn(async () => {})} copy={copy} />)
     expect(screen.getByLabelText('Тема тренировки')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Сохранить план' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Повторить на другую дату' }))
@@ -117,7 +158,7 @@ describe('goalkeeper cabinet', () => {
   it('confirms completion inside the page before sending the final result', async () => {
     const fetch = mockRequests(), saved = vi.fn(async () => {})
     const initial = { ...newKeeperPlan('2026-10-20', data.players), players: [{ playerId: 1, attendance: 'Present', rating: 8, notes: 'Демонстрация' }], plan: [{ exerciseId: null, title: 'Ловля', stage: 'Разминка', durationMinutes: 10, instructions: '' }] }
-    render(<KeeperTrainingEditor teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={saved} copy={() => {}} />)
+    render(<KeeperTrainingEditor team={teams[0]} teamId={3} initial={initial} data={data} names={data.players} register={() => {}} saved={saved} copy={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Завершить тренировку' }))
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Завершить занятие?')
     expect(fetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
