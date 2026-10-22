@@ -20,7 +20,7 @@ public enum LinkStatus { Pending, Active, Suspended }
 public enum TeamInvitationStatus { Pending, Accepted, Declined, Cancelled }
 public enum PlanStatus { Active, Completed, Archived }
 public enum SessionStatus { Planned, InProgress, Completed }
-public enum SchoolMembershipRole { Owner, Administrator, Coach }
+public enum SchoolMembershipRole { Owner, Administrator, Coach, GoalkeeperCoach }
 public enum TeamTrainingStatus { Planned, InProgress, Completed }
 public enum AttendanceStatus { Unknown, Present, Late, Absent, Excused }
 public enum TeamMessageChannel { Owner, Team, Parents }

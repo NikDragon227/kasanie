@@ -1,0 +1,40 @@
+.keeper-cabinet { min-width: 0; }
+.keeper-cabinet .stat-card.accent > span { color: #fff; }
+.keeper-context { display: grid; grid-template-columns: 1fr 1.2fr .8fr; margin: 1rem 0 1.3rem; overflow: hidden; background: #102c32; color: white; border-radius: 18px; }
+.keeper-context > label, .keeper-context > div { padding: 1.1rem 1.3rem; min-width: 0; display: grid; align-content: center; gap: .5rem; border-right: 1px solid #ffffff18; }
+.keeper-context label, .keeper-context small { font-size: .7rem; color: #9ec9c4; }
+.keeper-context select { width: 100%; border: 0; padding: .3rem 1.5rem .3rem 0; color: white; background: transparent; font-size: 1rem; font-weight: 700; text-overflow: ellipsis; }
+.keeper-context option { color: #101b28; }
+.keeper-context strong { color: white; font-size: .95rem; }
+.keeper-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.2rem; }
+.keeper-toolbar nav { display: flex; flex-wrap: wrap; gap: .3rem; }
+.keeper-toolbar nav button { border: 0; border-radius: 10px; background: transparent; color: #52616b; padding: .7rem 1rem; font-weight: 600; cursor: pointer; }
+.keeper-toolbar nav button.active { background: #e9eeff; color: #414eff; }
+.keeper-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.keeper-overview p { line-height: 1.65; }
+.keeper-exercises { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 1rem; }
+.keeper-exercises article { padding: 1.25rem; border: 1px solid #e0e6eb; border-radius: 15px; display: grid; align-content: start; gap: .6rem; }
+.keeper-exercises article.archived { background: #f5f6f7; color: #68727b; }
+.keeper-exercises h3, .keeper-exercises p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.keeper-exercises button { margin-top: .6rem; justify-self: start; }
+.keeper-roster > button, .keeper-journal > button { display: flex; align-items: center; gap: 1rem; border: 0; border-bottom: 1px solid #e4e8ed; background: none; width: 100%; text-align: left; padding: 1.1rem 0; color: inherit; cursor: pointer; }
+.keeper-roster button > span:nth-child(2), .keeper-journal button > span:first-child { flex: 1; min-width: 0; }
+.keeper-roster small, .keeper-journal small { display: block; margin-top: .3rem; color: #697a87; }
+.keeper-roster strong, .keeper-journal strong { overflow-wrap: anywhere; }
+.keeper-status { font-size: .75rem; background: #eaf0ff; color: #34548c; padding: .45rem .6rem; border-radius: 8px; }
+.keeper-status.completed { background: #e1f4e9; color: #247341; }.keeper-status.cancelled { color: #737b82; background: #f0f1f2; }
+.keeper-calendar .card-heading { align-items: start; flex-wrap: wrap; gap: 1rem; }.keeper-calendar .card-heading p { max-width: 650px; margin-bottom: 0; color: #6d7d89; font-size: .85rem; }
+.keeper-calendar-controls { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }.keeper-calendar-controls label { display: grid; gap: .35rem; font-size: .75rem; color: #5b6977; }.keeper-calendar-controls input, .keeper-calendar-controls select { min-height: 44px; }.keeper-calendar-controls .button { min-height: 44px; }
+.keeper-calendar-scroll { overflow-x: auto; }.keeper-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(115px, 1fr)); min-width: 805px; }
+.keeper-weekday { padding: .7rem; font-weight: 600; color: #69778a; text-align: center; }.keeper-day { min-height: 145px; padding: .4rem; border: 1px solid #e8edf2; background: white; }.keeper-day.other-month { background: #f6f8fa; }.keeper-day.today { border-color: #7f88ff; box-shadow: inset 0 0 0 1px #7f88ff; }
+.keeper-day-add { display: flex; justify-content: space-between; width: 100%; border: 0; color: inherit; background: none; padding: .35rem; cursor: pointer; }.keeper-day-add span { color: #7f8b9a; }
+.keeper-calendar-session { display: grid; width: 100%; padding: .55rem; margin: .35rem 0; gap: .3rem; border: 0; border-left: 3px solid #626cff; border-radius: 6px; text-align: left; background: #edf0ff; color: #263947; overflow-wrap: anywhere; cursor: pointer; }.keeper-calendar-session strong { font-size: .78rem; }.keeper-calendar-session small, .keeper-match small { font-size: .65rem; }.keeper-calendar-session.completed { border-color: #1e9b62; background: #e7f5ed; }.keeper-calendar-session.cancelled { border-color: #a5adb6; background: #f0f1f3; opacity: .7; }
+.keeper-match { background: #e6f5fa; color: #23738a; padding: .5rem; margin: .3rem 0; border-radius: 6px; font-size: .75rem; }.keeper-match small { display: block; margin-top: .3rem; }
+.keeper-modal-backdrop { z-index: 130; overflow: auto; padding: 1.5rem; }.keeper-modal.modal-panel { width: min(1120px, 95vw); max-height: 92vh; overflow-y: auto; outline: none; }
+.keeper-training-editor fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }.keeper-plan-heading, .keeper-step-heading { display: flex; gap: 1rem; justify-content: space-between; align-items: center; }.keeper-plan-heading { margin-top: 1.3rem; }.keeper-plan-heading strong { color: #515eff; }.keeper-step-heading > div { display: flex; gap: .3rem; }.keeper-step-heading button { padding: .4rem .65rem; }
+.keeper-plan-list > article { border: 1px solid #e1e7ed; background: #fafbfd; border-radius: 14px; padding: 1rem; margin: .75rem 0; }.keeper-step-heading { margin-bottom: .8rem; }.keeper-add-step { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 1.5rem; }.keeper-add-step select { max-width: 100%; }
+.keeper-participants > article { padding: 1rem 0; border-top: 1px solid #e3e8ee; }.keeper-participant-fields { display: grid; grid-template-columns: minmax(160px, .8fr) 90px 1.5fr; gap: .8rem; margin-top: .8rem; }.keeper-participant-fields label { display: grid; gap: .4rem; font-size: .8rem; }.keeper-participant-fields textarea { min-height: 48px; }.keeper-editor-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.5rem; border-top: 1px solid #e3e8ee; padding-top: 1rem; }.keeper-locked { padding: .9rem; background: #eaf2f0; border-radius: 10px; }
+.goalkeeper-staff-panel { margin-top: 1rem; }.goalkeeper-staff-panel p { line-height: 1.6; }.goalkeeper-staff-panel .assigned-staff { margin: 1rem 0; }
+.keeper-confirm { padding: 1.1rem; margin-top: 1rem; border: 1px solid #cdd6ed; background: #f0f4ff; border-radius: 12px; }
+@media (max-width: 1000px) { .keeper-context { grid-template-columns: 1fr 1fr; }.keeper-context > div { grid-column: 1 / -1; border-top: 1px solid #ffffff18; }.keeper-overview { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .keeper-context { grid-template-columns: 1fr; }.keeper-participant-fields { grid-template-columns: 1fr 90px; }.keeper-participant-fields > label:last-child { grid-column: 1 / -1; }.keeper-roster button > span:last-child { display: none; }.keeper-roster > button { flex-wrap: wrap; }.keeper-modal-backdrop { padding: .4rem; }.keeper-modal.modal-panel { width: 100%; max-height: 96vh; padding: 1rem; }.keeper-journal > button { flex-wrap: wrap; } }

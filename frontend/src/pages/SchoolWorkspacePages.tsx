@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { SchoolBoundary } from './SchoolScope'
 import { AdminTeamControls } from './AdminSchoolControls'
+import { GoalkeeperStaffPanel } from './GoalkeeperStaffPanel'
 import { post, put, remove } from '../api'
 import { EmptyState, ErrorState, PageHeader, PageLoader, ProgressBar, StatCard } from '../components'
 import { formatDate, useApiData } from '../hooks'
@@ -108,6 +109,7 @@ function TeamWorkspace({ schoolId, data, coaches, tab, reload, setNotice }: { sc
     {tab === 'communication' && <OwnerTeamChat data={data} send={text => save(`/api/school/${schoolId}/teams/${data.team.id}/messages`, { channel: 'Owner', text }, 'Сообщение отправлено тренеру.')} />}
     {tab === 'roster' && <><div className="section-toolbar"><div><span className="eyebrow">Состав команды</span><h2>{data.players.length} игроков</h2></div><button className="button ghost" onClick={() => setPanel(panel === 'group' ? null : 'group')}>+ Тренировочная группа</button></div>{panel === 'group' && <GroupForm players={data.players} submit={value => save(`/api/school/${schoolId}/teams/${data.team.id}/groups`, value, 'Тренировочная группа создана.')} />}<Roster data={data} /><section className="card staff-panel"><div className="card-heading"><h2>Тренерский штаб</h2></div><div className="assigned-staff">{data.team.coaches.map(x => <span key={x.coachId}><b>{x.isHeadCoach ? 'Главный тренер' : 'Тренер'}</b>{x.displayName}<button onClick={() => void unassign(x.coachId)}>×</button></span>)}</div><form className="inline-assign" onSubmit={assign}><select name="coachId" required><option value="">Выберите тренера</option>{coaches.filter(x => x.coachId && x.isActive && !data.team.coaches.some(c => c.coachId === x.coachId)).map(x => <option value={x.coachId} key={x.userId}>{x.displayName}</option>)}</select><label className="checkbox"><input name="isHeadCoach" type="checkbox" />Главный</label><button className="button ghost">Назначить</button></form></section></>}
     {tab === 'collective' && <Collective data={data} />}{tab === 'tactics' && <Tactics data={data} />}{tab === 'training' && <TrainingList data={data} />}
+    {tab === 'roster' && <GoalkeeperStaffPanel schoolId={schoolId} teamId={data.team.id} coaches={coaches} />}
     {tab === 'matches' && <><SectionToolbar eyebrow="Календарь" title="Матчи" action="+ Добавить матч" click={() => setPanel(panel === 'match' ? null : 'match')} />{panel === 'match' && <MatchForm submit={value => save(`/api/school/${schoolId}/teams/${data.team.id}/matches`, value, 'Матч добавлен.')} />}<Matches data={data} /></>}
     {tab === 'tournaments' && <><SectionToolbar eyebrow="Соревнования" title="Турниры" action="+ Добавить турнир" click={() => setPanel(panel === 'tournament' ? null : 'tournament')} />{panel === 'tournament' && <TournamentForm submit={value => save(`/api/school/${schoolId}/teams/${data.team.id}/tournaments`, value, 'Турнир добавлен.')} />}<Tournaments data={data} /></>}
     {tab === 'economy' && <Economy data={data} />}

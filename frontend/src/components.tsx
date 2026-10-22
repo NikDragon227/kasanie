@@ -44,6 +44,7 @@ const navigation: Record<string, NavigationItem[]> = {
     { to: '/coach/teams?tab=tactics', label: 'Тактика', icon: '◫' },
     { to: '/coach/players', label: 'Центр развития', icon: '↗' },
     { to: '/coach/trainings', label: 'Тренировки', icon: '✓', section: 'Процесс' },
+    { to: '/goalkeeper', label: 'Тренер вратарей', icon: '◉' },
     { to: '/coach/teams?tab=injuries', label: 'Медштаб', icon: '✚' },
     { to: '/coach/teams?tab=schedule', label: 'Расписание', icon: '▤' },
     { to: '/coach/teams?tab=tournaments', label: 'Турниры', icon: '♜' },
@@ -83,7 +84,8 @@ export function AuthenticatedGuard() {
 export function AppShell() {
   const { user, logout } = useAuth()
   const coachScope = useOptionalCoachScope()
-  const scopeParams = new URLSearchParams(useLocation().search)
+  const scopeLocation = useLocation()
+  const scopeParams = new URLSearchParams(scopeLocation.pathname === '/goalkeeper' ? '' : scopeLocation.search)
   const scopedLink = (path: string) => coachScope?.link(path) ?? (user?.roles.includes('Coach') ? coachScopedLink(path, Number(scopeParams.get('school')) || 0, Number(scopeParams.get('team')) || 0) : path)
   const navigate = useNavigate()
   const location = useLocation()

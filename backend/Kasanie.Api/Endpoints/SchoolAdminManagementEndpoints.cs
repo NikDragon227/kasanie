@@ -78,7 +78,8 @@ public static partial class EndpointMapping
             if (membership is null) return Results.NotFound();
             if (membership.Role == SchoolMembershipRole.Owner) return Results.Conflict(new { message = "Доступ владельца меняется через смену владельца школы." });
             if (!await db.CoachProfiles.AnyAsync(x => x.UserId == userId)) return Results.BadRequest(new { message = "У пользователя нет профиля тренера." });
-            membership.IsActive = request.IsActive; membership.Role = SchoolMembershipRole.Coach;
+            membership.IsActive = request.IsActive;
+            if (membership.Role != SchoolMembershipRole.GoalkeeperCoach) membership.Role = SchoolMembershipRole.Coach;
             if (!request.IsActive)
                 db.TeamCoaches.RemoveRange(await db.TeamCoaches.Where(x => x.Team.SchoolId == schoolId && x.Coach.UserId == userId).ToListAsync());
             await SaveCoachAudit(db, principal, request.IsActive ? "admin_school_coach_enabled" : "admin_school_coach_disabled", nameof(SchoolMembership), $"{schoolId}:{userId}");

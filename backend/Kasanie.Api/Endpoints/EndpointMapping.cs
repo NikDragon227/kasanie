@@ -12,6 +12,7 @@ public static partial class EndpointMapping
         app.MapPlayer();
         app.MapCoach();
         app.MapTeamTraining();
+        app.MapGoalkeeperTraining();
         app.MapParent();
         app.MapAdmin();
         app.MapSchools();

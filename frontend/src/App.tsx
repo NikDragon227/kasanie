@@ -13,6 +13,7 @@ import { SchoolDashboardPage, SchoolTeamsPage } from './pages/SchoolWorkspacePag
 import { TeamTrainingDetailPage, TeamTrainingJournalPage } from './pages/TeamTrainingPages'
 import { TrainingWorkspacePage } from './pages/TrainingWorkspace'
 import { CoachTeamsPage } from './pages/CoachTeamPage'
+import { GoalkeeperCabinetPage } from './pages/GoalkeeperCabinet'
 import { GuestParticipationPage, MyActivitiesPage, OrganizerActivitiesPage, OrganizerRegisterPage, PublicActivityPage, SportsNearbyPage } from './pages/SportsNearbyPages'
 import { FeedbackWidget } from './FeedbackWidget'
 import { initYandexMetrica, trackYandexMetricaPageView } from './metrica'
@@ -38,6 +39,7 @@ function MetricaTracker() {
 
 export default function App() {
   return <><MetricaTracker /><Routes>
+    <Route element={<RoleGuard role="Coach" />}><Route element={<AppShell />}><Route path="/goalkeeper" element={<GoalkeeperCabinetPage />} /></Route></Route>
     <Route path="/" element={<SportsNearbyPage />} /><Route path="/sports" element={<SportsRouteRedirect />} /><Route path="/activities/:slug" element={<PublicActivityPage />} /><Route path="/guest/participations/:token" element={<GuestParticipationPage />} /><Route path="/join" element={<RegistrationChoicePage />} /><Route path="/register-parent" element={<PortalUserRegisterPage role="Parent" />} /><Route path="/register-coach" element={<PortalUserRegisterPage role="Coach" />} /><Route path="/register-organizer" element={<OrganizerRegisterPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/confirm-email" element={<ConfirmEmailPage />} /><Route path="/resend-confirmation" element={<ResendConfirmationPage />} /><Route path="/documents/privacy" element={<PrivacyPolicyPage />} /><Route path="/documents/terms" element={<TermsPage />} /><Route path="/documents/organizer-rules" element={<OrganizerRulesPage />} />
     <Route element={<AuthenticatedGuard />}><Route path="/my/activities" element={<MyActivitiesPage />} /><Route path="/organizer/activities" element={<OrganizerActivitiesPage />} /><Route element={<AppShell />}><Route path="/account/security" element={<AccountSecurityPage />} /></Route></Route>
     <Route element={<RoleGuard role="Player" />}><Route element={<AppShell />}><Route path="/player" element={<PlayerDashboard />} /><Route path="/player/profile" element={<ProfilePage />} /><Route path="/player/assessment" element={<AssessmentPage />} /><Route path="/player/training" element={<TrainingPlanPage />} /><Route path="/player/training/:sessionId" element={<WorkoutPage />} /><Route path="/player/progress" element={<ProgressPage />} /></Route></Route>
